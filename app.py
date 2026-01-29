@@ -236,9 +236,10 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     else:
                         st.write("") # Espacio vacío si acertó
 
-                # Explicación
-                st.markdown(f"**📝 Explicación:** {r['explicacion']}")
-                st.markdown("---") # Línea separadora entre preguntas
+                # Explicación (Separada para forzar renderizado LaTeX correcto)
+                st.markdown("**📝 Explicación:**")
+                st.write(r['explicacion']) 
+                st.markdown("---")
 
             # --- BOTÓN DE REINICIO ---
             # Lo ponemos al final y centrado
