@@ -69,6 +69,9 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
 # =======================================================
 # LÓGICA C: AUTOEVALUACIÓN (MEJORADO)
 # =======================================================
+# =======================================================
+# LÓGICA C: AUTOEVALUACIÓN (Quiz)
+# =======================================================
 elif ruta == "c) Autoevaluación (Quiz)":
     st.markdown("### 📝 Centro de Evaluación")
 
@@ -83,7 +86,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 st.session_state.config_temas = temario.TEMAS_PARCIAL_1
                 st.session_state.config_cant = 8
                 st.session_state.trigger_quiz = True
-                st.rerun() # Forzamos recarga para ocultar opciones inmediatamente
+                st.rerun()
                 
         with col2:
             if st.button("🏆 Generar Segundo Parcial (8 preguntas)", use_container_width=True):
@@ -92,7 +95,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 st.session_state.trigger_quiz = True
                 st.rerun()
 
-        # Opción Personalizada "Escondida" en un desplegable para no ensuciar
+        # Opción Personalizada
         with st.expander("⚙️ Opciones Personalizadas (Avanzado)"):
             st.write("Selecciona temas específicos:")
             temas_custom = st.multiselect("Temas:", temario.LISTA_TEMAS)
@@ -109,7 +112,6 @@ elif ruta == "c) Autoevaluación (Quiz)":
         if st.session_state.get("trigger_quiz"):
             with st.spinner("🧠 El profesor está redactando tu examen..."):
                 try:
-                    # Usamos el nuevo cerebro de muestras
                     from modules import banco_muestras
                     
                     prompt_quiz = temario.generar_prompt_quiz(
@@ -119,7 +121,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     respuesta = model.generate_content(prompt_quiz)
                     datos_quiz = limpiar_json(respuesta.text)
                     
-                    # Inicializamos variables de estado del Quiz
+                    # Inicializamos variables
                     st.session_state.preguntas_quiz = datos_quiz
                     st.session_state.indice_pregunta = 0
                     st.session_state.respuestas_usuario = []
@@ -132,23 +134,20 @@ elif ruta == "c) Autoevaluación (Quiz)":
 
     # --- PANTALLA 2: RESPONDIENDO EL QUIZ ---
     else:
-        # Barra de progreso superior
         total = len(st.session_state.preguntas_quiz)
         actual = st.session_state.indice_pregunta
         
         if actual < total:
             pregunta_data = st.session_state.preguntas_quiz[actual]
             
-            # Mostramos progreso
             st.progress((actual) / total, text=f"Pregunta {actual + 1} de {total}")
             st.markdown(f"#### {pregunta_data['pregunta']}")
             
-            # --- ESTADO A: Usuario aún no responde ---
-            # Verificamos si ya tenemos respuesta para este índice
+            # Verificamos si ya respondió esta pregunta
             ya_respondido = len(st.session_state.respuestas_usuario) > actual
             
+            # --- ESTADO A: Aún no responde ---
             if not ya_respondido:
-                # Mostramos opciones (usamos key dinámico para resetear selección)
                 opcion = st.radio(
                     "Selecciona:", 
                     pregunta_data['opciones'], 
@@ -158,11 +157,14 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 
                 if st.button("Responder", type="primary"):
                     if opcion:
-                        # Calculamos puntos
-                        es_correcta = (opcion == pregunta_data['respuesta_correcta'])
+                        # --- CORRECCIÓN CRÍTICA: Comparar solo la letra ---
+                        letra_usuario = opcion.strip()[0].upper()
+                        letra_correcta = pregunta_data['respuesta_correcta'].strip()[0].upper()
+                        es_correcta = (letra_usuario == letra_correcta)
+                        # --------------------------------------------------
+
                         pts = round(20 / total, 2) if es_correcta else 0
                         
-                        # Guardamos
                         st.session_state.respuestas_usuario.append({
                             "pregunta": pregunta_data['pregunta'],
                             "elegida": opcion,
@@ -171,79 +173,60 @@ elif ruta == "c) Autoevaluación (Quiz)":
                             "puntos": pts,
                             "es_correcta": es_correcta
                         })
-                        st.rerun() # Recargamos para mostrar feedback
+                        st.rerun()
                     else:
-                        st.warning("Por favor selecciona una opción.")
+                        st.warning("⚠️ Por favor selecciona una opción.")
             
-            # --- ESTADO B: Usuario ya respondió (Feedback estático) ---
+            # --- ESTADO B: Ya respondió (Mostrar Feedback) ---
             else:
-                # Recuperamos la última respuesta guardada
                 ultimo_dato = st.session_state.respuestas_usuario[actual]
                 
-                # Deshabilitamos el radio mostrando qué eligió
                 st.info(f"Tu respuesta: **{ultimo_dato['elegida']}**")
                 
                 if ultimo_dato['es_correcta']:
                     st.success("✅ ¡Correcto!")
                 else:
-                    st.error(f"❌ Incorrecto. La respuesta correcta es: {ultimo_dato['correcta']}")
+                    st.error(f"❌ Incorrecto. La correcta era: {ultimo_dato['correcta']}")
                 
-                # Explicación pedagógica (siempre visible ahora)
-                with st.expander("💡 Ver Explicación del Profesor", expanded=True):
+                with st.expander("💡 Ver Explicación", expanded=True):
                     st.write(ultimo_dato['explicacion'])
                 
-                # BOTÓN SIGUIENTE (El usuario controla el tiempo)
                 if st.button("Siguiente Pregunta ➡️", type="primary"):
                     st.session_state.indice_pregunta += 1
                     st.rerun()
 
-# --- PANTALLA 3: RESULTADOS FINALES ---
+        # --- PANTALLA 3: RESULTADOS FINALES ---
         else:
             st.balloons()
             st.success("¡Examen Finalizado!")
             
-            # Cálculo de nota
             suma_puntos = sum(r['puntos'] for r in st.session_state.respuestas_usuario)
             nota_final = round(suma_puntos, 2)
             st.metric("Calificación Final", f"{nota_final} / 20 pts")
             
-            # 1. MOSTRAR DETALLE EN PANTALLA (Primero, como pediste)
+            # 1. Detalle en pantalla
             st.write("### 📊 Detalle de Resultados")
             for i, r in enumerate(st.session_state.respuestas_usuario):
                 icono = "✅" if r['es_correcta'] else "❌"
                 with st.expander(f"{icono} Pregunta {i+1} ({r['puntos']} pts)"):
-                    st.markdown(f"**Pregunta:** {r['pregunta']}")
-                    st.write(f"**Tu respuesta:** {r['elegida']}") 
-                    st.write(f"**Correcta:** {r['correcta']}")
+                    st.markdown(f"**P:** {r['pregunta']}")
+                    st.write(f"**Tuya:** {r['elegida']} | **Correcta:** {r['correcta']}")
                     st.caption(f"Explicación: {r['explicacion']}")
             
             st.divider()
 
-            # 2. GENERADOR DE PDF "LIMPIO" (Human Readable)
+            # 2. Generador PDF Limpio
             from fpdf import FPDF
             import re
 
             def limpiar_latex(texto):
-                # Esta función quita el "ruido" de LaTeX para que sea legible en texto plano
-                texto = texto.replace(r"\_", "_") # Guiones bajos
-                texto = texto.replace("$", "")    # Quitar símbolos de dólar
-                
-                # Reemplazos comunes de matemáticas a texto
-                texto = texto.replace(r"\frac", "") 
-                texto = texto.replace(r"\int", "Integral")
-                texto = texto.replace(r"\infty", "Infinito")
-                texto = texto.replace(r"\sqrt", "Raiz")
-                texto = texto.replace(r"\cdot", "*")
-                
-                # Quitar comandos de estructura
+                texto = texto.replace(r"\_", "_").replace("$", "")
+                texto = texto.replace(r"\frac", "").replace(r"\int", "Integral")
+                texto = texto.replace(r"\infty", "Infinito").replace(r"\sqrt", "Raiz")
                 texto = re.sub(r'\\begin\{.*?\}', '', texto)
                 texto = re.sub(r'\\end\{.*?\}', '', texto)
                 texto = re.sub(r'\\text\{.*?\}', '', texto)
-                texto = re.sub(r'\\', '', texto) # Quitar barras invertidas restantes
-                
-                # Limpieza de llaves {} dejándolas como paréntesis o espacios
-                texto = texto.replace("{", "(").replace("}", ")")
-                
+                texto = texto.replace("{", "(").replace("}", ")").replace("\\", "")
                 return texto
 
             def generar_pdf_reporte():
@@ -251,54 +234,39 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 pdf.add_page()
                 pdf.set_auto_page_break(auto=True, margin=15)
                 
-                # Encabezado
                 pdf.set_font("Arial", "B", 16)
                 pdf.cell(0, 10, "Reporte de Autoevaluación", ln=True, align="C")
                 pdf.set_font("Arial", "", 12)
                 pdf.cell(0, 10, "Matemáticas III - Escuela de Economía", ln=True, align="C")
                 pdf.ln(10)
                 
-                # Nota
                 pdf.set_font("Arial", "B", 14)
                 pdf.cell(0, 10, f"Calificación: {nota_final}/20 puntos", ln=True)
                 pdf.ln(5)
                 
-                # Preguntas
-                pdf.set_font("Arial", "", 11)
                 for i, r in enumerate(st.session_state.respuestas_usuario):
-                    # Título de pregunta
                     pdf.set_font("Arial", "B", 11)
                     pdf.cell(0, 10, f"Pregunta {i+1} ({r['puntos']} pts):", ln=True)
                     
-                    # Cuerpo de pregunta (Limpiamos el LaTeX aquí)
-                    texto_pregunta = limpiar_latex(r['pregunta'])
-                    # Codificación para evitar errores de caracteres
-                    texto_pregunta = texto_pregunta.encode('latin-1', 'replace').decode('latin-1')
+                    texto_pregunta = limpiar_latex(r['pregunta']).encode('latin-1', 'replace').decode('latin-1')
                     pdf.set_font("Arial", "", 11)
                     pdf.multi_cell(0, 7, texto_pregunta)
                     
-                    # Respuestas
                     resp_elegida = limpiar_latex(r['elegida']).encode('latin-1', 'replace').decode('latin-1')
                     resp_correcta = limpiar_latex(r['correcta']).encode('latin-1', 'replace').decode('latin-1')
                     
-                    estado = "CORRECTO" if r['es_correcta'] else "INCORRECTO"
-                    pdf.set_font("Courier", "", 10) # Fuente tipo consola para diferenciar
+                    pdf.set_font("Courier", "", 10)
                     pdf.ln(2)
                     pdf.cell(0, 5, f"Tu respuesta: {resp_elegida}", ln=True)
                     pdf.cell(0, 5, f"Correcta:     {resp_correcta}", ln=True)
-                    pdf.set_font("Arial", "B", 10)
-                    pdf.cell(0, 8, f"Estado: {estado}", ln=True)
-                    
                     pdf.ln(5)
-                    # Línea separadora
                     pdf.line(10, pdf.get_y(), 200, pdf.get_y())
                     pdf.ln(5)
                 
                 return pdf.output(dest="S").encode("latin-1")
 
-            # 3. BOTONES DE ACCIÓN AL FINAL
+            # 3. Botones Finales
             col1, col2 = st.columns([1, 1])
-            
             with col1:
                 if st.button("🔄 Comenzar Nuevo Examen", use_container_width=True):
                     st.session_state.quiz_activo = False
@@ -318,4 +286,4 @@ elif ruta == "c) Autoevaluación (Quiz)":
                         type="primary"
                     )
                 except Exception as e:
-                    st.error(f"Error generando PDF: {e}")
+                    st.error(f"Error PDF: {e}")
