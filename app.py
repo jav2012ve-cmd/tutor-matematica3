@@ -197,7 +197,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.session_state.indice_pregunta += 1
                     st.rerun()
 
-        # --- PANTALLA 3: RESULTADOS FINALES ---
+# --- PANTALLA 3: RESULTADOS FINALES ---
         else:
             st.balloons()
             st.success("¡Examen Finalizado!")
@@ -207,107 +207,115 @@ elif ruta == "c) Autoevaluación (Quiz)":
             nota_final = round(suma_puntos, 2)
             st.metric("Calificación Final", f"{nota_final} / 20 pts")
             
-            # --- GENERACIÓN DE DOCUMENTOS ---
-            from fpdf import FPDF
-            
-            # 1. GENERADOR DE PDF (Reporte Rápido)
-            def generar_pdf_reporte():
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", "B", 16)
-                pdf.cell(0, 10, "Reporte de Autoevaluación - Matemáticas III", ln=True, align="C")
-                pdf.set_font("Arial", "", 12)
-                pdf.ln(10)
-                pdf.cell(0, 10, f"Calificación: {nota_final}/20", ln=True)
-                pdf.ln(5)
-                
-                for i, r in enumerate(st.session_state.respuestas_usuario):
-                    pdf.set_font("Arial", "B", 11)
-                    # Limpiamos un poco el texto para evitar errores de caracteres raros en PDF simple
-                    pregunta_limpia = r['pregunta'].encode('latin-1', 'replace').decode('latin-1')
-                    pdf.multi_cell(0, 10, f"P{i+1}: {pregunta_limpia}")
-                    
-                    pdf.set_font("Arial", "", 10)
-                    estado = "CORRECTO" if r['es_correcta'] else "INCORRECTO"
-                    pdf.cell(0, 10, f"Estado: {estado} | Puntos: {r['puntos']}")
-                    pdf.ln(10)
-                
-                return pdf.output(dest="S").encode("latin-1")
-
-            # 2. GENERADOR DE LATEX (Constancia Oficial Estilo UCAB)
-            def generar_latex_constancia():
-                tex = r"""
-\documentclass{article}
-\usepackage[utf8]{inputenc}
-\usepackage{amsmath}
-\usepackage{amssymb}
-\begin{document}
-\begin{center}
-    Universidad Católica Andrés Bello \\
-    Escuela de Economía - Matemáticas III \\
-    \textbf{CONSTANCIA DE AUTOEVALUACIÓN}
-\end{center}
-
-\vspace{0.5cm}
-\noindent \textbf{Calificación:} """ + str(nota_final) + r"""/20 pts \\
-\vspace{0.5cm}
-
-\section*{Detalle de la Prueba}
-\begin{enumerate}
-"""
-                for r in st.session_state.respuestas_usuario:
-                    # Escapamos caracteres peligrosos de LaTeX si es necesario
-                    tex += r"\item \textbf{Pregunta:} " + r['pregunta'] + "\n"
-                    tex += r"\begin{itemize}" + "\n"
-                    tex += r"\item \textit{Respuesta del Estudiante:} " + r['elegida'] + "\n"
-                    tex += r"\item \textit{Respuesta Correcta:} " + r['correcta'] + "\n"
-                    tex += r"\item \textit{Puntos:} " + str(r['puntos']) + "\n"
-                    tex += r"\end{itemize}" + "\n\n"
-
-                tex += r"""
-\end{enumerate}
-\end{document}
-"""
-                return tex
-
-            # --- BOTONES DE DESCARGA ---
-            col_descarga1, col_descarga2 = st.columns(2)
-            
-            with col_descarga1:
-                try:
-                    pdf_bytes = generar_pdf_reporte()
-                    st.download_button(
-                        label="📄 Descargar Reporte (PDF)",
-                        data=pdf_bytes,
-                        file_name="reporte_notas.pdf",
-                        mime="application/pdf",
-                        type="primary"
-                    )
-                except Exception as e:
-                    st.warning(f"Instala 'fpdf' para generar PDF. Error: {e}")
-
-            with col_descarga2:
-                latex_str = generar_latex_constancia()
-                st.download_button(
-                    label="📜 Descargar Constancia (LaTeX)",
-                    data=latex_str,
-                    file_name="constancia_evaluacion.tex",
-                    mime="text/plain"
-                )
-
-            st.divider()
-            
-            # Tabla Resumen en Pantalla
+            # 1. MOSTRAR DETALLE EN PANTALLA (Primero, como pediste)
             st.write("### 📊 Detalle de Resultados")
             for i, r in enumerate(st.session_state.respuestas_usuario):
                 icono = "✅" if r['es_correcta'] else "❌"
                 with st.expander(f"{icono} Pregunta {i+1} ({r['puntos']} pts)"):
-                    st.write(f"**P:** {r['pregunta']}")
-                    st.write(f"**Tuya:** {r['elegida']} | **Correcta:** {r['correcta']}")
+                    st.markdown(f"**Pregunta:** {r['pregunta']}")
+                    st.write(f"**Tu respuesta:** {r['elegida']}") 
+                    st.write(f"**Correcta:** {r['correcta']}")
                     st.caption(f"Explicación: {r['explicacion']}")
+            
+            st.divider()
 
-            if st.button("🔄 Comenzar Nuevo Examen"):
-                st.session_state.quiz_activo = False
-                st.session_state.indice_pregunta = 0
-                st.session_state.respuestas_usuario = []
-                st.rerun()
+            # 2. GENERADOR DE PDF "LIMPIO" (Human Readable)
+            from fpdf import FPDF
+            import re
+
+            def limpiar_latex(texto):
+                # Esta función quita el "ruido" de LaTeX para que sea legible en texto plano
+                texto = texto.replace(r"\_", "_") # Guiones bajos
+                texto = texto.replace("$", "")    # Quitar símbolos de dólar
+                
+                # Reemplazos comunes de matemáticas a texto
+                texto = texto.replace(r"\frac", "") 
+                texto = texto.replace(r"\int", "Integral")
+                texto = texto.replace(r"\infty", "Infinito")
+                texto = texto.replace(r"\sqrt", "Raiz")
+                texto = texto.replace(r"\cdot", "*")
+                
+                # Quitar comandos de estructura
+                texto = re.sub(r'\\begin\{.*?\}', '', texto)
+                texto = re.sub(r'\\end\{.*?\}', '', texto)
+                texto = re.sub(r'\\text\{.*?\}', '', texto)
+                texto = re.sub(r'\\', '', texto) # Quitar barras invertidas restantes
+                
+                # Limpieza de llaves {} dejándolas como paréntesis o espacios
+                texto = texto.replace("{", "(").replace("}", ")")
+                
+                return texto
+
+            def generar_pdf_reporte():
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_auto_page_break(auto=True, margin=15)
+                
+                # Encabezado
+                pdf.set_font("Arial", "B", 16)
+                pdf.cell(0, 10, "Reporte de Autoevaluación", ln=True, align="C")
+                pdf.set_font("Arial", "", 12)
+                pdf.cell(0, 10, "Matemáticas III - Escuela de Economía", ln=True, align="C")
+                pdf.ln(10)
+                
+                # Nota
+                pdf.set_font("Arial", "B", 14)
+                pdf.cell(0, 10, f"Calificación: {nota_final}/20 puntos", ln=True)
+                pdf.ln(5)
+                
+                # Preguntas
+                pdf.set_font("Arial", "", 11)
+                for i, r in enumerate(st.session_state.respuestas_usuario):
+                    # Título de pregunta
+                    pdf.set_font("Arial", "B", 11)
+                    pdf.cell(0, 10, f"Pregunta {i+1} ({r['puntos']} pts):", ln=True)
+                    
+                    # Cuerpo de pregunta (Limpiamos el LaTeX aquí)
+                    texto_pregunta = limpiar_latex(r['pregunta'])
+                    # Codificación para evitar errores de caracteres
+                    texto_pregunta = texto_pregunta.encode('latin-1', 'replace').decode('latin-1')
+                    pdf.set_font("Arial", "", 11)
+                    pdf.multi_cell(0, 7, texto_pregunta)
+                    
+                    # Respuestas
+                    resp_elegida = limpiar_latex(r['elegida']).encode('latin-1', 'replace').decode('latin-1')
+                    resp_correcta = limpiar_latex(r['correcta']).encode('latin-1', 'replace').decode('latin-1')
+                    
+                    estado = "CORRECTO" if r['es_correcta'] else "INCORRECTO"
+                    pdf.set_font("Courier", "", 10) # Fuente tipo consola para diferenciar
+                    pdf.ln(2)
+                    pdf.cell(0, 5, f"Tu respuesta: {resp_elegida}", ln=True)
+                    pdf.cell(0, 5, f"Correcta:     {resp_correcta}", ln=True)
+                    pdf.set_font("Arial", "B", 10)
+                    pdf.cell(0, 8, f"Estado: {estado}", ln=True)
+                    
+                    pdf.ln(5)
+                    # Línea separadora
+                    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+                    pdf.ln(5)
+                
+                return pdf.output(dest="S").encode("latin-1")
+
+            # 3. BOTONES DE ACCIÓN AL FINAL
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                if st.button("🔄 Comenzar Nuevo Examen", use_container_width=True):
+                    st.session_state.quiz_activo = False
+                    st.session_state.indice_pregunta = 0
+                    st.session_state.respuestas_usuario = []
+                    st.rerun()
+            
+            with col2:
+                try:
+                    pdf_bytes = generar_pdf_reporte()
+                    st.download_button(
+                        label="📄 Descargar Reporte PDF",
+                        data=pdf_bytes,
+                        file_name="Resultado_Examen_Mate3.pdf",
+                        mime="application/pdf",
+                        use_container_width=True,
+                        type="primary"
+                    )
+                except Exception as e:
+                    st.error(f"Error generando PDF: {e}")
