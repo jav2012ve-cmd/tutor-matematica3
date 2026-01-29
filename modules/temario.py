@@ -1,76 +1,71 @@
-LISTA_TEMAS = [
-    "1.1.1 Integrales Directas", 
+# modules/temario.py
+
+# --- LISTAS DE TEMAS ---
+TEMAS_PARCIAL_1 = [
+    "1.1.1 Integrales Directas",
     "1.1.2 Cambios de variables (Sustitución)",
     "1.1.3 División de Polinomios",
+    "1.1.4 Fracciones Simples",
+    "1.1.7 Integral por partes",
+    "1.2.1 Áreas entre curvas",
+    "1.2.2 Excedentes del consumidor y productor"
+]
+
+TEMAS_PARCIAL_2 = [
+    "2.1.1 ED 1er Orden: Separación de Variables",
+    "2.1.2 ED 1er Orden: Homogéneas",
+    "2.1.3 ED 1er Orden: Exactas",
+    "2.1.4 ED 1er Orden: Lineales",
+    "2.2.1 ED Orden Superior: Homogéneas",
     "2.3 Aplicaciones de Ecuaciones Diferenciales en Economía"
 ]
 
-# ... (Mantén la LISTA_TEMAS igual) ...
+# Unimos todo para el menú general
+LISTA_TEMAS = TEMAS_PARCIAL_1 + TEMAS_PARCIAL_2
 
+# --- CONTENIDO TEÓRICO (Resumido para el ejemplo) ---
 CONTENIDO_TEORICO = {
     "1.1.1 Integrales Directas": {
-        # ... (Mantén lo que ya tienes aquí) ...
         "definicion": r"f(x) = \int g(x) dx \iff \frac{d}{dx}[f(x)] = g(x)",
         "propiedades": [
             r"\int [f(x) \pm g(x)] dx = \int f(x) dx \pm \int g(x) dx",
             r"\int C \cdot f(x) dx = C \int f(x) dx"
         ],
         "tabla_col1": [
-            r"\int x^n dx = \frac{x^{n+1}}{n+1}, \quad n \neq -1",
+            r"\int x^n dx = \frac{x^{n+1}}{n+1}",
+            r"\int e^{x} dx = e^{x}"
+        ],
+        "tabla_col2": [
             r"\int \frac{1}{x} dx = \ln|x|",
-            r"\int e^{ax+b} dx = \frac{1}{a}e^{ax+b}",
-            r"\int \ln x dx = x\ln x - x"
-        ],
-        "tabla_col2": [
-            r"\int a^x dx = \frac{1}{\ln a}a^x",
-            r"\int \frac{dx}{x^2 + a^2} = \frac{1}{a}\arctan\left(\frac{x}{a}\right)",
-            r"\int \frac{dx}{\sqrt{a^2-x^2}} = \arcsin\left(\frac{x}{a}\right)",
-            r"\int \frac{dx}{\sqrt{x^2 \pm a^2}} = \ln|x + \sqrt{x^2 \pm a^2}|"
-        ]
-    }, # <--- ¡NO OLVIDES ESTA COMA!
-
-    "1.1.2 Cambios de variables (Sustitución)": {
-        "definicion": r"\int f(g(x)) \cdot g'(x) \, dx = \int f(u) \, du",
-        "propiedades": [
-            r"\text{Paso 1: Elegir } u = g(x)",
-            r"\text{Paso 2: Calcular } du = g'(x) dx"
-        ],
-        # Reutilizamos las claves de tabla para mostrar pasos o ejemplos clave
-        "tabla_col1": [
-            r"\text{Si } \int e^{3x} dx, \quad u=3x, \, du=3dx",
-            r"\Rightarrow \frac{1}{3} \int e^u du"
-        ],
-        "tabla_col2": [
-            r"\text{Si } \int 2x(x^2+1)^5 dx, \quad u=x^2+1",
-            r"\Rightarrow \int u^5 du = \frac{u^6}{6} + C"
+            r"\int \sin(x) dx = -\cos(x)"
         ]
     }
+    # ... (Puedes ir agregando el resto poco a poco)
 }
-PROMPT_QUIZ = """
-INSTRUCCIONES PARA EL QUIZ:
-1. Genera un examen corto de 4 preguntas de selección simple (A, B, C).
-2. DISTRIBUCIÓN DE TEMAS:
-   - 1 Pregunta de Integrales Indefinidas (Cálculo).
-   - 1 Pregunta de Aplicación Económica de Integrales (Excedentes o Áreas).
-   - 1 Pregunta teórica de Ecuaciones Diferenciales.
-   - 1 Pregunta de resolución de Ecuaciones Diferenciales.
-3. FORMATO:
-   - Enuncia la pregunta claramente.
-   - Da las 3 opciones.
-   - NO indiques la respuesta correcta todavía.
-   - Al final, escribe: "Responde con las letras (ej: 1A, 2B...)"
-4. EVALUACIÓN:
-   - Cuando el usuario responda, corrige una por una y explica brevemente los errores si los hay.
-"""
 
-
-
-# ... (Mantén el CONTEXTO_BASE igual) ...
 CONTEXTO_BASE = """
-Actúa como un profesor titular de la cátedra de Matemáticas III de la carrera de Economía 
-en la Universidad Católica Andrés Bello (UCAB). 
-TU ENFOQUE:
-1. Tus dos pilares fundamentales son: CÁLCULO INTEGRAL y ECUACIONES DIFERENCIALES.
-2. Cuando expliques, trata de buscar aplicaciones económicas.
-3. Sé riguroso pero cercano. Usa LaTeX.
+Actúa como un profesor titular de Matemáticas III (Economía UCAB).
+Tus pilares son Cálculo Integral y Ecuaciones Diferenciales.
+Sé riguroso pero cercano.
 """
+
+# --- NUEVO: Prompt Estructurado para el Quiz ---
+def generar_prompt_quiz(temas_seleccionados, cantidad):
+    return f"""
+    GENERA UN EXAMEN DE {cantidad} PREGUNTAS.
+    Temas a evaluar: {', '.join(temas_seleccionados)}.
+    
+    IMPORTANTE: Debes responder EXCLUSIVAMENTE en formato JSON válido.
+    No añadas texto introductorio ni final. Solo el JSON.
+    
+    Estructura del JSON:
+    [
+        {{
+            "pregunta": "Texto de la pregunta...",
+            "opciones": ["Opción A", "Opción B", "Opción C"],
+            "respuesta_correcta": "Opción A",
+            "explicacion": "Breve explicación de por qué es la correcta..."
+        }},
+        ...
+    ]
+    """
