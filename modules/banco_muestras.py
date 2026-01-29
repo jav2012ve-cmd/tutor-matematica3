@@ -2,55 +2,89 @@
 
 # ==============================================================================
 # BANCO DE ESTILOS REALES - MATEMÁTICAS III (ECONOMÍA UCAB)
-# Fuente: Taller 1, Taller 2 y Parciales (2025-2026)
+# Fuente: Primeros y Segundos Parciales (2024-2026)
+# Contenido: Integrales, Ecuaciones Diferenciales, Modelado y Multivariable
 # ==============================================================================
 
 EJEMPLOS_ESTILO = r"""
-EJEMPLO 1 (TIPO: Dinámica de Precios con Expectativas - Ecuación Diferencial 2do Orden):
-"Si $Q_{D} = 4p'' - 2p' + 3p - 7t$ representa la demanda, donde $p'(t)$ es la variación del precio y $p''(t)$ son las expectativas de cambio.
-La Oferta es $Q_{O} = 3p'' - 3p' + 15p - 5$.
-Si las condiciones iniciales son $p(0)=2$ y $p'(0)=4$:
+--- SECCIÓN 1: CÁLCULO INTEGRAL Y APLICACIONES (PRIMER PARCIAL) ---
+
+EJEMPLO 1 (TIPO: Integral con "Trampa" de Variables):
+"Calcule la siguiente integral indefinida. Fíjese bien en el diferencial:
+$$ \int (ax^3 + by^4)^{20} x^2 y^3 dy $$
+(Nota: Aquí la variable es 'y', 'x' actúa como constante)."
+
+EJEMPLO 2 (TIPO: Planteamiento de Área - Sin Cálculo):
+"Grafique y plantee (NO NECESITA CALCULAR) las integrales necesarias para hallar el área encerrada por las funciones en el intervalo $x \in [-5,5]$:
+$$ f(x) = \frac{x^2}{2} + x + 2 $$
+$$ g(x) = 2x + 2 $$
+Debe plantear la suma de integrales si las curvas se cruzan."
+
+EJEMPLO 3 (TIPO: Cambio de Variable Dirigido):
+"Aplique el cambio de variable $z = 2 - x^3$ y escriba la integral resultante en términos de $z$. 
+Instrucción: NO LA RESUELVA, solo llegue hasta la expresión simplificada en $z$.
+Integral:
+$$ \int_{-2}^{1} (1-x) x^2 \sqrt{2-x^3} dx $$"
+
+EJEMPLO 4 (TIPO: Estadística - Función de Densidad):
+"Sea la función $f(x) = x e^{-x}$ definida para $x \in [0, \infty)$.
+1. Confirme matemáticamente (usando integral impropia) si es una función de densidad (PDF).
+2. Calcule la probabilidad $P(x \geq 2 \vee x \leq 5)$."
+
+EJEMPLO 5 (TIPO: Excedentes y Gasto Real):
+"Dadas las funciones de precio:
+$$ \text{Oferta: } p(q) = \frac{q^2}{16} + 14 $$
+$$ \text{Demanda: } p(q) = 16 - \frac{q}{4} $$
+1. Calcule el punto de equilibrio.
+2. Identifique y calcule el Excedente del Productor, del Consumidor y el Gasto Real."
+
+EJEMPLO 6 (TIPO: Integral Impropia Logarítmica):
+"Analice la convergencia y calcule si es posible:
+$$ \int_{2}^{\infty} \frac{\ln x + 1}{x \ln^3 x} dx $$"
+
+EJEMPLO 7 (TIPO: Volúmenes - Ejes No Tradicionales):
+"Plantee las integrales (NO CALCULE) para hallar el volumen del sólido generado al girar la región acotada por $y=-x^2+4x$ y $y=-x+4$.
+Eje de giro: La recta vertical $x = -3$."
+
+EJEMPLO 8 (TIPO: Conceptual):
+"Responda Verdadero o Falso:
+La integral $\int g(f(x)) \cdot f'(x) dx$ puede reescribirse directamente como $\int g(z) dz$ aplicando el cambio $z=f(x)$."
+
+--- SECCIÓN 2: ECUACIONES DIFERENCIALES Y MODELADO (SEGUNDO PARCIAL) ---
+
+EJEMPLO 9 (TIPO: Dinámica de Precios con Expectativas - 2do Orden):
+"Si $Q_{D} = 4p'' + 2p' + 3p - 7e^{-t}$ representa la demanda, donde $p'$ es la variación del precio y $p''$ son las expectativas.
+La Oferta es $Q_{O} = 3p'' - p' + p - 4$.
+Condiciones iniciales: $p(0)=2$ y $p'(0)=4$.
 1. Halle la función de precios $p(t)$.
-2. Explique su comportamiento a corto, mediano y largo plazo (¿es estable?)."
+2. Explique su comportamiento a corto, mediano y largo plazo."
 
-EJEMPLO 2 (TIPO: Crecimiento Poblacional - Modelo Logístico Modificado):
-"Una colonia de bacterias crece según la expresión:
-$$ \frac{dp}{dt} = k \cdot t \left( 1000 - \frac{p}{2} \right) $$
-Si la población inicial es 50 y al cabo de 2 horas es 300:
-¿Cuál es el comportamiento de $p(t)$ a largo plazo? ¿Existe un límite de saturación?"
+EJEMPLO 10 (TIPO: Ecuación de Bernoulli):
+"Resuelva la siguiente ecuación diferencial (identifique si es Bernoulli):
+$$ 6(1+y)x' + 12x = x^2 y^2 $$"
 
-EJEMPLO 3 (TIPO: Excedentes del Consumidor y Productor):
-"Dadas las funciones de oferta y demanda:
-$$ \text{Demanda: } f(x) = 14 - \frac{x^2}{9} $$
-$$ \text{Oferta: } g(x) = x^2 + 4 $$
-1. Encuentre el punto de equilibrio.
-2. Calcule el Excedente del Consumidor y del Productor.
-3. Identifique gráficamente el Gasto Real."
+EJEMPLO 11 (TIPO: Modelado de Temperatura Variable):
+"La relación entre la temperatura $T$ y el tiempo $t$ es:
+$$ \frac{dT}{dt} = \frac{T - T_a}{t+1} $$
+Donde $T_a$ es la temperatura ambiente. Encuentre la relación $T = f(t)$. Si $T_0=10^\circ C$, ¿qué comportamiento se observa?"
 
-EJEMPLO 4 (TIPO: Volúmenes de Revolución - Ejes desplazados):
-"Grafique y plantee (NO calcule) la integral para hallar el volumen del sólido generado por la región limitada por:
-$$ f(x) = 4 - x^2, \quad y = 3, \quad x = 0 $$
-Al girar alrededor del eje $y = 2$.
-Explique la geometría del método utilizado (Arandelas o Discos)."
+EJEMPLO 12 (TIPO: Integrales Dobles - Planteamiento):
+"Utilice la región $R$ definida por el cruce de las funciones (grafique primero) para plantear las integrales (NO CALCULE) que permitan hallar:
+$$ \iint_{R} (x-y) dA $$"
 
-EJEMPLO 5 (TIPO: Función de Densidad de Probabilidad):
-"Sea la función $f(x) = 4x^2 e^{-2x}$ para $x \in [0, \infty)$.
-1. Confirme matemáticamente si cumple las condiciones para ser una función de densidad de probabilidad (FDP).
-2. Calcule la probabilidad $P(1 \leq x \leq 5)$."
+EJEMPLO 13 (TIPO: Ecuación Diferencial Exacta):
+"Resuelva y compruebe si es exacta:
+$$ (5\ln y + 108xy + 36x^2 + 81y^2 + 5) dy + (12x^2 + 72xy + 54y^2) dx = 0 $$"
 
-EJEMPLO 6 (TIPO: Ley de Enfriamiento de Newton):
-"Un cuerpo a 100°C se enfría a 80°C en 10 minutos, estando en un cuarto a 25°C.
-1. Encuentre la temperatura después de 20 minutos.
-2. ¿En qué momento exacto la temperatura será de 40°C?"
+EJEMPLO 14 (TIPO: Crecimiento Poblacional Modificado):
+"La población de una colonia crece según:
+$$ \frac{dP}{dt} = \left( 100 - \frac{P}{4} \right) t $$
+Si $P(0)=100$, halle la función $P(t)$."
 
-EJEMPLO 7 (TIPO: Datación Carbono 14 - Análisis de Sensibilidad):
-"Un hueso fósil contiene el 17% de su Carbono-14 original (vida media 5730 años).
-1. Estime la antigüedad.
-2. Repita el cálculo suponiendo que conserva el 18%.
-¿Qué concluye sobre la sensibilidad de la datación ante pequeños errores de medición?"
+EJEMPLO 15 (TIPO: Teoría de ED de Orden Superior):
+"Verdadero o Falso: Si el polinomio característico de una ecuación de orden superior es $D^2 + 9$, entonces su solución general es $y = C_1 \cos(3x) + C_2 \sin(3x)$."
 
-EJEMPLO 8 (TIPO: Ecuación Diferencial Exacta):
+EJEMPLO 16 (TIPO: ED Homogénea o Factor Integrante):
 "Resuelva la siguiente ecuación diferencial:
-$$ (2x - y^3 + y \ln y) dy + y dx = 0 $$
-Verifique si es exacta. Si no lo es, busque un factor integrante."
+$$ xy dy + (y^2 + x^2) dx = 0 $$"
 """
