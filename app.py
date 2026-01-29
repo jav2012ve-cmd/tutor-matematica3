@@ -13,7 +13,6 @@ if not ia_core.configurar_gemini():
 model, nombre_modelo = ia_core.iniciar_modelo()
 
 # --- 2. GESTIÓN DE ESTADO (MEMORIA) ---
-# Aquí guardamos las variables que deben sobrevivir a las recargas de página
 if "quiz_activo" not in st.session_state:
     st.session_state.quiz_activo = False
 if "preguntas_quiz" not in st.session_state:
@@ -21,11 +20,11 @@ if "preguntas_quiz" not in st.session_state:
 if "indice_pregunta" not in st.session_state:
     st.session_state.indice_pregunta = 0
 if "respuestas_usuario" not in st.session_state:
-    st.session_state.respuestas_usuario = [] # Guardaremos {pregunta, elegida, correcta, puntos}
+    st.session_state.respuestas_usuario = [] 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Función auxiliar para limpiar JSON de la IA
+# Función auxiliar para limpiar JSON
 def limpiar_json(texto):
     texto = texto.replace("```json", "").replace("```", "").strip()
     return json.loads(texto)
@@ -35,7 +34,7 @@ ruta, tema_actual = interfaz.mostrar_sidebar()
 interfaz.mostrar_bienvenida()
 
 # =======================================================
-# LÓGICA A: ENTRENAMIENTO (Mantenemos igual)
+# LÓGICA A: ENTRENAMIENTO (Temario)
 # =======================================================
 if ruta == "a) Entrenamiento (Temario)":
     st.header(f"📘 {tema_actual}")
@@ -43,43 +42,50 @@ if ruta == "a) Entrenamiento (Temario)":
         data = temario.CONTENIDO_TEORICO[tema_actual]
         st.markdown("#### Definición")
         st.latex(data["definicion"])
-        # ... (puedes completar con el código de tablas que ya tenías)
+        # Aquí puedes agregar más visualización teórica si quieres
     else:
         st.info(f"Explorando el tema: {tema_actual}")
         
     # Chat simple para este modo
     prompt = st.chat_input("Dudas sobre este tema...")
     if prompt:
-        res = model.generate_content(f"Explica {tema_actual}: {prompt}")
-        st.write(res.text)
+        with st.spinner("Pensando..."):
+            res = model.generate_content(f"Explica {tema_actual}: {prompt}")
+            st.write(res.text)
 
 # =======================================================
-# LÓGICA B: CONSULTAS (Mantenemos igual)
+# LÓGICA B: CONSULTAS (Respuesta Guiada)
 # =======================================================
 elif ruta == "b) Respuesta Guiada (Consultas)":
     st.info("Sube tu ejercicio o escribe tu duda.")
+    
+    # Historial de Chat (Solo visualización)
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
     prompt = st.chat_input("Escribe tu consulta...")
     if prompt:
-        res = model.generate_content(f"Ayuda al alumno con esto: {prompt}")
-        st.markdown(res.text)
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+        
+        with st.chat_message("assistant"):
+            with st.spinner("Analizando..."):
+                res = model.generate_content(f"Ayuda al alumno con esto: {prompt}")
+                st.markdown(res.text)
+                st.session_state.messages.append({"role": "assistant", "content": res.text})
 
 # =======================================================
-# LÓGICA C: AUTOEVALUACIÓN (¡NUEVO!)
-# =======================================================
-# =======================================================
-# LÓGICA C: AUTOEVALUACIÓN (MEJORADO)
-# =======================================================
-# =======================================================
-# LÓGICA C: AUTOEVALUACIÓN (Quiz)
+# LÓGICA C: AUTOEVALUACIÓN (Quiz) - VERSIÓN DEFINITIVA
 # =======================================================
 elif ruta == "c) Autoevaluación (Quiz)":
     st.markdown("### 📝 Centro de Evaluación")
 
-    # --- PANTALLA 1: CONFIGURACIÓN (Solo si NO hay quiz activo) ---
+    # --- PANTALLA 1: CONFIGURACIÓN ---
     if not st.session_state.quiz_activo:
         st.info("Selecciona el tipo de prueba para comenzar:")
         
-        # Botones grandes para los Parciales
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🏆 Generar Primer Parcial (8 preguntas)", use_container_width=True):
@@ -95,9 +101,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 st.session_state.trigger_quiz = True
                 st.rerun()
 
-        # Opción Personalizada
         with st.expander("⚙️ Opciones Personalizadas (Avanzado)"):
-            st.write("Selecciona temas específicos:")
             temas_custom = st.multiselect("Temas:", temario.LISTA_TEMAS)
             if st.button("▶️ Iniciar Quiz Personalizado"):
                 if not temas_custom:
@@ -108,12 +112,11 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.session_state.trigger_quiz = True
                     st.rerun()
 
-        # --- LÓGICA DE GENERACIÓN (Invisible al usuario) ---
+        # Generación del Quiz (Invisible)
         if st.session_state.get("trigger_quiz"):
             with st.spinner("🧠 El profesor está redactando tu examen..."):
                 try:
                     from modules import banco_muestras
-                    
                     prompt_quiz = temario.generar_prompt_quiz(
                         st.session_state.config_temas, 
                         st.session_state.config_cant
@@ -121,7 +124,6 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     respuesta = model.generate_content(prompt_quiz)
                     datos_quiz = limpiar_json(respuesta.text)
                     
-                    # Inicializamos variables
                     st.session_state.preguntas_quiz = datos_quiz
                     st.session_state.indice_pregunta = 0
                     st.session_state.respuestas_usuario = []
@@ -129,14 +131,15 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.session_state.trigger_quiz = False
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error generando: {e}")
+                    st.error(f"Error generando el quiz: {e}")
                     st.session_state.trigger_quiz = False
 
-    # --- PANTALLA 2: RESPONDIENDO EL QUIZ ---
+    # --- PANTALLA 2: RESPONDIENDO ---
     else:
         total = len(st.session_state.preguntas_quiz)
         actual = st.session_state.indice_pregunta
         
+        # Si aún quedan preguntas
         if actual < total:
             pregunta_data = st.session_state.preguntas_quiz[actual]
             
@@ -146,7 +149,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
             # Verificamos si ya respondió esta pregunta
             ya_respondido = len(st.session_state.respuestas_usuario) > actual
             
-            # --- ESTADO A: Aún no responde ---
+            # -- Estado: Usuario Responde --
             if not ya_respondido:
                 opcion = st.radio(
                     "Selecciona:", 
@@ -157,11 +160,11 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 
                 if st.button("Responder", type="primary"):
                     if opcion:
-                        # --- CORRECCIÓN CRÍTICA: Comparar solo la letra ---
+                        # --- CORRECCIÓN DE LETRAS (A vs A) ---
                         letra_usuario = opcion.strip()[0].upper()
                         letra_correcta = pregunta_data['respuesta_correcta'].strip()[0].upper()
                         es_correcta = (letra_usuario == letra_correcta)
-                        # --------------------------------------------------
+                        # -------------------------------------
 
                         pts = round(20 / total, 2) if es_correcta else 0
                         
@@ -175,12 +178,11 @@ elif ruta == "c) Autoevaluación (Quiz)":
                         })
                         st.rerun()
                     else:
-                        st.warning("⚠️ Por favor selecciona una opción.")
+                        st.warning("⚠️ Selecciona una opción.")
             
-            # --- ESTADO B: Ya respondió (Mostrar Feedback) ---
+            # -- Estado: Feedback --
             else:
                 ultimo_dato = st.session_state.respuestas_usuario[actual]
-                
                 st.info(f"Tu respuesta: **{ultimo_dato['elegida']}**")
                 
                 if ultimo_dato['es_correcta']:
@@ -189,40 +191,35 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.error(f"❌ Incorrecto. La correcta era: {ultimo_dato['correcta']}")
                 
                 with st.expander("💡 Ver Explicación", expanded=True):
+                    # Usamos st.write para que detecte LaTeX automático
                     st.write(ultimo_dato['explicacion'])
                 
                 if st.button("Siguiente Pregunta ➡️", type="primary"):
                     st.session_state.indice_pregunta += 1
                     st.rerun()
 
-# --- PANTALLA 3: RESULTADOS FINALES ---
+        # --- PANTALLA 3: RESULTADOS (Vista de Impresión) ---
         else:
             st.balloons()
             st.success("¡Examen Finalizado!")
             
-            # Cálculo de nota
             suma_puntos = sum(r['puntos'] for r in st.session_state.respuestas_usuario)
             nota_final = round(suma_puntos, 2)
             
-            # Encabezado de Nota
             col_nota, col_info = st.columns([1, 2])
             with col_nota:
                 st.metric("Calificación Final", f"{nota_final} / 20 pts")
             with col_info:
-                st.info("💡 **Para guardar tu reporte:** Presiona `Ctrl + P` (o Cmd + P) en tu navegador y selecciona 'Guardar como PDF'.")
+                st.info("💡 **Para guardar reporte:** Presiona `Ctrl + P` en tu navegador y selecciona 'Guardar como PDF'.")
 
             st.divider()
             st.subheader("📄 Detalle del Examen")
 
-            # --- RENDERIZADO PARA IMPRESIÓN (SIN EXPANDERS) ---
-            # Mostramos todo "abierto" para que al imprimir salga completo
+            # Renderizado limpio para impresión
             for i, r in enumerate(st.session_state.respuestas_usuario):
                 st.markdown(f"#### 🔹 Pregunta {i+1} ({r['puntos']} pts)")
+                st.markdown(r['pregunta']) # Enunciado LaTeX
                 
-                # Enunciado (LaTeX se renderiza perfecto aquí)
-                st.markdown(r['pregunta'])
-                
-                # Respuestas
                 col_res1, col_res2 = st.columns(2)
                 with col_res1:
                     if r['es_correcta']:
@@ -233,16 +230,12 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 with col_res2:
                     if not r['es_correcta']:
                         st.warning(f"✔ **Correcta:** {r['correcta']}")
-                    else:
-                        st.write("") # Espacio vacío si acertó
 
-                # Explicación (Separada para forzar renderizado LaTeX correcto)
                 st.markdown("**📝 Explicación:**")
                 st.write(r['explicacion']) 
                 st.markdown("---")
 
-            # --- BOTÓN DE REINICIO ---
-            # Lo ponemos al final y centrado
+            # Botón de reinicio al final
             st.write("")
             col_b, _, _ = st.columns([1, 2, 1])
             with col_b:
