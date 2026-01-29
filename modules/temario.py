@@ -46,6 +46,24 @@ CONTENIDO_TEORICO = {
         ]
     }
 }
+PROMPT_QUIZ = """
+INSTRUCCIONES PARA EL QUIZ:
+1. Genera un examen corto de 4 preguntas de selección simple (A, B, C).
+2. DISTRIBUCIÓN DE TEMAS:
+   - 1 Pregunta de Integrales Indefinidas (Cálculo).
+   - 1 Pregunta de Aplicación Económica de Integrales (Excedentes o Áreas).
+   - 1 Pregunta teórica de Ecuaciones Diferenciales.
+   - 1 Pregunta de resolución de Ecuaciones Diferenciales.
+3. FORMATO:
+   - Enuncia la pregunta claramente.
+   - Da las 3 opciones.
+   - NO indiques la respuesta correcta todavía.
+   - Al final, escribe: "Responde con las letras (ej: 1A, 2B...)"
+4. EVALUACIÓN:
+   - Cuando el usuario responda, corrige una por una y explica brevemente los errores si los hay.
+"""
+
+
 
 # ... (Mantén el CONTEXTO_BASE igual) ...
 CONTEXTO_BASE = """
