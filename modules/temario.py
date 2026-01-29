@@ -58,28 +58,27 @@ def generar_prompt_quiz(temas_seleccionados, cantidad):
     TU TAREA:
     Genera un examen de {cantidad} preguntas de selección simple.
     
+    REGLAS OBLIGATORIAS:
+    1. CADA pregunta debe tener EXACTAMENTE 4 OPCIONES (A, B, C, D).
+    2. Las opciones deben ser plausibles (distractores matemáticos comunes).
+    3. NO incluyas notas aclaratorias o pistas en el enunciado. Sé directo y riguroso.
+    
     TEMAS A EVALUAR: 
     {', '.join(temas_seleccionados)}.
     
-    ESTILO Y DIFICULTAD (IMPORTANTE):
-    A continuación te muestro ejemplos reales de cómo evaluamos en este curso. 
-    Usa estos ejemplos como referencia para calibrar la dificultad y el tono de tus preguntas.
-    No copies los ejemplos, crea nuevos basados en esa lógica.
-    
-    --- INICIO DE EJEMPLOS REALES ---
+    ESTILO (Referencia):
+    Usa estos ejemplos para calibrar el tono, PERO GENERA TUS PROPIOS EJERCICIOS:
+    --- INICIO EJEMPLOS ---
     {banco_muestras.EJEMPLOS_ESTILO}
-    --- FIN DE EJEMPLOS REALES ---
+    --- FIN EJEMPLOS ---
     
-    FORMATO DE SALIDA OBLIGATORIO (JSON):
-    Responde EXCLUSIVAMENTE con un JSON válido. Sin texto extra.
-    
-    Estructura del JSON:
+    FORMATO DE SALIDA (JSON PURO):
     [
         {{
-            "pregunta": "Enunciado claro y riguroso...",
-            "opciones": ["Opción A", "Opción B", "Opción C"],
+            "pregunta": "Enunciado LaTeX...",
+            "opciones": ["A) ...", "B) ...", "C) ...", "D) ..."],
             "respuesta_correcta": "La opción correcta literal",
-            "explicacion": "Justificación matemática paso a paso..."
+            "explicacion": "Explicación paso a paso..."
         }},
         ...
     ]
