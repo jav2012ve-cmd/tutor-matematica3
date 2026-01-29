@@ -66,41 +66,52 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
 # =======================================================
 # LÓGICA C: AUTOEVALUACIÓN (¡NUEVO!)
 # =======================================================
+# =======================================================
+# LÓGICA C: AUTOEVALUACIÓN (MEJORADO)
+# =======================================================
 elif ruta == "c) Autoevaluación (Quiz)":
     st.markdown("### 📝 Centro de Evaluación")
 
-    # --- PANTALLA 1: CONFIGURACIÓN (Si no hay quiz activo) ---
+    # --- PANTALLA 1: CONFIGURACIÓN (Solo si NO hay quiz activo) ---
     if not st.session_state.quiz_activo:
+        st.info("Selecciona el tipo de prueba para comenzar:")
         
+        # Botones grandes para los Parciales
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🏆 Generar Primer Parcial (8 preguntas)"):
+            if st.button("🏆 Generar Primer Parcial (8 preguntas)", use_container_width=True):
                 st.session_state.config_temas = temario.TEMAS_PARCIAL_1
                 st.session_state.config_cant = 8
                 st.session_state.trigger_quiz = True
+                st.rerun() # Forzamos recarga para ocultar opciones inmediatamente
                 
         with col2:
-            if st.button("🏆 Generar Segundo Parcial (8 preguntas)"):
+            if st.button("🏆 Generar Segundo Parcial (8 preguntas)", use_container_width=True):
                 st.session_state.config_temas = temario.TEMAS_PARCIAL_2
                 st.session_state.config_cant = 8
                 st.session_state.trigger_quiz = True
-        
-        st.divider()
-        st.write("O selecciona temas específicos:")
-        temas_custom = st.multiselect("Selecciona temas:", temario.LISTA_TEMAS)
-        
-        if st.button("▶️ Iniciar Quiz Personalizado (5 preguntas)"):
-            if not temas_custom:
-                st.error("Selecciona al menos un tema.")
-            else:
-                st.session_state.config_temas = temas_custom
-                st.session_state.config_cant = 5
-                st.session_state.trigger_quiz = True
+                st.rerun()
 
-        # --- LÓGICA DE GENERACIÓN ---
+        # Opción Personalizada "Escondida" en un desplegable para no ensuciar
+        with st.expander("⚙️ Opciones Personalizadas (Avanzado)"):
+            st.write("Selecciona temas específicos:")
+            temas_custom = st.multiselect("Temas:", temario.LISTA_TEMAS)
+            if st.button("▶️ Iniciar Quiz Personalizado"):
+                if not temas_custom:
+                    st.error("Selecciona al menos un tema.")
+                else:
+                    st.session_state.config_temas = temas_custom
+                    st.session_state.config_cant = 5
+                    st.session_state.trigger_quiz = True
+                    st.rerun()
+
+        # --- LÓGICA DE GENERACIÓN (Invisible al usuario) ---
         if st.session_state.get("trigger_quiz"):
             with st.spinner("🧠 El profesor está redactando tu examen..."):
                 try:
+                    # Usamos el nuevo cerebro de muestras
+                    from modules import banco_muestras
+                    
                     prompt_quiz = temario.generar_prompt_quiz(
                         st.session_state.config_temas, 
                         st.session_state.config_cant
@@ -108,95 +119,103 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     respuesta = model.generate_content(prompt_quiz)
                     datos_quiz = limpiar_json(respuesta.text)
                     
-                    # Inicializamos el Quiz
+                    # Inicializamos variables de estado del Quiz
                     st.session_state.preguntas_quiz = datos_quiz
                     st.session_state.indice_pregunta = 0
                     st.session_state.respuestas_usuario = []
                     st.session_state.quiz_activo = True
-                    st.session_state.trigger_quiz = False # Reset trigger
+                    st.session_state.trigger_quiz = False
                     st.rerun()
                 except Exception as e:
-                    st.error(f"Error generando el quiz. Intenta de nuevo. Detalles: {e}")
+                    st.error(f"Error generando: {e}")
+                    st.session_state.trigger_quiz = False
 
     # --- PANTALLA 2: RESPONDIENDO EL QUIZ ---
     else:
-        # Verificamos si terminamos
-        total_preguntas = len(st.session_state.preguntas_quiz)
+        # Barra de progreso superior
+        total = len(st.session_state.preguntas_quiz)
+        actual = st.session_state.indice_pregunta
         
-        if st.session_state.indice_pregunta < total_preguntas:
-            # Recuperamos la pregunta actual
-            pregunta_actual = st.session_state.preguntas_quiz[st.session_state.indice_pregunta]
+        if actual < total:
+            pregunta_data = st.session_state.preguntas_quiz[actual]
             
-            # Barra de progreso
-            progreso = (st.session_state.indice_pregunta + 1) / total_preguntas
-            st.progress(progreso, text=f"Pregunta {st.session_state.indice_pregunta + 1} de {total_preguntas}")
+            # Mostramos progreso
+            st.progress((actual) / total, text=f"Pregunta {actual + 1} de {total}")
+            st.markdown(f"#### {pregunta_data['pregunta']}")
             
-            st.markdown(f"#### {pregunta_actual['pregunta']}")
+            # --- ESTADO A: Usuario aún no responde ---
+            # Verificamos si ya tenemos respuesta para este índice
+            ya_respondido = len(st.session_state.respuestas_usuario) > actual
             
-            # Botones de opción
-            opcion_elegida = st.radio("Selecciona una opción:", pregunta_actual['opciones'], key=f"radio_{st.session_state.indice_pregunta}")
-            
-            if st.button("Responder"):
-                es_correcta = (opcion_elegida == pregunta_actual['respuesta_correcta'])
+            if not ya_respondido:
+                # Mostramos opciones (usamos key dinámico para resetear selección)
+                opcion = st.radio(
+                    "Selecciona:", 
+                    pregunta_data['opciones'], 
+                    key=f"radio_{actual}",
+                    index=None
+                )
                 
-                # Feedback inmediato
-                if es_correcta:
+                if st.button("Responder", type="primary"):
+                    if opcion:
+                        # Calculamos puntos
+                        es_correcta = (opcion == pregunta_data['respuesta_correcta'])
+                        pts = round(20 / total, 2) if es_correcta else 0
+                        
+                        # Guardamos
+                        st.session_state.respuestas_usuario.append({
+                            "pregunta": pregunta_data['pregunta'],
+                            "elegida": opcion,
+                            "correcta": pregunta_data['respuesta_correcta'],
+                            "explicacion": pregunta_data['explicacion'],
+                            "puntos": pts,
+                            "es_correcta": es_correcta
+                        })
+                        st.rerun() # Recargamos para mostrar feedback
+                    else:
+                        st.warning("Por favor selecciona una opción.")
+            
+            # --- ESTADO B: Usuario ya respondió (Feedback estático) ---
+            else:
+                # Recuperamos la última respuesta guardada
+                ultimo_dato = st.session_state.respuestas_usuario[actual]
+                
+                # Deshabilitamos el radio mostrando qué eligió
+                st.info(f"Tu respuesta: **{ultimo_dato['elegida']}**")
+                
+                if ultimo_dato['es_correcta']:
                     st.success("✅ ¡Correcto!")
-                    puntos = 20 / total_preguntas
                 else:
-                    st.error(f"❌ Incorrecto. La respuesta era: {pregunta_actual['respuesta_correcta']}")
-                    st.info(f"💡 Explicación: {pregunta_actual['explicacion']}")
-                    puntos = 0
+                    st.error(f"❌ Incorrecto. La respuesta correcta es: {ultimo_dato['correcta']}")
                 
-                # --- CORRECCIÓN AQUÍ ---
-                # Hacemos el redondeo fuera del diccionario para evitar el error
-                puntos_redondeados = round(puntos, 2)
+                # Explicación pedagógica (siempre visible ahora)
+                with st.expander("💡 Ver Explicación del Profesor", expanded=True):
+                    st.write(ultimo_dato['explicacion'])
+                
+                # BOTÓN SIGUIENTE (El usuario controla el tiempo)
+                if st.button("Siguiente Pregunta ➡️", type="primary"):
+                    st.session_state.indice_pregunta += 1
+                    st.rerun()
 
-                # Guardamos resultado
-                st.session_state.respuestas_usuario.append({
-                    "pregunta": pregunta_actual['pregunta'],
-                    "elegida": opcion_elegida,
-                    "correcta": pregunta_actual['respuesta_correcta'],
-                    "puntos": puntos_redondeados
-                })
-                # -----------------------
-                
-                # Avanzamos y recargamos
-                time.sleep(2) 
-                st.session_state.indice_pregunta += 1
-                st.rerun()
-                
         # --- PANTALLA 3: RESULTADOS FINALES ---
         else:
             st.balloons()
-            st.header("📊 Resultados del Examen")
+            st.success("¡Examen Finalizado!")
             
-            score_total = sum(item['puntos'] for item in st.session_state.respuestas_usuario)
-            st.metric(label="Calificación Final", value=f"{score_total}/20 Puntos")
+            # Cálculo de nota
+            suma_puntos = sum(r['puntos'] for r in st.session_state.respuestas_usuario)
+            st.metric("Calificación Final", f"{round(suma_puntos, 2)} / 20 pts")
             
-            # Tabla de detalles
-            st.write("### Detalle de respuestas:")
-            for i, item in enumerate(st.session_state.respuestas_usuario):
-                color = "🟢" if item['puntos'] > 0 else "🔴"
-                st.write(f"{color} **P{i+1}:** {item['pregunta']}")
-                st.caption(f"Tu respuesta: {item['elegida']} | Correcta: {item['correcta']}")
-                st.divider()
-            
-            # Botón para generar reporte TXT
-            reporte_texto = f"REPORTE DE CALIFICACIONES - MATEMÁTICAS III\n"
-            reporte_texto += f"Calificación: {score_total}/20\n\n"
-            for item in st.session_state.respuestas_usuario:
-                reporte_texto += f"Pregunta: {item['pregunta']}\n"
-                reporte_texto += f"Respuesta: {item['elegida']} (Puntos: {item['puntos']})\n---\n"
-                
-            st.download_button(
-                label="📥 Descargar Reporte",
-                data=reporte_texto,
-                file_name="reporte_quiz.txt",
-                mime="text/plain"
-            )
-            
-            if st.button("🔄 Comenzar Nuevo Quiz"):
+            # Tabla Resumen
+            st.write("### 📊 Detalle de Resultados")
+            for i, r in enumerate(st.session_state.respuestas_usuario):
+                icono = "✅" if r['es_correcta'] else "❌"
+                with st.expander(f"{icono} Pregunta {i+1} ({r['puntos']} pts)"):
+                    st.write(f"**P:** {r['pregunta']}")
+                    st.write(f"**Tuya:** {r['elegida']} | **Correcta:** {r['correcta']}")
+                    st.caption(f"Explicación: {r['explicacion']}")
+
+            if st.button("🔄 Comenzar Nuevo Examen"):
                 st.session_state.quiz_activo = False
                 st.session_state.indice_pregunta = 0
                 st.session_state.respuestas_usuario = []
