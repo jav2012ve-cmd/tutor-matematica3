@@ -198,24 +198,26 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.session_state.indice_pregunta += 1
                     st.rerun()
 
-        # --- PANTALLA 3: RESULTADOS (Vista de Impresión) ---
+# --- PANTALLA 3: RESULTADOS (Vista de Impresión) ---
         else:
             st.balloons()
             st.success("¡Examen Finalizado!")
             
+            # Cálculo de nota
             suma_puntos = sum(r['puntos'] for r in st.session_state.respuestas_usuario)
             nota_final = round(suma_puntos, 2)
             
-            col_nota, col_info = st.columns([1, 2])
-            with col_nota:
+            # --- BLOQUE DE NOTA SUPERIOR ---
+            col_nota_top, col_info_top = st.columns([1, 2])
+            with col_nota_top:
                 st.metric("Calificación Final", f"{nota_final} / 20 pts")
-            with col_info:
+            with col_info_top:
                 st.info("💡 **Para guardar reporte:** Presiona `Ctrl + P` en tu navegador y selecciona 'Guardar como PDF'.")
 
             st.divider()
             st.subheader("📄 Detalle del Examen")
 
-            # Renderizado limpio para impresión
+            # Renderizado del detalle
             for i, r in enumerate(st.session_state.respuestas_usuario):
                 st.markdown(f"#### 🔹 Pregunta {i+1} ({r['puntos']} pts)")
                 st.markdown(r['pregunta']) # Enunciado LaTeX
@@ -235,8 +237,18 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 st.write(r['explicacion']) 
                 st.markdown("---")
 
-            # Botón de reinicio al final
-            st.write("")
+            # --- BLOQUE DE NOTA INFERIOR (REPETIDO) ---
+            # Para que lo vea al terminar de revisar
+            st.markdown("### 🏁 Resumen Final")
+            col_nota_bot, col_info_bot = st.columns([1, 2])
+            with col_nota_bot:
+                st.metric("Calificación Final ", f"{nota_final} / 20 pts")
+            with col_info_bot:
+                st.info("💡 **Recordatorio:** Presiona `Ctrl + P` para guardar esta pantalla como tu constancia.")
+
+            st.divider()
+
+            # Botón de reinicio
             col_b, _, _ = st.columns([1, 2, 1])
             with col_b:
                 if st.button("🔄 Comenzar Nuevo Examen", type="primary"):
