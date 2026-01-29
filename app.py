@@ -67,18 +67,31 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
     contexto_sistema += "\nModo: Resolución de dudas y guía paso a paso."
 
 # --- MODIFICACIÓN AQUÍ ---
+# --- COPIA Y PEGA ESTO EN LUGAR DE TU BLOQUE 'ELSE' ACTUAL ---
+
 else: # c) Autoevaluación
     st.info("🧠 Modo Examen: Pon a prueba tus conocimientos.")
-    contexto_sistema += temario.PROMPT_QUIZ # Le pasamos las reglas que creamos
+    contexto_sistema += temario.PROMPT_QUIZ 
     
-    # Botón para arrancar el quiz sin escribir nada
     if st.button("📝 Generar Nuevo Quiz"):
-        # Simulamos que el usuario pidió el quiz
-        st.session_state.messages.append({"role": "user", "content": "Genera el quiz ahora por favor."})
-        st.rerun() 
-# -------------------------
-
-st.divider()
+        # 1. Simulamos que el usuario "habló"
+        msg_usuario = "Genera el quiz ahora por favor."
+        st.session_state.messages.append({"role": "user", "content": msg_usuario})
+        
+        # 2. OBLIGAMOS a la IA a responder AQUÍ MISMO antes de recargar
+        with st.spinner("El profesor está redactando el examen..."):
+            try:
+                # Construimos la petición manualmente
+                full_prompt = f"SISTEMA: {contexto_sistema}\n\nUSUARIO: {msg_usuario}"
+                response = model.generate_content(full_prompt)
+                
+                # Guardamos la respuesta de la IA en el historial
+                st.session_state.messages.append({"role": "assistant", "content": response.text})
+            except Exception as e:
+                st.error(f"Error generando el quiz: {e}")
+        
+        # 3. Ahora sí, recargamos para que aparezcan ambos mensajes
+        st.rerun()
 
 # --- CHAT BOT ---
 for message in st.session_state.messages:
