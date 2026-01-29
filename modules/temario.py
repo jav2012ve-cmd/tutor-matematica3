@@ -1,5 +1,5 @@
 # modules/temario.py
-
+from modules import banco_muestras # <--- NUEVA LÍNEA IMPORTANTE
 # --- LISTAS DE TEMAS ---
 TEMAS_PARCIAL_1 = [
     "1.1.1 Integrales Directas",
@@ -50,21 +50,36 @@ Sé riguroso pero cercano.
 """
 
 # --- NUEVO: Prompt Estructurado para el Quiz ---
+# --- NUEVO: Prompt Estructurado con "Few-Shot Learning" ---
 def generar_prompt_quiz(temas_seleccionados, cantidad):
     return f"""
-    GENERA UN EXAMEN DE {cantidad} PREGUNTAS.
-    Temas a evaluar: {', '.join(temas_seleccionados)}.
+    ACTÚA COMO PROFESOR DE MATEMÁTICAS III PARA ECONOMISTAS.
     
-    IMPORTANTE: Debes responder EXCLUSIVAMENTE en formato JSON válido.
-    No añadas texto introductorio ni final. Solo el JSON.
+    TU TAREA:
+    Genera un examen de {cantidad} preguntas de selección simple.
+    
+    TEMAS A EVALUAR: 
+    {', '.join(temas_seleccionados)}.
+    
+    ESTILO Y DIFICULTAD (IMPORTANTE):
+    A continuación te muestro ejemplos reales de cómo evaluamos en este curso. 
+    Usa estos ejemplos como referencia para calibrar la dificultad y el tono de tus preguntas.
+    No copies los ejemplos, crea nuevos basados en esa lógica.
+    
+    --- INICIO DE EJEMPLOS REALES ---
+    {banco_muestras.EJEMPLOS_ESTILO}
+    --- FIN DE EJEMPLOS REALES ---
+    
+    FORMATO DE SALIDA OBLIGATORIO (JSON):
+    Responde EXCLUSIVAMENTE con un JSON válido. Sin texto extra.
     
     Estructura del JSON:
     [
         {{
-            "pregunta": "Texto de la pregunta...",
+            "pregunta": "Enunciado claro y riguroso...",
             "opciones": ["Opción A", "Opción B", "Opción C"],
-            "respuesta_correcta": "Opción A",
-            "explicacion": "Breve explicación de por qué es la correcta..."
+            "respuesta_correcta": "La opción correcta literal",
+            "explicacion": "Justificación matemática paso a paso..."
         }},
         ...
     ]
