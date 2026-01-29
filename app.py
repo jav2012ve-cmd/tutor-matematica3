@@ -204,9 +204,100 @@ elif ruta == "c) Autoevaluación (Quiz)":
             
             # Cálculo de nota
             suma_puntos = sum(r['puntos'] for r in st.session_state.respuestas_usuario)
-            st.metric("Calificación Final", f"{round(suma_puntos, 2)} / 20 pts")
+            nota_final = round(suma_puntos, 2)
+            st.metric("Calificación Final", f"{nota_final} / 20 pts")
             
-            # Tabla Resumen
+            # --- GENERACIÓN DE DOCUMENTOS ---
+            from fpdf import FPDF
+            
+            # 1. GENERADOR DE PDF (Reporte Rápido)
+            def generar_pdf_reporte():
+                pdf = FPDF()
+                pdf.add_page()
+                pdf.set_font("Arial", "B", 16)
+                pdf.cell(0, 10, "Reporte de Autoevaluación - Matemáticas III", ln=True, align="C")
+                pdf.set_font("Arial", "", 12)
+                pdf.ln(10)
+                pdf.cell(0, 10, f"Calificación: {nota_final}/20", ln=True)
+                pdf.ln(5)
+                
+                for i, r in enumerate(st.session_state.respuestas_usuario):
+                    pdf.set_font("Arial", "B", 11)
+                    # Limpiamos un poco el texto para evitar errores de caracteres raros en PDF simple
+                    pregunta_limpia = r['pregunta'].encode('latin-1', 'replace').decode('latin-1')
+                    pdf.multi_cell(0, 10, f"P{i+1}: {pregunta_limpia}")
+                    
+                    pdf.set_font("Arial", "", 10)
+                    estado = "CORRECTO" if r['es_correcta'] else "INCORRECTO"
+                    pdf.cell(0, 10, f"Estado: {estado} | Puntos: {r['puntos']}")
+                    pdf.ln(10)
+                
+                return pdf.output(dest="S").encode("latin-1")
+
+            # 2. GENERADOR DE LATEX (Constancia Oficial Estilo UCAB)
+            def generar_latex_constancia():
+                tex = r"""
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\begin{document}
+\begin{center}
+    Universidad Católica Andrés Bello \\
+    Escuela de Economía - Matemáticas III \\
+    \textbf{CONSTANCIA DE AUTOEVALUACIÓN}
+\end{center}
+
+\vspace{0.5cm}
+\noindent \textbf{Calificación:} """ + str(nota_final) + r"""/20 pts \\
+\vspace{0.5cm}
+
+\section*{Detalle de la Prueba}
+\begin{enumerate}
+"""
+                for r in st.session_state.respuestas_usuario:
+                    # Escapamos caracteres peligrosos de LaTeX si es necesario
+                    tex += r"\item \textbf{Pregunta:} " + r['pregunta'] + "\n"
+                    tex += r"\begin{itemize}" + "\n"
+                    tex += r"\item \textit{Respuesta del Estudiante:} " + r['elegida'] + "\n"
+                    tex += r"\item \textit{Respuesta Correcta:} " + r['correcta'] + "\n"
+                    tex += r"\item \textit{Puntos:} " + str(r['puntos']) + "\n"
+                    tex += r"\end{itemize}" + "\n\n"
+
+                tex += r"""
+\end{enumerate}
+\end{document}
+"""
+                return tex
+
+            # --- BOTONES DE DESCARGA ---
+            col_descarga1, col_descarga2 = st.columns(2)
+            
+            with col_descarga1:
+                try:
+                    pdf_bytes = generar_pdf_reporte()
+                    st.download_button(
+                        label="📄 Descargar Reporte (PDF)",
+                        data=pdf_bytes,
+                        file_name="reporte_notas.pdf",
+                        mime="application/pdf",
+                        type="primary"
+                    )
+                except Exception as e:
+                    st.warning(f"Instala 'fpdf' para generar PDF. Error: {e}")
+
+            with col_descarga2:
+                latex_str = generar_latex_constancia()
+                st.download_button(
+                    label="📜 Descargar Constancia (LaTeX)",
+                    data=latex_str,
+                    file_name="constancia_evaluacion.tex",
+                    mime="text/plain"
+                )
+
+            st.divider()
+            
+            # Tabla Resumen en Pantalla
             st.write("### 📊 Detalle de Resultados")
             for i, r in enumerate(st.session_state.respuestas_usuario):
                 icono = "✅" if r['es_correcta'] else "❌"
