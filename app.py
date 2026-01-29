@@ -195,95 +195,58 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.session_state.indice_pregunta += 1
                     st.rerun()
 
-        # --- PANTALLA 3: RESULTADOS FINALES ---
+# --- PANTALLA 3: RESULTADOS FINALES ---
         else:
             st.balloons()
             st.success("¡Examen Finalizado!")
             
+            # Cálculo de nota
             suma_puntos = sum(r['puntos'] for r in st.session_state.respuestas_usuario)
             nota_final = round(suma_puntos, 2)
-            st.metric("Calificación Final", f"{nota_final} / 20 pts")
             
-            # 1. Detalle en pantalla
-            st.write("### 📊 Detalle de Resultados")
-            for i, r in enumerate(st.session_state.respuestas_usuario):
-                icono = "✅" if r['es_correcta'] else "❌"
-                with st.expander(f"{icono} Pregunta {i+1} ({r['puntos']} pts)"):
-                    st.markdown(f"**P:** {r['pregunta']}")
-                    st.write(f"**Tuya:** {r['elegida']} | **Correcta:** {r['correcta']}")
-                    st.caption(f"Explicación: {r['explicacion']}")
-            
+            # Encabezado de Nota
+            col_nota, col_info = st.columns([1, 2])
+            with col_nota:
+                st.metric("Calificación Final", f"{nota_final} / 20 pts")
+            with col_info:
+                st.info("💡 **Para guardar tu reporte:** Presiona `Ctrl + P` (o Cmd + P) en tu navegador y selecciona 'Guardar como PDF'.")
+
             st.divider()
+            st.subheader("📄 Detalle del Examen")
 
-            # 2. Generador PDF Limpio
-            from fpdf import FPDF
-            import re
+            # --- RENDERIZADO PARA IMPRESIÓN (SIN EXPANDERS) ---
+            # Mostramos todo "abierto" para que al imprimir salga completo
+            for i, r in enumerate(st.session_state.respuestas_usuario):
+                st.markdown(f"#### 🔹 Pregunta {i+1} ({r['puntos']} pts)")
+                
+                # Enunciado (LaTeX se renderiza perfecto aquí)
+                st.markdown(r['pregunta'])
+                
+                # Respuestas
+                col_res1, col_res2 = st.columns(2)
+                with col_res1:
+                    if r['es_correcta']:
+                        st.success(f"✅ **Tu respuesta:** {r['elegida']}")
+                    else:
+                        st.error(f"❌ **Tu respuesta:** {r['elegida']}")
+                
+                with col_res2:
+                    if not r['es_correcta']:
+                        st.warning(f"✔ **Correcta:** {r['correcta']}")
+                    else:
+                        st.write("") # Espacio vacío si acertó
 
-            def limpiar_latex(texto):
-                texto = texto.replace(r"\_", "_").replace("$", "")
-                texto = texto.replace(r"\frac", "").replace(r"\int", "Integral")
-                texto = texto.replace(r"\infty", "Infinito").replace(r"\sqrt", "Raiz")
-                texto = re.sub(r'\\begin\{.*?\}', '', texto)
-                texto = re.sub(r'\\end\{.*?\}', '', texto)
-                texto = re.sub(r'\\text\{.*?\}', '', texto)
-                texto = texto.replace("{", "(").replace("}", ")").replace("\\", "")
-                return texto
+                # Explicación
+                st.markdown(f"**📝 Explicación:** {r['explicacion']}")
+                st.markdown("---") # Línea separadora entre preguntas
 
-            def generar_pdf_reporte():
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_auto_page_break(auto=True, margin=15)
-                
-                pdf.set_font("Arial", "B", 16)
-                pdf.cell(0, 10, "Reporte de Autoevaluación", ln=True, align="C")
-                pdf.set_font("Arial", "", 12)
-                pdf.cell(0, 10, "Matemáticas III - Escuela de Economía", ln=True, align="C")
-                pdf.ln(10)
-                
-                pdf.set_font("Arial", "B", 14)
-                pdf.cell(0, 10, f"Calificación: {nota_final}/20 puntos", ln=True)
-                pdf.ln(5)
-                
-                for i, r in enumerate(st.session_state.respuestas_usuario):
-                    pdf.set_font("Arial", "B", 11)
-                    pdf.cell(0, 10, f"Pregunta {i+1} ({r['puntos']} pts):", ln=True)
-                    
-                    texto_pregunta = limpiar_latex(r['pregunta']).encode('latin-1', 'replace').decode('latin-1')
-                    pdf.set_font("Arial", "", 11)
-                    pdf.multi_cell(0, 7, texto_pregunta)
-                    
-                    resp_elegida = limpiar_latex(r['elegida']).encode('latin-1', 'replace').decode('latin-1')
-                    resp_correcta = limpiar_latex(r['correcta']).encode('latin-1', 'replace').decode('latin-1')
-                    
-                    pdf.set_font("Courier", "", 10)
-                    pdf.ln(2)
-                    pdf.cell(0, 5, f"Tu respuesta: {resp_elegida}", ln=True)
-                    pdf.cell(0, 5, f"Correcta:     {resp_correcta}", ln=True)
-                    pdf.ln(5)
-                    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-                    pdf.ln(5)
-                
-                return pdf.output(dest="S").encode("latin-1")
-
-            # 3. Botones Finales
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                if st.button("🔄 Comenzar Nuevo Examen", use_container_width=True):
+            # --- BOTÓN DE REINICIO ---
+            # Lo ponemos al final y centrado
+            st.write("")
+            col_b, _, _ = st.columns([1, 2, 1])
+            with col_b:
+                if st.button("🔄 Comenzar Nuevo Examen", type="primary"):
                     st.session_state.quiz_activo = False
                     st.session_state.indice_pregunta = 0
                     st.session_state.respuestas_usuario = []
                     st.rerun()
-            
-            with col2:
-                try:
-                    pdf_bytes = generar_pdf_reporte()
-                    st.download_button(
-                        label="📄 Descargar Reporte PDF",
-                        data=pdf_bytes,
-                        file_name="Resultado_Examen_Mate3.pdf",
-                        mime="application/pdf",
-                        use_container_width=True,
-                        type="primary"
-                    )
-                except Exception as e:
-                    st.error(f"Error PDF: {e}")
