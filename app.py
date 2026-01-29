@@ -66,8 +66,17 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
     st.info("Sube tu ejercicio o escribe tu duda.")
     contexto_sistema += "\nModo: Resolución de dudas y guía paso a paso."
 
-else:
-    contexto_sistema += "\nModo: Generar Quiz de 8 preguntas variadas."
+# --- MODIFICACIÓN AQUÍ ---
+else: # c) Autoevaluación
+    st.info("🧠 Modo Examen: Pon a prueba tus conocimientos.")
+    contexto_sistema += temario.PROMPT_QUIZ # Le pasamos las reglas que creamos
+    
+    # Botón para arrancar el quiz sin escribir nada
+    if st.button("📝 Generar Nuevo Quiz"):
+        # Simulamos que el usuario pidió el quiz
+        st.session_state.messages.append({"role": "user", "content": "Genera el quiz ahora por favor."})
+        st.rerun() 
+# -------------------------
 
 st.divider()
 
