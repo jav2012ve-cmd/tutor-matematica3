@@ -77,65 +77,104 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
                 st.session_state.messages.append({"role": "assistant", "content": res.text})
 
 # =======================================================
-# LÓGICA C: AUTOEVALUACIÓN (Quiz) - VERSIÓN DEFINITIVA
+# LÓGICA C: AUTOEVALUACIÓN (Quiz) - VERSIÓN HÍBRIDA
 # =======================================================
 elif ruta == "c) Autoevaluación (Quiz)":
     st.markdown("### 📝 Centro de Evaluación")
 
     # --- PANTALLA 1: CONFIGURACIÓN ---
     if not st.session_state.quiz_activo:
-        st.info("Selecciona el tipo de prueba para comenzar:")
+        st.info("Configura tu prueba:")
         
+        # 1. SELECCIÓN DE FUENTE (NUEVO)
+        origen_datos = st.radio(
+            "Origen de las preguntas:",
+            ["🤖 Generar con IA (Infinitas)", "uD83D\uDCC1 Banco de Preguntas Oficial (Fijas)"],
+            horizontal=True
+        )
+        
+        st.divider()
+
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🏆 Generar Primer Parcial (8 preguntas)", use_container_width=True):
+            if st.button("🏆 Generar Primer Parcial (Simulacro)", use_container_width=True):
                 st.session_state.config_temas = temario.TEMAS_PARCIAL_1
-                st.session_state.config_cant = 8
+                st.session_state.config_cant = 5 # Bajamos a 5 para probar rápido
+                st.session_state.origen_seleccionado = origen_datos
                 st.session_state.trigger_quiz = True
                 st.rerun()
                 
         with col2:
-            if st.button("🏆 Generar Segundo Parcial (8 preguntas)", use_container_width=True):
+            if st.button("🏆 Generar Segundo Parcial (Simulacro)", use_container_width=True):
                 st.session_state.config_temas = temario.TEMAS_PARCIAL_2
-                st.session_state.config_cant = 8
+                st.session_state.config_cant = 5
+                st.session_state.origen_seleccionado = origen_datos
                 st.session_state.trigger_quiz = True
                 st.rerun()
 
-        with st.expander("⚙️ Opciones Personalizadas (Avanzado)"):
+        with st.expander("⚙️ Personalizado"):
             temas_custom = st.multiselect("Temas:", temario.LISTA_TEMAS)
-            if st.button("▶️ Iniciar Quiz Personalizado"):
+            if st.button("▶️ Iniciar Quiz Custom"):
                 if not temas_custom:
-                    st.error("Selecciona al menos un tema.")
+                    st.error("Selecciona tema.")
                 else:
                     st.session_state.config_temas = temas_custom
                     st.session_state.config_cant = 5
+                    st.session_state.origen_seleccionado = origen_datos
                     st.session_state.trigger_quiz = True
                     st.rerun()
 
-        # Generación del Quiz (Invisible)
+        # --- LÓGICA DE GENERACIÓN (MODIFICADA) ---
         if st.session_state.get("trigger_quiz"):
-            with st.spinner("🧠 El profesor está redactando tu examen..."):
+            with st.spinner("Preparando evaluación..."):
                 try:
-                    from modules import banco_muestras
-                    prompt_quiz = temario.generar_prompt_quiz(
-                        st.session_state.config_temas, 
-                        st.session_state.config_cant
-                    )
-                    respuesta = model.generate_content(prompt_quiz)
-                    datos_quiz = limpiar_json(respuesta.text)
+                    nuevas_preguntas = []
                     
-                    st.session_state.preguntas_quiz = datos_quiz
+                    # CASO A: BANCO FIJO
+                    if "Banco" in st.session_state.origen_seleccionado:
+                        from modules import banco_preguntas
+                        nuevas_preguntas = banco_preguntas.obtener_preguntas_fijas(
+                            st.session_state.config_temas,
+                            st.session_state.config_cant
+                        )
+                        if not nuevas_preguntas:
+                            st.warning("⚠️ No encontré preguntas fijas para esos temas. Generando con IA...")
+                            # Fallback a IA si no hay preguntas fijas
+                            st.session_state.origen_seleccionado = "IA" 
+                    
+                    # CASO B: GENERACIÓN IA (O Fallback)
+                    if "IA" in st.session_state.origen_seleccionado or not nuevas_preguntas:
+                        from modules import banco_muestras
+                        prompt_quiz = temario.generar_prompt_quiz(
+                            st.session_state.config_temas, 
+                            st.session_state.config_cant
+                        )
+                        respuesta = model.generate_content(prompt_quiz)
+                        nuevas_preguntas = limpiar_json(respuesta.text)
+                    
+                    # Guardar en estado
+                    st.session_state.preguntas_quiz = nuevas_preguntas
                     st.session_state.indice_pregunta = 0
                     st.session_state.respuestas_usuario = []
                     st.session_state.quiz_activo = True
                     st.session_state.trigger_quiz = False
                     st.rerun()
+                    
                 except Exception as e:
-                    st.error(f"Error generando el quiz: {e}")
+                    st.error(f"Error: {e}")
                     st.session_state.trigger_quiz = False
 
-    # --- PANTALLA 2: RESPONDIENDO ---
+    # --- PANTALLA 2 (RESPONDER) y 3 (RESULTADOS) ---
+    # (El resto del código se mantiene IGUAL porque la estructura de datos es idéntica)
     else:
+        # ... (Mantén aquí todo el código original desde el 'else:' de la línea 106 de tu app.py original)
+        # ... (Incluyendo lógica de radio buttons, feedback, resultados, balloons, etc.)
+        # ... COPIA Y PEGA EL RESTO DEL ARCHIVO ORIGINAL AQUÍ ...
+        
+        # Como referencia, el código que sigue es el de renderizado visual
+        # que NO necesita cambios porque 'st.session_state.preguntas_quiz'
+        # ya tiene los datos cargados (sea de IA o de tu Banco).
+        
         total = len(st.session_state.preguntas_quiz)
         actual = st.session_state.indice_pregunta
         
@@ -146,26 +185,15 @@ elif ruta == "c) Autoevaluación (Quiz)":
             st.progress((actual) / total, text=f"Pregunta {actual + 1} de {total}")
             st.markdown(f"#### {pregunta_data['pregunta']}")
             
-            # Verificamos si ya respondió esta pregunta
             ya_respondido = len(st.session_state.respuestas_usuario) > actual
             
-            # -- Estado: Usuario Responde --
             if not ya_respondido:
-                opcion = st.radio(
-                    "Selecciona:", 
-                    pregunta_data['opciones'], 
-                    key=f"radio_{actual}",
-                    index=None
-                )
-                
+                opcion = st.radio("Selecciona:", pregunta_data['opciones'], key=f"radio_{actual}", index=None)
                 if st.button("Responder", type="primary"):
                     if opcion:
-                        # --- CORRECCIÓN DE LETRAS (A vs A) ---
                         letra_usuario = opcion.strip()[0].upper()
                         letra_correcta = pregunta_data['respuesta_correcta'].strip()[0].upper()
                         es_correcta = (letra_usuario == letra_correcta)
-                        # -------------------------------------
-
                         pts = round(20 / total, 2) if es_correcta else 0
                         
                         st.session_state.respuestas_usuario.append({
@@ -179,76 +207,37 @@ elif ruta == "c) Autoevaluación (Quiz)":
                         st.rerun()
                     else:
                         st.warning("⚠️ Selecciona una opción.")
-            
-            # -- Estado: Feedback --
             else:
                 ultimo_dato = st.session_state.respuestas_usuario[actual]
                 st.info(f"Tu respuesta: **{ultimo_dato['elegida']}**")
-                
-                if ultimo_dato['es_correcta']:
-                    st.success("✅ ¡Correcto!")
-                else:
-                    st.error(f"❌ Incorrecto. La correcta era: {ultimo_dato['correcta']}")
-                
-                with st.expander("💡 Ver Explicación", expanded=True):
-                    # Usamos st.write para que detecte LaTeX automático
-                    st.write(ultimo_dato['explicacion'])
-                
+                if ultimo_dato['es_correcta']: st.success("✅ ¡Correcto!")
+                else: st.error(f"❌ Incorrecto. La correcta era: {ultimo_dato['correcta']}")
+                with st.expander("💡 Ver Explicación", expanded=True): st.write(ultimo_dato['explicacion'])
                 if st.button("Siguiente Pregunta ➡️", type="primary"):
                     st.session_state.indice_pregunta += 1
                     st.rerun()
-
-# --- PANTALLA 3: RESULTADOS (Vista de Impresión) ---
         else:
             st.balloons()
             st.success("¡Examen Finalizado!")
-            
-            # Cálculo de nota
             suma_puntos = sum(r['puntos'] for r in st.session_state.respuestas_usuario)
             nota_final = round(suma_puntos, 2)
-            
-            # --- BLOQUE DE NOTA SUPERIOR ---
             col_nota_top, col_info_top = st.columns([1, 2])
-            with col_nota_top:
-                st.metric("Calificación Final", f"{nota_final} / 20 pts")
-            with col_info_top:
-                st.info("💡 **Para guardar reporte:** Presiona `Ctrl + P` en tu navegador y selecciona 'Guardar como PDF'.")
-
+            with col_nota_top: st.metric("Calificación Final", f"{nota_final} / 20 pts")
+            with col_info_top: st.info("💡 **Para guardar reporte:** Presiona `Ctrl + P`.")
             st.divider()
             st.subheader("📄 Detalle del Examen")
-
-            # Renderizado del detalle
             for i, r in enumerate(st.session_state.respuestas_usuario):
                 st.markdown(f"#### 🔹 Pregunta {i+1} ({r['puntos']} pts)")
-                st.markdown(r['pregunta']) # Enunciado LaTeX
-                
+                st.markdown(r['pregunta']) 
                 col_res1, col_res2 = st.columns(2)
                 with col_res1:
-                    if r['es_correcta']:
-                        st.success(f"✅ **Tu respuesta:** {r['elegida']}")
-                    else:
-                        st.error(f"❌ **Tu respuesta:** {r['elegida']}")
-                
+                    if r['es_correcta']: st.success(f"✅ **Tu respuesta:** {r['elegida']}")
+                    else: st.error(f"❌ **Tu respuesta:** {r['elegida']}")
                 with col_res2:
-                    if not r['es_correcta']:
-                        st.warning(f"✔ **Correcta:** {r['correcta']}")
-
+                    if not r['es_correcta']: st.warning(f"✔ **Correcta:** {r['correcta']}")
                 st.markdown("**📝 Explicación:**")
                 st.write(r['explicacion']) 
                 st.markdown("---")
-
-            # --- BLOQUE DE NOTA INFERIOR (REPETIDO) ---
-            # Para que lo vea al terminar de revisar
-            st.markdown("### 🏁 Resumen Final")
-            col_nota_bot, col_info_bot = st.columns([1, 2])
-            with col_nota_bot:
-                st.metric("Calificación Final ", f"{nota_final} / 20 pts")
-            with col_info_bot:
-                st.info("💡 **Recordatorio:** Presiona `Ctrl + P` para guardar esta pantalla como tu constancia.")
-
-            st.divider()
-
-            # Botón de reinicio
             col_b, _, _ = st.columns([1, 2, 1])
             with col_b:
                 if st.button("🔄 Comenzar Nuevo Examen", type="primary"):
