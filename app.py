@@ -71,7 +71,7 @@ if ruta == "a) Entrenamiento (Temario)":
     st.markdown("### 🥋 Dojo de Matemáticas (Entrenamiento Guiado)")
     st.info("Resolución paso a paso: **1. Elegir Estrategia** -> **2. Hito Intermedio** -> **3. Resultado Final**.")
 
-    # Inicializar variables de sesión exclusivas para este modo si no existen
+    # Inicializar variable maestra de este modo
     if "entrenamiento_activo" not in st.session_state:
         st.session_state.entrenamiento_activo = False
 
@@ -94,11 +94,9 @@ if ruta == "a) Entrenamiento (Temario)":
                         
                         lista_entrenamiento = []
                         # Regla: 2 Banco + 3 IA
-                        # Intentamos sacar 2 del banco
                         preguntas_banco = banco_preguntas.obtener_preguntas_fijas(temas_entrenamiento, 2)
                         lista_entrenamiento.extend(preguntas_banco)
                         
-                        # Rellenamos con IA hasta llegar a 5
                         faltantes = 5 - len(lista_entrenamiento)
                         if faltantes > 0:
                             prompt_train = temario.generar_prompt_quiz(temas_entrenamiento, faltantes)
@@ -108,11 +106,12 @@ if ruta == "a) Entrenamiento (Temario)":
                         
                         random.shuffle(lista_entrenamiento)
                         
-                        # Configurar la sesión de entrenamiento
+                        # --- INICIALIZACIÓN SEGURA ---
                         st.session_state.entrenamiento_lista = lista_entrenamiento[:5]
-                        st.session_state.entrenamiento_idx = 0
-                        st.session_state.entrenamiento_step = 1  # 1: Estrategia, 2: Intermedio, 3: Final
-                        st.session_state.entrenamiento_data_ia = None # Datos del tutor (estrategias, pasos)
+                        st.session_state.entrenamiento_idx = 0  # <--- FORZAR REINICIO A 0
+                        st.session_state.entrenamiento_step = 1
+                        st.session_state.entrenamiento_data_ia = None
+                        st.session_state.entrenamiento_validado = False # Reiniciar validación
                         st.session_state.entrenamiento_activo = True
                         st.rerun()
                     except Exception as e:
@@ -120,7 +119,6 @@ if ruta == "a) Entrenamiento (Temario)":
 
     # --- PANTALLA DE EJERCICIOS (El Dojo) ---
     else:
-        # Recuperar ejercicio actual
         idx = st.session_state.entrenamiento_idx
         lista = st.session_state.entrenamiento_lista
         
@@ -133,9 +131,10 @@ if ruta == "a) Entrenamiento (Temario)":
             st.markdown(f"### {ejercicio['pregunta']}")
             st.divider()
 
-            # --- LLAMADA A LA IA TUTOR (Solo la primera vez por ejercicio) ---
+            # --- LLAMADA A LA IA TUTOR ---
             if st.session_state.entrenamiento_data_ia is None:
                 with st.spinner("🧠 El profesor está analizando el mejor camino de resolución..."):
+                    # Generamos la tutoría y guardamos en sesión
                     datos_tutor = generar_tutor_paso_a_paso(ejercicio['pregunta'], ejercicio.get('tema', 'Cálculo'))
                     if datos_tutor:
                         st.session_state.entrenamiento_data_ia = datos_tutor
@@ -145,97 +144,93 @@ if ruta == "a) Entrenamiento (Temario)":
                         st.session_state.entrenamiento_idx += 1
                         st.rerun()
             
-            # Recuperamos los datos generados por la IA
             tutor = st.session_state.entrenamiento_data_ia
             step = st.session_state.entrenamiento_step
 
             # ====================================================
-            # MOMENTO 1: IDENTIFICAR PROCEDIMIENTO
+            # MOMENTO 1: ESTRATEGIA
             # ====================================================
             if step == 1:
                 st.markdown("#### 1️⃣ Paso 1: Selección de Estrategia")
                 st.write("Antes de calcular, ¿cuál crees que es el camino correcto?")
                 
-                # Radio button para seleccionar estrategia
                 opcion_estrategia = st.radio(
                     "Selecciona el método:",
                     tutor['estrategias'],
                     index=None,
-                    key=f"estrat_{idx}"
+                    key=f"radio_estrat_{idx}" # Key única
                 )
                 
-                if st.button("Validar Estrategia"):
+                # Botón Validar
+                if st.button("Validar Estrategia", key=f"btn_val_{idx}"):
                     if opcion_estrategia:
-                        # Buscar el índice de la opción seleccionada
                         idx_seleccionado = tutor['estrategias'].index(opcion_estrategia)
-                        
                         if idx_seleccionado == tutor['indice_correcta']:
-                            st.success("✅ ¡Exacto! Esa es la ruta.")
-                            st.info(f"👨‍🏫 **Feedback:** {tutor['feedback_estrategia']}")
-                            if st.button("Ir al Paso Intermedio ➡️", type="primary"):
-                                st.session_state.entrenamiento_idx += 1
-                                st.session_state.entrenamiento_step = 1
-                                st.session_state.entrenamiento_data_ia = None 
-                                st.session_state.entrenamiento_validado = False
-                                st.rerun()
+                            st.session_state.entrenamiento_validado = True # Guardar éxito
                         else:
                             st.error("❌ Mmm, no es el mejor camino.")
-                            st.warning("Pista: Revisa bien las condiciones del problema.")
+                            st.warning(f"Pista: {tutor['feedback_estrategia']}")
                     else:
-                        st.warning("Selecciona una opción.")
+                        st.warning("Debes seleccionar una opción.")
+
+                # Lógica de Avance (FUERA del botón validar, leyendo el estado)
+                if st.session_state.get("entrenamiento_validado", False):
+                    st.success("✅ ¡Exacto! Esa es la ruta.")
+                    st.info(f"👨‍🏫 **Feedback:** {tutor['feedback_estrategia']}")
+                    
+                    # Botón para avanzar al paso 2
+                    if st.button("Ir al Paso Intermedio ➡️", type="primary", key=f"btn_go_step2_{idx}"):
+                        st.session_state.entrenamiento_step = 2
+                        st.session_state.entrenamiento_validado = False # Limpiar flag
+                        st.rerun()
 
             # ====================================================
-            # MOMENTO 2: RESULTADO INTERMEDIO
+            # MOMENTO 2: HITO INTERMEDIO
             # ====================================================
             if step == 2:
-                # Recordatorio de la estrategia
                 st.success(f"✅ Estrategia: {tutor['estrategias'][tutor['indice_correcta']]}")
-                
                 st.markdown("#### 2️⃣ Paso 2: Ejecución Intermedia")
                 st.write("Aplica la estrategia seleccionada. Deberías llegar a una expresión similar a esta:")
                 
                 st.info(f"**Hito Intermedio:**\n\n$${tutor['paso_intermedio']}$$")
-                
                 st.write("¿Lograste llegar a este punto o algo equivalente?")
                 
                 col_si, col_no = st.columns(2)
                 with col_si:
-                    if st.button("👍 Sí, lo tengo"):
+                    if st.button("👍 Sí, lo tengo", key=f"btn_si_{idx}"):
                         st.session_state.entrenamiento_step = 3
                         st.rerun()
                 with col_no:
-                    if st.button("👎 No, necesito ayuda"):
+                    if st.button("👎 No, necesito ayuda", key=f"btn_no_{idx}"):
                         st.error("Revisa tus derivadas/integrales básicas o el álgebra.")
 
             # ====================================================
-            # MOMENTO 3: RESULTADO FINAL
+            # MOMENTO 3: FINAL
             # ====================================================
             if step == 3:
                 st.success(f"✅ Estrategia Correcta | ✅ Hito Intermedio Alcanzado")
                 st.markdown("#### 3️⃣ Paso 3: Resolución Final")
-                st.write("Finalmente, simplifica y evalúa si es necesario. El resultado definitivo es:")
+                st.write("El resultado definitivo es:")
                 
                 st.success(f"### {tutor['resultado_final']}")
                 
-                with st.expander("Ver explicación completa del ejercicio"):
+                with st.expander("Ver explicación completa"):
                     st.write(ejercicio.get('explicacion', 'Procedimiento estándar aplicado correctamente.'))
 
-                if st.button("Siguiente Ejercicio ➡️", type="primary"):
+                if st.button("Siguiente Ejercicio ➡️", type="primary", key=f"btn_next_{idx}"):
                     st.session_state.entrenamiento_idx += 1
                     st.session_state.entrenamiento_step = 1
-                    st.session_state.entrenamiento_data_ia = None # Limpiar para el siguiente
+                    st.session_state.entrenamiento_data_ia = None 
+                    st.session_state.entrenamiento_validado = False
                     st.rerun()
 
         else:
-            # --- FIN DE LA SERIE ---
-            st.success("🎉 ¡Entrenamiento de 5 ejercicios completado!")
-            st.write("Has practicado la toma de decisiones estratégicas y la resolución técnica.")
-            
-            # BOTÓN DE REINICIO TOTAL
-            if st.button("🔄 Volver al Inicio (Reiniciar Todo)", type="primary"):
-                st.session_state.clear()  # <--- ESTO BORRA TODA LA MEMORIA
-                st.rerun()                # <--- ESTO RECARGA LA APP DESDE CERO
-
+            # --- FIN ---
+            st.success("🎉 ¡Entrenamiento completado!")
+            if st.button("🔄 Volver al Inicio", key="btn_reset_entrenamiento"):
+                st.session_state.entrenamiento_activo = False
+                st.session_state.entrenamiento_idx = 0
+                st.rerun()
 # =======================================================
 # LÓGICA B: CONSULTAS (Respuesta Guiada)
 # =======================================================
