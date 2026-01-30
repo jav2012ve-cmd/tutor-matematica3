@@ -232,9 +232,15 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.rerun()
 
         # --- PANTALLA 3: RESULTADOS (Vista de Impresión) ---
+        # --- PANTALLA 3: RESULTADOS (Vista de Impresión) ---
         else:
-            st.balloons()
-            st.success("¡Examen Finalizado!")
+            # st.balloons()  <-- ELIMINADA POR SERIEDAD ACADÉMICA
+            
+            # Encabezado de resultados
+            if nota_final >= 10:
+                st.success("✅ Examen Finalizado")
+            else:
+                st.warning("⚠️ Examen Finalizado")
             
             # Cálculo de nota
             suma_puntos = sum(r['puntos'] for r in st.session_state.respuestas_usuario)
