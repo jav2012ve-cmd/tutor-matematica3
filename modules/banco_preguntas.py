@@ -2,7 +2,7 @@ import random
 
 # ==============================================================================
 # BANCO DE PREGUNTAS - MATEMÁTICAS III (ECONOMÍA UCAB)
-# Versión: 88 Ejercicios (Blindada con Triple Comilla)
+# Versión: 88 Ejercicios (Blindada con Triple Comilla Total)
 # ==============================================================================
 
 BANCO_FIXED = [
