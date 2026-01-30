@@ -577,7 +577,7 @@ BANCO_FIXED = [
             r"D) $\frac{1}{x} + C$"
         ],
         "respuesta_correcta": r"A) $\frac{x^2}{2}\ln x - \frac{x^2}{4} + C$",
-        "explicacion": r"Sea $u=\ln x$ (LIATE), $dv=x dx$. Entonces $du=1/x dx, v=x^2/2$. Fórmula: $\frac{x^2}{2}\ln x - \int \frac{x^2}{2}\frac{1}{x} dx =
+        "explicacion": r"Sea $u=\ln x$ (LIATE), $dv=x dx$. Entonces $du=1/x dx, v=x^2/2$. Fórmula: $\frac{x^2}{2}\ln x - \int \frac{x^2}{2}\frac{1}{x} dx = \frac{x^2}{2}\ln x - \frac{x^2}{4}$."
     },
     # --------------------------------------------------------------------------
     # AMPLIACIÓN: INTEGRALES DOBLES (Meta: 5 ejercicios)
