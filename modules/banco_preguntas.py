@@ -233,7 +233,7 @@ BANCO_FIXED = [
         ],
         "respuesta_correcta": r"A) 200 unidades",
         "explicacion": r"Es una ecuación logística de la forma $p' = kp(M-p)$. El valor $M=200$ representa la capacidad de carga o asíntota horizontal hacia la cual tiende la solución."
-    }
+    },
     {
         "tema": "2.1.3 ED 1er Orden: Exactas",
         "pregunta": r"Para la ecuación $(x^2-y^2)dx + (y^2-xy)dy = 0$, ¿cuál es la clasificación correcta?",
