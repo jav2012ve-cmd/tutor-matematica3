@@ -231,10 +231,10 @@ if ruta == "a) Entrenamiento (Temario)":
             st.success("🎉 ¡Entrenamiento de 5 ejercicios completado!")
             st.write("Has practicado la toma de decisiones estratégicas y la resolución técnica.")
             
-            if st.button("🔄 Volver al Menú Principal"):
-                st.session_state.entrenamiento_activo = False
-                st.session_state.entrenamiento_idx = 0
-                st.rerun()
+            # BOTÓN DE REINICIO TOTAL
+            if st.button("🔄 Volver al Inicio (Reiniciar Todo)", type="primary"):
+                st.session_state.clear()  # <--- ESTO BORRA TODA LA MEMORIA
+                st.rerun()                # <--- ESTO RECARGA LA APP DESDE CERO
 
 # =======================================================
 # LÓGICA B: CONSULTAS (Respuesta Guiada)
