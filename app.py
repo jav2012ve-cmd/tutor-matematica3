@@ -29,29 +29,209 @@ def limpiar_json(texto):
     texto = texto.replace("```json", "").replace("```", "").strip()
     return json.loads(texto)
 
+def generar_tutor_paso_a_paso(pregunta_texto, tema):
+    """
+    Toma una pregunta y genera:
+    1. Estrategias (1 correcta, 2 distractores).
+    2. Paso intermedio.
+    3. Solución final.
+    """
+    prompt = f"""
+    Actúa como un profesor experto de cálculo. Para el siguiente ejercicio de {tema}:
+    "{pregunta_texto}"
+    
+    Genera un objeto JSON estricto con esta estructura para guiar al estudiante:
+    {{
+        "estrategias": [
+            "Descripción breve de la estrategia CORRECTA (ej. Usar partes con u=x)",
+            "Estrategia plausible pero INCORRECTA o menos eficiente",
+            "Otra estrategia incorrecta"
+        ],
+        "indice_correcta": 0,
+        "feedback_estrategia": "Explicación breve de por qué esa es la mejor ruta.",
+        "paso_intermedio": "Ecuación LaTeX del resultado a mitad de camino (ej. después de integrar pero antes de evaluar)",
+        "resultado_final": "Ecuación LaTeX del resultado final"
+    }}
+    El orden de las estrategias en la lista debe ser aleatorio, ajusta el "indice_correcta" según corresponda.
+    Solo devuelve el JSON.
+    """
+    try:
+        response = model.generate_content(prompt)
+        return limpiar_json(response.text)
+    except:
+        return None
 # --- 3. INTERFAZ ---
 ruta, tema_actual = interfaz.mostrar_sidebar()
 interfaz.mostrar_bienvenida()
 
 # =======================================================
-# LÓGICA A: ENTRENAMIENTO (Temario)
+# LÓGICA A: MODO ENTRENAMIENTO (Dojo Matemático - 3 Momentos)
 # =======================================================
 if ruta == "a) Entrenamiento (Temario)":
-    st.header(f"📘 {tema_actual}")
-    if tema_actual in temario.CONTENIDO_TEORICO:
-        data = temario.CONTENIDO_TEORICO[tema_actual]
-        st.markdown("#### Definición")
-        st.latex(data["definicion"])
-        # Aquí puedes agregar más visualización teórica si quieres
+    st.markdown("### 🥋 Dojo de Matemáticas (Entrenamiento Guiado)")
+    st.info("Resolución paso a paso: **1. Elegir Estrategia** -> **2. Hito Intermedio** -> **3. Resultado Final**.")
+
+    # Inicializar variables de sesión exclusivas para este modo si no existen
+    if "entrenamiento_activo" not in st.session_state:
+        st.session_state.entrenamiento_activo = False
+
+    # --- PANTALLA 0: CONFIGURACIÓN ---
+    if not st.session_state.entrenamiento_activo:
+        temas_entrenamiento = st.multiselect(
+            "🎯 Selecciona los temas a practicar:",
+            options=temario.LISTA_TEMAS,
+            placeholder="Ej. Ecuaciones Diferenciales Lineales..."
+        )
+
+        if st.button("⚡ Iniciar Sesión (5 Ejercicios)", type="primary", use_container_width=True):
+            if not temas_entrenamiento:
+                st.error("⚠️ Selecciona al menos un tema.")
+            else:
+                with st.spinner("Preparando tu serie de ejercicios..."):
+                    try:
+                        import random
+                        from modules import banco_preguntas
+                        
+                        lista_entrenamiento = []
+                        # Regla: 2 Banco + 3 IA
+                        # Intentamos sacar 2 del banco
+                        preguntas_banco = banco_preguntas.obtener_preguntas_fijas(temas_entrenamiento, 2)
+                        lista_entrenamiento.extend(preguntas_banco)
+                        
+                        # Rellenamos con IA hasta llegar a 5
+                        faltantes = 5 - len(lista_entrenamiento)
+                        if faltantes > 0:
+                            prompt_train = temario.generar_prompt_quiz(temas_entrenamiento, faltantes)
+                            respuesta_ia = model.generate_content(prompt_train)
+                            preguntas_ia = limpiar_json(respuesta_ia.text)
+                            lista_entrenamiento.extend(preguntas_ia)
+                        
+                        random.shuffle(lista_entrenamiento)
+                        
+                        # Configurar la sesión de entrenamiento
+                        st.session_state.entrenamiento_lista = lista_entrenamiento[:5]
+                        st.session_state.entrenamiento_idx = 0
+                        st.session_state.entrenamiento_step = 1  # 1: Estrategia, 2: Intermedio, 3: Final
+                        st.session_state.entrenamiento_data_ia = None # Datos del tutor (estrategias, pasos)
+                        st.session_state.entrenamiento_activo = True
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al iniciar: {e}")
+
+    # --- PANTALLA DE EJERCICIOS (El Dojo) ---
     else:
-        st.info(f"Explorando el tema: {tema_actual}")
+        # Recuperar ejercicio actual
+        idx = st.session_state.entrenamiento_idx
+        lista = st.session_state.entrenamiento_lista
         
-    # Chat simple para este modo
-    prompt = st.chat_input("Dudas sobre este tema...")
-    if prompt:
-        with st.spinner("Pensando..."):
-            res = model.generate_content(f"Explica {tema_actual}: {prompt}")
-            st.write(res.text)
+        if idx < len(lista):
+            ejercicio = lista[idx]
+            
+            # Encabezado
+            st.progress((idx + 1) / 5, text=f"Ejercicio {idx + 1} de 5")
+            st.markdown(f"**Tema:** `{ejercicio.get('tema', 'General')}`")
+            st.markdown(f"### {ejercicio['pregunta']}")
+            st.divider()
+
+            # --- LLAMADA A LA IA TUTOR (Solo la primera vez por ejercicio) ---
+            if st.session_state.entrenamiento_data_ia is None:
+                with st.spinner("🧠 El profesor está analizando el mejor camino de resolución..."):
+                    datos_tutor = generar_tutor_paso_a_paso(ejercicio['pregunta'], ejercicio.get('tema', 'Cálculo'))
+                    if datos_tutor:
+                        st.session_state.entrenamiento_data_ia = datos_tutor
+                        st.rerun()
+                    else:
+                        st.error("Error conectando con el tutor IA. Saltando ejercicio.")
+                        st.session_state.entrenamiento_idx += 1
+                        st.rerun()
+            
+            # Recuperamos los datos generados por la IA
+            tutor = st.session_state.entrenamiento_data_ia
+            step = st.session_state.entrenamiento_step
+
+            # ====================================================
+            # MOMENTO 1: IDENTIFICAR PROCEDIMIENTO
+            # ====================================================
+            if step == 1:
+                st.markdown("#### 1️⃣ Paso 1: Selección de Estrategia")
+                st.write("Antes de calcular, ¿cuál crees que es el camino correcto?")
+                
+                # Radio button para seleccionar estrategia
+                opcion_estrategia = st.radio(
+                    "Selecciona el método:",
+                    tutor['estrategias'],
+                    index=None,
+                    key=f"estrat_{idx}"
+                )
+                
+                if st.button("Validar Estrategia"):
+                    if opcion_estrategia:
+                        # Buscar el índice de la opción seleccionada
+                        idx_seleccionado = tutor['estrategias'].index(opcion_estrategia)
+                        
+                        if idx_seleccionado == tutor['indice_correcta']:
+                            st.success("✅ ¡Exacto! Esa es la ruta.")
+                            st.info(f"👨‍🏫 **Feedback:** {tutor['feedback_estrategia']}")
+                            if st.button("Ir al Paso Intermedio ➡️", type="primary"):
+                                st.session_state.entrenamiento_step = 2
+                                st.rerun()
+                        else:
+                            st.error("❌ Mmm, no es el mejor camino.")
+                            st.warning("Pista: Revisa bien las condiciones del problema.")
+                    else:
+                        st.warning("Selecciona una opción.")
+
+            # ====================================================
+            # MOMENTO 2: RESULTADO INTERMEDIO
+            # ====================================================
+            if step == 2:
+                # Recordatorio de la estrategia
+                st.success(f"✅ Estrategia: {tutor['estrategias'][tutor['indice_correcta']]}")
+                
+                st.markdown("#### 2️⃣ Paso 2: Ejecución Intermedia")
+                st.write("Aplica la estrategia seleccionada. Deberías llegar a una expresión similar a esta:")
+                
+                st.info(f"**Hito Intermedio:**\n\n$${tutor['paso_intermedio']}$$")
+                
+                st.write("¿Lograste llegar a este punto o algo equivalente?")
+                
+                col_si, col_no = st.columns(2)
+                with col_si:
+                    if st.button("👍 Sí, lo tengo"):
+                        st.session_state.entrenamiento_step = 3
+                        st.rerun()
+                with col_no:
+                    if st.button("👎 No, necesito ayuda"):
+                        st.error("Revisa tus derivadas/integrales básicas o el álgebra.")
+
+            # ====================================================
+            # MOMENTO 3: RESULTADO FINAL
+            # ====================================================
+            if step == 3:
+                st.success(f"✅ Estrategia Correcta | ✅ Hito Intermedio Alcanzado")
+                st.markdown("#### 3️⃣ Paso 3: Resolución Final")
+                st.write("Finalmente, simplifica y evalúa si es necesario. El resultado definitivo es:")
+                
+                st.success(f"### {tutor['resultado_final']}")
+                
+                with st.expander("Ver explicación completa del ejercicio"):
+                    st.write(ejercicio.get('explicacion', 'Procedimiento estándar aplicado correctamente.'))
+
+                if st.button("Siguiente Ejercicio ➡️", type="primary"):
+                    st.session_state.entrenamiento_idx += 1
+                    st.session_state.entrenamiento_step = 1
+                    st.session_state.entrenamiento_data_ia = None # Limpiar para el siguiente
+                    st.rerun()
+
+        else:
+            # --- FIN DE LA SERIE ---
+            st.success("🎉 ¡Entrenamiento de 5 ejercicios completado!")
+            st.write("Has practicado la toma de decisiones estratégicas y la resolución técnica.")
+            
+            if st.button("🔄 Volver al Menú Principal"):
+                st.session_state.entrenamiento_activo = False
+                st.session_state.entrenamiento_idx = 0
+                st.rerun()
 
 # =======================================================
 # LÓGICA B: CONSULTAS (Respuesta Guiada)
