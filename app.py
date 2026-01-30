@@ -86,10 +86,10 @@ elif ruta == "c) Autoevaluación (Quiz)":
     if not st.session_state.quiz_activo:
         st.info("Configura tu prueba:")
         
-        # 1. SELECCIÓN DE FUENTE (NUEVO)
+        # 1. SELECCIÓN DE FUENTE (CORREGIDO)
         origen_datos = st.radio(
             "Origen de las preguntas:",
-            ["🤖 Generar con IA (Infinitas)", "uD83D\uDCC1 Banco de Preguntas Oficial (Fijas)"],
+            ["🤖 Generar con IA (Infinitas)", "📂 Banco de Preguntas Oficial (Fijas)"],
             horizontal=True
         )
         
