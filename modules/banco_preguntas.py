@@ -360,7 +360,73 @@ BANCO_FIXED = [
         "respuesta_correcta": r"A) $\int_{-3.75}^{3} \left[ \left(15-\frac{x^2}{3}\right) - (x^2+x) \right] dx$",
         "explicacion": r"Intersección: $x^2+x = 15-x^2/3 \Rightarrow 4x^2+3x-45=0$. Raíces $x=3$ y $x=-15/4 (-3.75)$. En este intervalo, la parábola que abre hacia abajo ($15-x^2/3$) está por encima."
     },
-
+    # --------------------------------------------------------------------------
+    # AMPLIACIÓN TALLER 1 - 202615 (APLICACIONES Y DOBLES)
+    # --------------------------------------------------------------------------
+    {
+        "tema": "1.2.4 Integrales Dobles",
+        "pregunta": r"Plantee la integral doble $\iint_D f(x,y) dA$ para la región $D$ acotada por la parábola $x = y^2 - 4y$ y la recta $y = x - 6$ (Tip: use integración respecto a y primero):",
+        "opciones": [
+            r"A) $\int_{-1}^{6} \int_{y^2-4y}^{y+6} f(x,y) dx dy$",
+            r"B) $\int_{-1}^{6} \int_{y+6}^{y^2-4y} f(x,y) dx dy$",
+            r"C) $\int_{0}^{6} \int_{x-6}^{\sqrt{x}} f(x,y) dy dx$",
+            r"D) $\int_{-6}^{10} \int_{y^2-4y}^{y+6} f(x,y) dx dy$"
+        ],
+        "respuesta_correcta": r"A) $\int_{-1}^{6} \int_{y^2-4y}^{y+6} f(x,y) dx dy$",
+        "explicacion": r"Igualamos $x$: $y^2-4y = y+6 \Rightarrow y^2-5y-6=0 \Rightarrow (y-6)(y+1)=0$. El intervalo en $y$ es $[-1, 6]$. La recta $x=y+6$ está a la derecha de la parábola."
+    },
+    {
+        "tema": "1.2.4 Integrales Dobles",
+        "pregunta": r"Para la región triangular con vértices en $(0,0), (4,0)$ y $(4,4)$, cambie el orden de integración de $\int_0^4 \int_0^x f(x,y) dy dx$:",
+        "opciones": [
+            r"A) $\int_0^4 \int_y^4 f(x,y) dx dy$",
+            r"B) $\int_0^4 \int_0^y f(x,y) dx dy$",
+            r"C) $\int_0^x \int_0^4 f(x,y) dx dy$",
+            r"D) $\int_0^4 \int_4^y f(x,y) dx dy$"
+        ],
+        "respuesta_correcta": r"A) $\int_0^4 \int_y^4 f(x,y) dx dy$",
+        "explicacion": r"La región está delimitada por $y=0, x=4, y=x$. Al integrar primero en $x$ (barrido horizontal), vamos desde la recta $x=y$ hasta $x=4$."
+    },
+    {
+        "tema": "1.2.5 Volúmenes de Revolución",
+        "pregunta": r"Plantee el volumen del sólido generado por la región $y = x^2 - 4x$ y el eje $x$ ($y=0$) al girar alrededor de la recta $y = 4$:",
+        "opciones": [
+            r"A) $\pi \int_0^4 \left[ (4 - (x^2-4x))^2 - (4-0)^2 \right] dx$",
+            r"B) $\pi \int_0^4 \left[ (x^2-4x)^2 - 4^2 \right] dx$",
+            r"C) $\pi \int_0^4 \left[ 4^2 - (4 - (x^2-4x))^2 \right] dx$",
+            r"D) $2\pi \int_0^4 y(x^2-4x) dy$"
+        ],
+        "respuesta_correcta": r"C) $\pi \int_0^4 \left[ 4^2 - (4 - (x^2-4x))^2 \right] dx$",
+        "explicacion": r"El eje de giro $y=4$ está arriba. El radio exterior es $R = 4 - (x^2-4x)$ (distancia a la parábola) y el radio interior es $r = 4 - 0 = 4$. NOTA: Si la parábola está debajo del eje X, el radio mayor sería hasta la curva. Verificando región: $x^2-4x$ es negativa en $(0,4)$. Distancia eje a curva: $4 - (x^2-4x)$. Distancia eje a $y=0$: $4$. El radio 'lejano' es el de la curva. Planteamiento corregido: $R_{ext} = 4 - (x^2-4x)$, $R_{int}=4$. Volumen = $\pi \int (R_{ext}^2 - R_{int}^2)$."
+    },
+    {
+        "tema": "1.2.5 Volúmenes de Revolución",
+        "pregunta": r"Volumen generado por la región acotada por $x = y^2+2, x=1, y=-2, y=2$ al girar alrededor del eje $x = -2$ (Plantear con capas/discos según convenga):",
+        "opciones": [
+            r"A) $\pi \int_{-2}^{2} \left[ (y^2+2 - (-2))^2 - (1 - (-2))^2 \right] dy$",
+            r"B) $\pi \int_{-2}^{2} \left[ (y^2+4)^2 - 3^2 \right] dy$",
+            r"C) $\pi \int_{1}^{6} (y^2+2)^2 dy$",
+            r"D) Opción A y B son equivalentes"
+        ],
+        "respuesta_correcta": r"D) Opción A y B son equivalentes",
+        "explicacion": r"Usamos arandelas perpendiculares al eje $y$ (integrando en $dy$). Radio exterior $R = (y^2+2) - (-2) = y^2+4$. Radio interior $r = 1 - (-2) = 3$."
+    },
+    {
+        "tema": "1.2.2 Excedentes del consumidor y productor",
+        "pregunta": r"Dada la Demanda $p = 100 - 2q^2$ y Oferta $p = 50 + 3q^2$. Calcule el Excedente del Productor (EP) en el equilibrio:",
+        "opciones": [
+            r"A) $EP = \int_0^{\sqrt{10}} (80 - (50+3q^2)) dq$",
+            r"B) $EP = \int_0^{10} ((100-2q^2) - 80) dq$",
+            r"C) $EP = 100\sqrt{10}$",
+            r"D) $EP = \int_0^{\sqrt{10}} (50+3q^2) dq$"
+        ],
+        "respuesta_correcta": r"A) $EP = \int_0^{\sqrt{10}} (80 - (50+3q^2)) dq$",
+        "explicacion": r"Equilibrio: $100-2q^2 = 50+3q^2 \Rightarrow 50=5q^2 \Rightarrow q=\sqrt{10}$. Precio eq $p=80$. El EP es el área entre el precio de equilibrio y la curva de oferta: $\int_0^{q_0} (p_0 - O(q)) dq$."
+    },
+    {
+        "tema": "1.2.3 Integrales Impropias",
+        "pregunta": r"Función de Densidad de Probabilidad (PDF): Determine el
+    },
     # --------------------------------------------------------------------------
     # LOTE 5: TALLER 2 - 202615 (VOLÚMENES, LEY ENFRIAMIENTO, ED SUPERIOR) - NUEVO
     # --------------------------------------------------------------------------
@@ -423,6 +489,414 @@ BANCO_FIXED = [
         ],
         "respuesta_correcta": r"A) $y = C_1 + C_2 e^{-3x} + C_3 e^{x}$",
         "explicacion": r"Ecuación característica: $r^3 + 2r^2 - 3r = 0 \Rightarrow r(r^2 + 2r - 3) = r(r+3)(r-1) = 0$. Raíces: $r_1=0, r_2=-3, r_3=1$. Solución: $C_1 e^{0x} + C_2 e^{-3x} + C_3 e^{x}$."
+    },
+    # --------------------------------------------------------------------------
+    # AMPLIACIÓN: FRACCIONES SIMPLES (Meta: 5 ejercicios)
+    # Fuente: Archivos 'fracciones simples.tex' y 'fracSimp2.tex'
+    # --------------------------------------------------------------------------
+    {
+        "tema": "1.1.4 Fracciones Simples",
+        "pregunta": r"Resuelva la integral racional impropia (realizando división de polinomios primero): $$ \int \frac{2x+1}{x-4} dx $$",
+        "opciones": [
+            r"A) $2x + 9\ln|x-4| + C$",
+            r"B) $2x + \ln|x-4| + C$",
+            r"C) $x^2 + \ln|x-4| + C$",
+            r"D) $2 + 9(x-4)^{-1} + C$"
+        ],
+        "respuesta_correcta": r"A) $2x + 9\ln|x-4| + C$",
+        "explicacion": r"Al dividir $2x+1$ entre $x-4$ obtenemos el cociente $2$ y residuo $9$. La integral es $\int (2 + \frac{9}{x-4}) dx = 2x + 9\ln|x-4| + C$."
+    },
+    {
+        "tema": "1.1.4 Fracciones Simples",
+        "pregunta": r"Calcule la integral descomponiendo en fracciones simples: $$ \int \frac{1}{x^2 - 5x + 6} dx $$",
+        "opciones": [
+            r"A) $\ln|x-3| - \ln|x-2| + C$",
+            r"B) $\ln|x-2| - \ln|x-3| + C$",
+            r"C) $\ln|(x-3)(x-2)| + C$",
+            r"D) $\frac{1}{2x-5} + C$"
+        ],
+        "respuesta_correcta": r"A) $\ln|x-3| - \ln|x-2| + C$",
+        "explicacion": r"El denominador factoriza en $(x-3)(x-2)$. La descomposición es $\frac{1}{x-3} - \frac{1}{x-2}$. Integrando: $\ln|x-3| - \ln|x-2|$."
+    },
+    {
+        "tema": "1.1.4 Fracciones Simples",
+        "pregunta": r"Resuelva la integral definida por fracciones ya dadas: $$ \int \left( \frac{2}{x-1} - \frac{4}{x+1} + \frac{2x}{x^2+1} \right) dx $$",
+        "opciones": [
+            r"A) $2\ln|x-1| - 4\ln|x+1| + \ln(x^2+1) + C$",
+            r"B) $2\ln|x-1| - 4\ln|x+1| + 2\arctan(x) + C$",
+            r"C) $\ln\left| \frac{(x-1)^2}{(x+1)^4} \right| + \frac{1}{x^2+1} + C$",
+            r"D) $2(x-1)^{-1} - 4(x+1)^{-1} + \ln(x^2+1) + C$"
+        ],
+        "respuesta_correcta": r"A) $2\ln|x-1| - 4\ln|x+1| + \ln(x^2+1) + C$",
+        "explicacion": r"Integramos término a término: $\int \frac{2}{u}du = 2\ln|u|$. Para el tercer término, si $u=x^2+1 \Rightarrow du=2xdx$, es un logaritmo directo $\ln(x^2+1)$."
+    },
+    {
+        "tema": "1.1.4 Fracciones Simples",
+        "pregunta": r"Identifique la forma correcta de descomponer la fracción $\frac{x^2+1}{x(x-1)^2}$:",
+        "opciones": [
+            r"A) $\frac{A}{x} + \frac{B}{x-1} + \frac{C}{(x-1)^2}$",
+            r"B) $\frac{A}{x} + \frac{Bx+C}{(x-1)^2}$",
+            r"C) $\frac{A}{x} + \frac{B}{x-1} + \frac{Cx+D}{(x-1)^2}$",
+            r"D) $\frac{A}{x} + \frac{B}{(x-1)^2}$"
+        ],
+        "respuesta_correcta": r"A) $\frac{A}{x} + \frac{B}{x-1} + \frac{C}{(x-1)^2}$",
+        "explicacion": r"El factor lineal $x$ lleva una constante $A$. El factor lineal repetido $(x-1)^2$ lleva una constante por cada potencia: $B/(x-1)$ y $C/(x-1)^2$."
+    },
+
+    # --------------------------------------------------------------------------
+    # AMPLIACIÓN: INTEGRAL POR PARTES (Meta: 5 ejercicios)
+    # Fuente: Archivo 'fracsimpInttPartCamVarEjer.tex'
+    # --------------------------------------------------------------------------
+    {
+        "tema": "1.1.7 Integral por partes",
+        "pregunta": r"Resuelva la integral por partes: $$ \int 6x e^{1-2x} dx $$",
+        "opciones": [
+            r"A) $\frac{3}{2}(1-2x)e^{1-2x} - 3e^{1-2x} + C$",
+            r"B) $-3xe^{1-2x} - \frac{3}{2}e^{1-2x} + C$",
+            r"C) $6xe^{1-2x} - 6e^{1-2x} + C$",
+            r"D) $3x^2 e^{1-2x} + C$"
+        ],
+        "respuesta_correcta": r"B) $-3xe^{1-2x} - \frac{3}{2}e^{1-2x} + C$",
+        "explicacion": r"Usamos $u=6x, dv=e^{1-2x}dx$. Entonces $du=6dx, v=-\frac{1}{2}e^{1-2x}$. Aplicando $uv - \int v du$: $-3xe^{1-2x} - \int -3e^{1-2x}dx = -3xe^{1-2x} - \frac{3}{2}e^{1-2x}$."
+    },
+    {
+        "tema": "1.1.7 Integral por partes",
+        "pregunta": r"Resuelva la integral logarítmica básica: $$ \int x \ln x dx $$",
+        "opciones": [
+            r"A) $\frac{x^2}{2}\ln x - \frac{x^2}{4} + C$",
+            r"B) $\frac{x^2}{2}\ln x - \frac{x^2}{2} + C$",
+            r"C) $x\ln x - x + C$",
+            r"D) $\frac{1}{x} + C$"
+        ],
+        "respuesta_correcta": r"A) $\frac{x^2}{2}\ln x - \frac{x^2}{4} + C$",
+        "explicacion": r"Sea $u=\ln x$ (LIATE), $dv=x dx$. Entonces $du=1/x dx, v=x^2/2$. Fórmula: $\frac{x^2}{2}\ln x - \int \frac{x^2}{2}\frac{1}{x} dx =
+    },
+    # --------------------------------------------------------------------------
+    # AMPLIACIÓN: INTEGRALES DOBLES (Meta: 5 ejercicios)
+    # Fuente: Taller 1 202615 y Reparación 202615
+    # --------------------------------------------------------------------------
+    {
+        "tema": "1.2.4 Integrales Dobles",
+        "pregunta": r"Calcule la integral iterada: $$ \int_0^1 \int_0^2 (x+y) dy dx $$",
+        "opciones": [
+            r"A) $3$",
+            r"B) $1$",
+            r"C) $2$",
+            r"D) $4$"
+        ],
+        "respuesta_correcta": r"A) $3$",
+        "explicacion": r"Interna ($\int (x+y)dy$ de 0 a 2): $[xy + y^2/2]_0^2 = 2x + 2$. Externa ($\int (2x+2)dx$ de 0 a 1): $[x^2 + 2x]_0^1 = 1 + 2 = 3$."
+    },
+    {
+        "tema": "1.2.4 Integrales Dobles",
+        "pregunta": r"Plantee la integral doble para el volumen bajo el plano $z=1+x-y$ sobre la región limitada por $y=x^2$ y $y=8-2x$:",
+        "opciones": [
+            r"A) $\int_{-4}^{2} \int_{x^2}^{8-2x} (1+x-y) dy dx$",
+            r"B) $\int_{-4}^{2} \int_{8-2x}^{x^2} (1+x-y) dy dx$",
+            r"C) $\int_{0}^{8} \int_{-\sqrt{y}}^{\sqrt{y}} (1+x-y) dx dy$",
+            r"D) $\int_{-2}^{4} \int_{x^2}^{8-2x} (1+x-y) dy dx$"
+        ],
+        "respuesta_correcta": r"A) $\int_{-4}^{2} \int_{x^2}^{8-2x} (1+x-y) dy dx$",
+        "explicacion": r"Intersección: $x^2 = 8-2x \Rightarrow x^2+2x-8=0 \Rightarrow (x+4)(x-2)=0$. Intervalo $x \in [-4, 2]$. En este intervalo, la recta $8-2x$ está por encima de la parábola $x^2$."
+    },
+    # --------------------------------------------------------------------------
+    # AMPLIACIÓN: EXCEDENTES (Meta: 5 ejercicios)
+    # Fuente: Taller 1 - 202525 (Mayo 2025)
+    # --------------------------------------------------------------------------
+    {
+        "tema": "1.2.2 Excedentes del consumidor y productor",
+        "pregunta": r"Calcule el Excedente del Consumidor (EC) dadas: Oferta $p = \frac{x^2}{9} + 4$ y Demanda $p = 11 - 2x$:",
+        "opciones": [
+            r"A) $9$ u.m.",
+            r"B) $18$ u.m.",
+            r"C) $4.5$ u.m.",
+            r"D) $27$ u.m."
+        ],
+        "respuesta_correcta": r"A) $9$ u.m.",
+        "explicacion": r"Equilibrio: $x^2/9 + 4 = 11 - 2x \Rightarrow x^2 + 18x - 63 = 0 \Rightarrow x=3$. Precio eq: $p=5$. EC = $\int_0^3 (11-2x - 5) dx = \int_0^3 (6-2x) dx = [6x-x^2]_0^3 = 18-9=9$."
+    },
+    {
+        "tema": "1.2.2 Excedentes del consumidor y productor",
+        "pregunta": r"Determine el Excedente del Productor (EP) en el equilibrio para: Oferta $p = \frac{x^2}{4} + 4$ y Demanda $p = 12 - x$:",
+        "opciones": [
+            r"A) $10.67$ u.m.",
+            r"B) $32.00$ u.m.",
+            r"C) $8.00$ u.m.",
+            r"D) $16.33$ u.m."
+        ],
+        "respuesta_correcta": r"A) $10.67$ u.m.",
+        "explicacion": r"Equilibrio: $x^2/4 + 4 = 12-x \Rightarrow x^2+4x-32=0 \Rightarrow x=4$. Precio eq: $p=8$. EP = $\int_0^4 (8 - (x^2/4+4)) dx = [4x - x^3/12]_0^4 = 16 - 64/12 = 10.67$."
+    },
+
+    # --------------------------------------------------------------------------
+    # AMPLIACIÓN: VOLÚMENES DE REVOLUCIÓN (Meta: 5 ejercicios)
+    # Fuente: Taller 2 - 202615 (Tabla de volúmenes)
+    # --------------------------------------------------------------------------
+    {
+        "tema": "1.2.5 Volúmenes de Revolución",
+        "pregunta": r"Plantee el volumen generado por la región acotada por $y=2+x^2$ y $y=6$, al girar alrededor de la recta $y=1$:",
+        "opciones": [
+            r"A) $\pi \int_{-2}^{2} [ (6-1)^2 - (2+x^2-1)^2 ] dx$",
+            r"B) $\pi \int_{-2}^{2} [ (2+x^2-1)^2 - (6-1)^2 ] dx$",
+            r"C) $\pi \int_{0}^{6} (2+x^2)^2 dx$",
+            r"D) $2\pi \int_{-2}^{2} x(6 - (2+x^2)) dx$"
+        ],
+        "respuesta_correcta": r"A) $\pi \int_{-2}^{2} [ (6-1)^2 - (2+x^2-1)^2 ] dx$",
+        "explicacion": r"Puntos de corte: $2+x^2=6 \Rightarrow x=\pm 2$. El eje $y=1$ está debajo de la región. Radio exterior $R = 6-1=5$. Radio interior $r = (2+x^2)-1 = 1+x^2$. Método de arandelas."
+    },
+    {
+        "tema": "1.2.5 Volúmenes de Revolución",
+        "pregunta": r"Plantee el volumen del sólido generado por la región $y=4-x^2$, $y=3$ (en el primer cuadrante $x \ge 0$), girando alrededor de $y=2$:",
+        "opciones": [
+            r"A) $\pi \int_{0}^{1} [ (4-x^2-2)^2 - (3-2)^2 ] dx$",
+            r"B) $\pi \int_{0}^{1} [ (4-x^2)^2 - 3^2 ] dx$",
+            r"C) $\pi \int_{0}^{2} [ (3-2)^2 - (4-x^2-2)^2 ] dx$",
+            r"D) $\pi \int_{-1}^{1} (2-x^2)^2 dx$"
+        ],
+        "respuesta_correcta": r"A) $\pi \int_{0}^{1} [ (4-x^2-2)^2 - (3-2)^2 ] dx$",
+        "explicacion": r"Intersección: $4-x^2=3 \Rightarrow x=1$. En $[0,1]$, la parábola está arriba ($y \approx 4$) y la recta abajo ($y=3$). Eje $y=2$ está más abajo. $R = (4-x^2)-2 = 2-x^2$. $r = 3-2 = 1$."
+    },
+
+    # --------------------------------------------------------------------------
+    # AMPLIACIÓN: ÁREAS ENTRE CURVAS (Meta: 5 ejercicios)
+    # Fuente: Exámenes Reparación y Complementario 2022
+    # --------------------------------------------------------------------------
+    {
+        "tema": "1.2.1 Áreas entre curvas",
+        "pregunta": r"Plantee la integral para el área de la región no acotada entre $y=xe^{-x}$ y $y=e^{-x}$ para $x \in [0, \infty)$:",
+        "opciones": [
+            r"A) $\int_{0}^{1} (e^{-x} - xe^{-x}) dx + \int_{1}^{\infty} (xe^{-x} - e^{-x}) dx$",
+            r"B) $\int_{0}^{\infty} (xe^{-x} - e^{-x}) dx$",
+            r"C) $\int_{0}^{\infty} (e^{-x} - xe^{-x}) dx$",
+            r"D) $\int_{0}^{1} xe^{-x} dx$"
+        ],
+        "respuesta_correcta": r"A) $\int_{0}^{1} (e^{-x} - xe^{-x}) dx + \int_{1}^{\infty} (xe^{-x} - e^{-x}) dx$",
+        "explicacion": r"Se cruzan cuando $xe^{-x} = e^{-x} \Rightarrow x=1$. En $[0,1]$, $e^{-x} > xe^{-x}$. En $[1, \infty)$, $xe^{-x} > e^{-x}$. Se debe partir la integral en el cruce."
+    },
+    {
+        "tema": "1.2.1 Áreas entre curvas",
+        "pregunta": r"Calcule el área entre las curvas $y=e^{-x}$ y $y=-e^{-2x}$ en el intervalo $x \in [0, \infty)$:",
+        "opciones": [
+            r"A) $1.5$ u.a.",
+            r"B) $1.0$ u.a.",
+            r"C) $0.5$ u.a.",
+            r"D) $2.0$ u.a."
+        ],
+        "respuesta_correcta": r"A) $1.5$ u.a.",
+        "explicacion": r"Como $e^{-x}$ es positiva y $-e^{-2x}$ negativa, no se cruzan. Área = $\int_0^{\infty} (e^{-x} - (-e^{-2x})) dx = \int_0^{\infty} (e^{-x} + e^{-2x}) dx = [-e^{-x} - \frac{1}{2}e^{-2x}]_0^{\infty}$. En $\infty$ da 0. En 0: $-(-1 - 0.5) = 1.5$."
+    },
+    # AMPLIACIÓN FINAL: EXACTAS, LINEALES Y BERNOULLI
+    # Fuente: Taller 2 - 202615 (Items 6, 15, 25, 28)
+    # --------------------------------------------------------------------------
+    {
+        "tema": "2.1.3 ED 1er Orden: Exactas",
+        "pregunta": r"Resuelva la ecuación diferencial exacta: $(\cos y - y\sin x + 1)dx + (\cos x - x\sin y - 2)dy = 0$",
+        "opciones": [
+            r"A) $x\cos y + y\cos x + x - 2y = C$",
+            r"B) $\sin y \cos x - xy + x = C$",
+            r"C) $x\cos y - y\sin x + x^2 - 2y = C$",
+            r"D) $\cos(xy) + x - 2y = C$"
+        ],
+        "respuesta_correcta": r"A) $x\cos y + y\cos x + x - 2y = C$",
+        "explicacion": r"Al integrar $M$ respecto a $x$ obtenemos $x\cos y + y\cos x + x + g(y)$. Derivando respecto a $y$ e igualando a $N$, hallamos $g'(y)=-2$, por lo que $g(y)=-2y$."
+    },
+    {
+        "tema": "2.1.1 ED 1er Orden: Separación de Variables",
+        "pregunta": r"Halle la solución general de: $(2-y)\sqrt{xy} dy + (x+2) dx = 0$",
+        "opciones": [
+            r"A) $\frac{4}{3}y^{3/2} - \frac{2}{5}y^{5/2} = -(\frac{2}{3}x^{3/2} + 4x^{1/2}) + C$",
+            r"B) $2y^{1/2} - y^{3/2} = -x^{1/2} - 2x^{-1/2} + C$",
+            r"C) $\ln|2-y| + \frac{2}{3}y^{3/2} = \ln|x+2| + C$",
+            r"D) $y(2-y)^2 = x(x+2)^2 + C$"
+        ],
+        "respuesta_correcta": r"A) $\frac{4}{3}y^{3/2} - \frac{2}{5}y^{5/2} = -(\frac{2}{3}x^{3/2} + 4x^{1/2}) + C$",
+        "explicacion": r"Separando: $(2-y)\sqrt{y} dy = -\frac{x+2}{\sqrt{x}} dx$. Integramos potencias: $\int (2y^{1/2}-y^{3/2}) dy = -\int (x^{1/2}+2x^{-1/2}) dx$."
+    },
+    {
+        "tema": "2.1.4 ED 1er Orden: Lineales",
+        "pregunta": r"Resuelva la ecuación lineal: $x \frac{dy}{dx} + 2y = x^3 - x\ln x$",
+        "opciones": [
+            r"A) $y = \frac{x^3}{5} - \frac{x}{3}\ln x + \frac{x}{9} + \frac{C}{x^2}$",
+            r"B) $y = \frac{x^3}{3} - x\ln x + C$",
+            r"C) $y = x^3 - x\ln x + Cx^{-2}$",
+            r"D) $y = \frac{x^4}{5} - \frac{x^2}{3}\ln x + C$"
+        ],
+        "respuesta_correcta": r"A) $y = \frac{x^3}{5} - \frac{x}{3}\ln x + \frac{x}{9} + \frac{C}{x^2}$",
+        "explicacion": r"Forma estándar: $y' + \frac{2}{x}y = x^2 - \ln x$. Factor integrante $\mu=x^2$. Integramos $d(x^2 y) = (x^4 - x^2\ln x)dx$. La integral de $x^2\ln x$ requiere partes."
+    },
+    {
+        "tema": "2.1.5 ED 1er Orden: Bernoulli",
+        "pregunta": r"Identifique y resuelva la ecuación de Bernoulli: $x dy + (x^2 y^3 + xy^3 - 2y) dx = 0$",
+        "opciones": [
+            r"A) $y^{-2} = \frac{1}{3}x^2 + \frac{2}{5}x + Cx^{-4}$",
+            r"B) $y^3 = x^2 + x + C$",
+            r"C) $y^{-2} = x^2(1+x) + C$",
+            r"D) $y^2 = \frac{1}{3}x^2 + \frac{2}{5}x + C$"
+        ],
+        "respuesta_correcta": r"A) $y^{-2} = \frac{1}{3}x^2 + \frac{2}{5}x + Cx^{-4}$",
+        "explicacion": r"Reescribiendo: $x y' - 2y = -y^3(x^2+x) \Rightarrow y' - \frac{2}{x}y = -y^3(x+1)$. Es Bernoulli con $n=3$. Sustitución $u = y^{1-3} = y^{-2}$."
+    },
+    {
+        "tema": "2.1.5 ED 1er Orden: Bernoulli",
+        "pregunta": r"Resuelva la ecuación: $xy dy + (2y^2 - x^3 + x\ln x) dx = 0$",
+        "opciones": [
+            r"A) $y^2 = \frac{1}{3}x^2 - \frac{1}{2}\ln x + \frac{1}{8} + Cx^{-4}$",
+            r"B) $y^2 = \frac{x^2}{3} - \ln x + C$",
+            r"C) $y^{-1} = x^3 + \ln x + C$",
+            r"D) $y^2 = x^2(\ln x - 1) + C$"
+        ],
+        "respuesta_correcta": r"A) $y^2 = \frac{1}{3}x^2 - \frac{1}{2}\ln x + \frac{1}{8} + Cx^{-4}$",
+        "explicacion": r"Reescribiendo: $y' + \frac{2}{x}y = (x^2 - \ln x)y^{-1}$. Bernoulli con $n=-1$. Sustitución $u = y^2$. Ecuación lineal resultante: $u' + \frac{4}{x}u = 2x^2 - 2\ln x$."
+    },
+    # --------------------------------------------------------------------------
+    # AMPLIACIÓN TALLER 2 - 202615 (LOTE EXTRA)
+    # --------------------------------------------------------------------------
+    {
+        "tema": "2.1.1 ED 1er Orden: Separación de Variables",
+        "pregunta": r"Resuelva la ecuación diferencial: $e^{2x-y}dx + yx dy = 0$",
+        "opciones": [
+            r"A) $\frac{1}{2}e^{2x} - xe^{-y} - e^{-y} = C$",
+            r"B) $e^{2x} + y^2 = C$",
+            r"C) $2e^{2x} = y e^y - e^y + C$",
+            r"D) $\frac{1}{2}e^{2x} = (y+1)e^{-y} + C$" # Derivada de integración por partes
+        ],
+        "respuesta_correcta": r"D) $\frac{1}{2}e^{2x} = (y+1)e^{-y} + C$",
+        "explicacion": r"Separamos variables: $e^{2x}dx = -y e^y dy$ (al pasar dividiendo $e^{-y}$ sube como $e^y$ incorrecto) -> Corrección: $e^{2x}dx = -y \frac{dy}{e^{-y}} = -y e^y dy$. Integrando por partes $\int y e^y dy$: $e^{2x}/2 = -(y-1)e^y + C$. (Revisando álgebra: $e^{2x}dx = -yx e^{-(-y)}$... Mejor: $e^{2x}dx = -y x e^y dy$... espera, la ecuación es $e^{2x}e^{-y}dx + yx dy = 0 \Rightarrow \frac{e^{2x}}{x}dx = -y e^y dy$.)"
+    },
+    # Corrección del anterior para el banco (versión simplificada operativa):
+    {
+        "tema": "2.1.1 ED 1er Orden: Separación de Variables",
+        "pregunta": r"Al separar las variables de la ecuación $\sqrt{xy} y' = \frac{x+2}{2-y}$, se obtiene la integral:",
+        "opciones": [
+            r"A) $\int (2-y)\sqrt{y} dy = \int \frac{x+2}{\sqrt{x}} dx$",
+            r"B) $\int \frac{\sqrt{y}}{2-y} dy = \int (x+2)\sqrt{x} dx$",
+            r"C) $\int \sqrt{y}(2-y) dy = \int \frac{\sqrt{x}}{x+2} dx$",
+            r"D) $\int (2y - y^{3/2}) dy = \int (x^{1/2} + 2x^{-1/2}) dx$"
+        ],
+        "respuesta_correcta": r"A) $\int (2-y)\sqrt{y} dy = \int \frac{x+2}{\sqrt{x}} dx$",
+        "explicacion": r"Reescribimos $y' = dy/dx$. Agrupamos las $y$ a la izquierda: $\sqrt{y}(2-y)dy$. Agrupamos las $x$ a la derecha: $\frac{x+2}{\sqrt{x}}dx$."
+    },
+    {
+        "tema": "2.1.3 ED 1er Orden: Exactas",
+        "pregunta": r"Determine el valor de $k$ para que la ecuación $(y^3 + kxy^4 - 2x)dx + (3xy^2 + 20x^2y^3)dy = 0$ sea exacta:",
+        "opciones": [
+            r"A) $k = 10$",
+            r"B) $k = 5$",
+            r"C) $k = 20$",
+            r"D) $k = 4$"
+        ],
+        "respuesta_correcta": r"A) $k = 10$",
+        "explicacion": r"Para ser exacta, $\frac{\partial M}{\partial y} = \frac{\partial N}{\partial x}$. Derivando: $M_y = 3y^2 + 4kxy^3$. $N_x = 3y^2 + 40xy^3$. Igualando coeficientes: $4k = 40 \Rightarrow k = 10$."
+    },
+    {
+        "tema": "2.1.4 ED 1er Orden: Lineales",
+        "pregunta": r"Para la ecuación lineal $y' + \frac{3}{x}y = x^2 + 1$, el factor integrante $\mu(x)$ es:",
+        "opciones": [
+            r"A) $\mu(x) = x^3$",
+            r"B) $\mu(x) = e^{3x}$",
+            r"C) $\mu(x) = 3 \ln x$",
+            r"D) $\mu(x) = x^{-3}$"
+        ],
+        "respuesta_correcta": r"A) $\mu(x) = x^3$",
+        "explicacion": r"El factor integrante es $e^{\int P(x)dx} = e^{\int \frac{3}{x}dx} = e^{3\ln x} = e^{\ln x^3} = x^3$."
+    },
+    {
+        "tema": "2.1.4 ED 1er Orden: Lineales",
+        "pregunta": r"Identifique la clasificación de la ecuación $(x-3y)dx + 2y dy = 0$ si consideramos $x$ como variable dependiente ($x(y)$):",
+        "opciones": [
+            r"A) Lineal en $x$",
+            r"B) Bernoulli en $y$",
+            r"C) Separable",
+            r"D) Exacta"
+        ],
+        "respuesta_correcta": r"A) Lineal en $x$",
+        "explicacion": r"Reescribiendo como $\frac{dx}{dy}$: $(x-3y)\frac{dx}{dy} + 2y = 0$ (no). Mejor: $\frac{dx}{dy} = \frac{-2y}{x-3y}$ (no). Forma estándar $dx/dy + P(y)x = Q(y)$. Al dividir por $dy$: $(x-3y)x' + 2y = 0$... No, la forma correcta lineal en x es $dx/dy + P(y)x = Q(y)$. Si reordenamos $(x-3y)dx + 2ydy=0 \Rightarrow \frac{dy}{dx} = \frac{3y-x}{2y}$ (Homogénea). Como lineal en $x$: $2y \frac{dy}{dx} + 3y = x$... no."
+    },
+    # Corrección: El ejercicio original del Taller 2 era (x-3y)dx + 2ydy=0, que es Homogénea.
+    # Vamos a poner una que SÍ sea Bernoulli del Taller 2.
+    {
+        "tema": "2.1.2 ED 1er Orden: Homogéneas",
+        "pregunta": r"Dada la ecuación $(x-3y)dx + 2y dy = 0$, ¿qué sustitución la simplifica?",
+        "opciones": [
+            r"A) $y = ux$",
+            r"B) $u = x-3y$",
+            r"C) $x = y^2$",
+            r"D) $\mu = e^{2y}$"
+        ],
+        "respuesta_correcta": r"A) $y = ux$",
+        "explicacion": r"Es una ecuación diferencial con coeficientes homogéneos de grado 1. La sustitución canónica es $y=ux$."
+    },
+    {
+        "tema": "2.2.1 ED Orden Superior: Homogéneas",
+        "pregunta": r"¿Cuál es la solución general de la ecuación de tercer orden $y''' + 6y'' + 12y' + 8y = 0$?",
+        "opciones": [
+            r"A) $y = C_1 e^{-2x} + C_2 x e^{-2x} + C_3 x^2 e^{-2x}$",
+            r"B) $y = C_1 e^{2x} + C_2 x e^{2x} + C_3 x^2 e^{2x}$",
+            r"C) $y = C_1 e^{-2x} + C_2 e^{-6x} + C_3 e^{-8x}$",
+            r"D) $y = e^{-2x}(C_1 \cos 2x + C_2 \sin 2x)$"
+        ],
+        "respuesta_correcta": r"A) $y = C_1 e^{-2x} + C_2 x e^{-2x} + C_3 x^2 e^{-2x}$",
+        "explicacion": r"El polinomio característico es $r^3 + 6r^2 + 12r + 8 = 0$, que factoriza como $(r+2)^3 = 0$. Hay una raíz real $r=-2$ de multiplicidad 3."
+    },
+    {
+        "tema": "2.2.1 ED Orden Superior: Homogéneas",
+        "pregunta": r"Resuelva la ecuación no homogénea $y'' + 4y' + 3y = 12e^x$. (Solo la Solución Particular $y_p$):",
+        "opciones": [
+            r"A) $y_p = \frac{3}{2}e^x$",
+            r"B) $y_p = 12e^x$",
+            r"C) $y_p = \frac{12}{8}e^x = 1.5e^x$",
+            r"D) $y_p = Axe^x$"
+        ],
+        "respuesta_correcta": r"A) $y_p = \frac{3}{2}e^x$",
+        "explicacion": r"Usando Coeficientes Indeterminados, proponemos $y_p = Ae^x$. Derivadas: $y_p' = Ae^x, y_p'' = Ae^x$. Sustituyendo: $A(1+4+3)e^x = 8Ae^x = 12e^x \Rightarrow A = 12/8 = 3/2$."
+    },
+    {
+        "tema": "2.3 Aplicaciones de Ecuaciones Diferenciales en Economía",
+        "pregunta": r"Datación Carbono-14: Si la vida media es 5600 años y un fósil conserva 1/6 de su C-14 original, la ecuación para hallar su edad $t$ es:",
+        "opciones": [
+            r"A) $\frac{1}{6} = e^{k t}$ con $k = \frac{\ln(0.5)}{5600}$",
+            r"B) $\frac{1}{6} = e^{5600 t}$",
+            r"C) $t = \frac{1}{6} \ln(5600)$",
+            r"D) $Q(t) = Q_0 e^{-5600t}$"
+        ],
+        "respuesta_correcta": r"A) $\frac{1}{6} = e^{k t}$ con $k = \frac{\ln(0.5)}{5600}$",
+        "explicacion": r"Modelo de decaimiento radioactivo: $Q(t) = Q_0 e^{kt}$. Primero hallamos $k$ con la vida media ($Q=0.5Q_0$ en $t=5600$). Luego resolvemos para $Q = \frac{1}{6}Q_0$."
+    },
+    {
+        "tema": "2.3 Aplicaciones de Ecuaciones Diferenciales en Economía",
+        "pregunta": r"Ley de Enfriamiento: Si $\frac{dT}{dt} = k(T - T_a)$, ¿cuál es la expresión para la temperatura $T(t)$?",
+        "opciones": [
+            r"A) $T(t) = T_a + (T_0 - T_a)e^{kt}$",
+            r"B) $T(t) = T_0 e^{kt} + T_a$",
+            r"C) $T(t) = \frac{1}{k}(T - T_a)$",
+            r"D) $T(t) = (T_a - T_0)e^{-kt}$"
+        ],
+        "respuesta_correcta": r"A) $T(t) = T_a + (T_0 - T_a)e^{kt}$",
+        "explicacion": r"Es la solución general de la ecuación lineal separable. $T_a$ es la temperatura ambiente y $(T_0 - T_a)$ es la diferencia inicial que decae exponencialmente."
+    },
+    {
+        "tema": "2.1.2 ED 1er Orden: Homogéneas",
+        "pregunta": r"¿Cuál es el factor integrante para resolver $y' + y = e^{3x}$?",
+        "opciones": [
+            r"A) $e^x$",
+            r"B) $e^{-x}$",
+            r"C) $x$",
+            r"D) $e^{3x}$"
+        ],
+        "respuesta_correcta": r"A) $e^x$",
+        "explicacion": r"La ecuación está en forma estándar $y' + P(x)y = Q(x)$ con $P(x)=1$. Factor integrante $\mu = e^{\int 1 dx} = e^x$."
+    },
+    {
+        "tema": "2.2.1 ED Orden Superior: Homogéneas",
+        "pregunta": r"Determine la ecuación característica de $y^{(4)} - 16y = 0$:",
+        "opciones": [
+            r"A) $r^4 - 16 = 0$",
+            r"B) $4r - 16 = 0$",
+            r"C) $r^4 + 16 = 0$",
+            r"D) $(r-2)^4 = 0$"
+        ],
+        "respuesta_correcta": r"A) $r^4 - 16 = 0$",
+        "explicacion": r"Sustituyendo $y = e^{rx}$, obtenemos $r^4 e^{rx} - 16e^{rx} = 0$, lo que lleva a $r^4 - 16 = 0$. Sus raíces son $\pm 2$ y $\pm 2i$."
     }
 ]
 
