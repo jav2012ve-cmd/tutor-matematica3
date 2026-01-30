@@ -231,20 +231,17 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.session_state.indice_pregunta += 1
                     st.rerun()
 
-        # --- PANTALLA 3: RESULTADOS (Vista de Impresión) ---
-        # --- PANTALLA 3: RESULTADOS (Vista de Impresión) ---
+# --- PANTALLA 3: RESULTADOS (Vista de Impresión) ---
         else:
-            # st.balloons()  <-- ELIMINADA POR SERIEDAD ACADÉMICA
-            
-            # Encabezado de resultados
-            if nota_final >= 10:
-                st.success("✅ Examen Finalizado")
-            else:
-                st.warning("⚠️ Examen Finalizado")
-            
-            # Cálculo de nota
+            # 1. PRIMERO calculamos la nota (para que la variable exista)
             suma_puntos = sum(r['puntos'] for r in st.session_state.respuestas_usuario)
             nota_final = round(suma_puntos, 2)
+
+            # 2. AHORA sí podemos usar 'nota_final' en el condicional
+            if nota_final >= 10:
+                st.success(f"✅ Examen Finalizado - Aprobado con {nota_final}")
+            else:
+                st.warning(f"⚠️ Examen Finalizado - Nota: {nota_final}")
             
             # --- BLOQUE DE NOTA SUPERIOR ---
             col_nota_top, col_info_top = st.columns([1, 2])
