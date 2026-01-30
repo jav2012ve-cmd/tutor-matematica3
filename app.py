@@ -173,7 +173,10 @@ if ruta == "a) Entrenamiento (Temario)":
                             st.success("✅ ¡Exacto! Esa es la ruta.")
                             st.info(f"👨‍🏫 **Feedback:** {tutor['feedback_estrategia']}")
                             if st.button("Ir al Paso Intermedio ➡️", type="primary"):
-                                st.session_state.entrenamiento_step = 2
+                                st.session_state.entrenamiento_idx += 1
+                                st.session_state.entrenamiento_step = 1
+                                st.session_state.entrenamiento_data_ia = None 
+                                st.session_state.entrenamiento_validado = False
                                 st.rerun()
                         else:
                             st.error("❌ Mmm, no es el mejor camino.")
