@@ -425,7 +425,15 @@ BANCO_FIXED = [
     },
     {
         "tema": "1.2.3 Integrales Impropias",
-        "pregunta": r"Función de Densidad de Probabilidad (PDF): Determine el
+        "pregunta": r"Función de Densidad de Probabilidad (PDF): Determine el valor de $k$ para que $f(x) = k x^2(1-x)$ sea una PDF válida en el intervalo $[0,1]$:",
+        "opciones": [
+            r"A) $k = 12$",
+            r"B) $k = 6$",
+            r"C) $k = 1$",
+            r"D) $k = 1/12$"
+        ],
+        "respuesta_correcta": r"A) $k = 12$",
+        "explicacion": r"Condición: $\int_0^1 k(x^2-x^3) dx = 1$. Resolvemos: $k [\frac{x^3}{3} - \frac{x^4}{4}]_0^1 = k(\frac{1}{3}-\frac{1}{4}) = k(\frac{1}{12}) = 1 \Rightarrow k=12$."
     },
     # --------------------------------------------------------------------------
     # LOTE 5: TALLER 2 - 202615 (VOLÚMENES, LEY ENFRIAMIENTO, ED SUPERIOR) - NUEVO

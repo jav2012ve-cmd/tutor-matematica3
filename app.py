@@ -114,11 +114,10 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.session_state.trigger_quiz = True
                     st.rerun()
 
-        # --- LÓGICA DE GENERACIÓN (MEZCLA AUTOMÁTICA) ---
+        # --- LÓGICA DE GENERACIÓN (MEZCLA 50/50) ---
         if st.session_state.get("trigger_quiz"):
-            with st.spinner("El profesor está compilando tu examen (Buscando en banco + IA)..."):
+            with st.spinner("Compilando examen (Balanceando 50% Banco Oficial / 50% IA)..."):
                 try:
-                    # Importamos aquí para no ensuciar los imports generales si no se usa esta sección
                     import random
                     from modules import banco_preguntas
                     
@@ -126,27 +125,34 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     cantidad_total = st.session_state.config_cant
                     temas = st.session_state.config_temas
 
-                    # 1. INTENTAR OBTENER DEL BANCO FIJO
-                    # Solicitamos la cantidad total al banco. Si tiene menos, nos dará todo lo que tenga.
-                    # Esto prioriza SIEMPRE tus ejercicios del Taller 1 y 2 que acabamos de cargar.
-                    preguntas_banco = banco_preguntas.obtener_preguntas_fijas(temas, cantidad_total)
+                    # 1. CALCULAR CUOTAS (Regla: 50% y 50%. Si es impar, 1 más a la IA)
+                    cuota_banco = cantidad_total // 2
+                    cuota_ia = cantidad_total - cuota_banco
+
+                    # 2. OBTENER DEL BANCO FIJO (Intentar llenar la cuota)
+                    # Solicitamos exactamente la cuota calculada
+                    preguntas_banco = banco_preguntas.obtener_preguntas_fijas(temas, cuota_banco)
                     lista_final_preguntas.extend(preguntas_banco)
                     
-                    # 2. CALCULAR FALTANTES
-                    faltantes = cantidad_total - len(lista_final_preguntas)
+                    # 3. AJUSTAR FALTANTES (Fallback)
+                    # Si el banco no tenía suficientes (ej. pedimos 2 y solo halló 1),
+                    # sumamos lo que falta a la cuota de la IA para llegar al total.
+                    encontradas_banco = len(preguntas_banco)
+                    faltantes_banco = cuota_banco - encontradas_banco
                     
-                    # 3. SI FALTAN, COMPLETAR CON IA
-                    if faltantes > 0:
-                        # (Opcional) st.toast(f"Completando {faltantes} preguntas con IA...") 
-                        prompt_quiz = temario.generar_prompt_quiz(temas, faltantes)
+                    total_a_generar_ia = cuota_ia + faltantes_banco
+                    
+                    # 4. GENERAR CON IA
+                    if total_a_generar_ia > 0:
+                        prompt_quiz = temario.generar_prompt_quiz(temas, total_a_generar_ia)
                         respuesta = model.generate_content(prompt_quiz)
                         preguntas_ia = limpiar_json(respuesta.text)
                         lista_final_preguntas.extend(preguntas_ia)
                     
-                    # 4. MEZCLAR PARA QUE NO SALGAN ORDENADAS (Primero banco, luego IA)
+                    # 5. MEZCLAR Y GUARDAR
                     random.shuffle(lista_final_preguntas)
                     
-                    # Asegurar que no nos pasamos de la cantidad solicitada (por si acaso)
+                    # Recorte de seguridad (por si la IA generó de más)
                     lista_final_preguntas = lista_final_preguntas[:cantidad_total]
 
                     # Guardar en estado
