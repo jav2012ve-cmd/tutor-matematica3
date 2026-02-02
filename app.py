@@ -1,25 +1,10 @@
 import streamlit as st
 import json
 import time
-import re # Asegúrate de importar esto arriba si no lo tienes
+import time 
+import re   
 from PIL import Image
 from modules import ia_core, interfaz, temario
-def limpiar_json(texto):
-    if not texto: return None
-    texto = texto.replace("```json", "").replace("```", "").strip()
-    try:
-        return json.loads(texto)
-    except json.JSONDecodeError:
-        # Intento de reparación de emergencia para LaTeX
-        # Busca patrones comunes de LaTeX (como \frac, \int) que tengan una sola barra
-        # y les agrega la segunda barra necesaria para JSON.
-        try:
-            texto_reparado = texto.replace("\\", "\\\\") 
-            # Nota: Esto es un parche agresivo, a veces duplica de más, 
-            # pero suele salvar la respuesta matemática.
-            return json.loads(texto_reparado)
-        except:
-            return None
 # --- 1. CONFIGURACIÓN ---
 interfaz.configurar_pagina()
 
@@ -27,6 +12,23 @@ if not ia_core.configurar_gemini():
     st.stop()
 
 model, nombre_modelo = ia_core.iniciar_modelo()
+
+def generar_contenido_seguro(prompt, intentos_max=3):
+    """Protección contra errores 429 y caídas de conexión"""
+    errores_recientes = ""
+    for i in range(intentos_max):
+        try:
+            return generar_contenido_seguro(prompt)
+        except Exception as e:
+            errores_recientes = str(e)
+            if "429" in str(e):
+                tiempo = 5 * (i + 1)
+                st.toast(f"🚦 Tráfico alto. Reintentando en {tiempo}s...", icon="⏳")
+                time.sleep(tiempo)
+            else:
+                time.sleep(2)
+    st.error(f"❌ Error de conexión: {errores_recientes}")
+    return None
 
 # --- FUNCIÓN DE SEGURIDAD PARA LLAMADAS A LA IA ---
 def generar_contenido_seguro(prompt, intentos_max=3):
@@ -36,7 +38,7 @@ def generar_contenido_seguro(prompt, intentos_max=3):
     errores_recientes = ""
     for i in range(intentos_max):
         try:
-            return model.generate_content(prompt)
+            return generar_contenido_seguro(prompt)
         except Exception as e:
             errores_recientes = str(e)
             if "429" in str(e):
@@ -66,45 +68,49 @@ if "messages" not in st.session_state:
 
 # Función auxiliar para limpiar JSON
 def limpiar_json(texto):
-    if not texto: return [] # Protección por si texto es None
+    if not texto: return None
     texto = texto.replace("```json", "").replace("```", "").strip()
     try:
         return json.loads(texto)
     except json.JSONDecodeError:
-        return []
+        # PARCHE DE SEGURIDAD PARA LATEX
+        # Si falla, intentamos duplicar las barras invertidas para salvar la ecuación
+        try:
+            texto_reparado = texto.replace("\\", "\\\\")
+            return json.loads(texto_reparado)
+        except:
+            return None
 
 def generar_tutor_paso_a_paso(pregunta_texto, tema):
     """
-    Versión con instrucciones LaTeX reforzadas.
+    Toma una pregunta y genera:
+    1. Estrategias (1 correcta, 2 distractores).
+    2. Paso intermedio.
+    3. Solución final.
     """
     prompt = f"""
     Actúa como un profesor experto de cálculo. Para el siguiente ejercicio de {tema}:
     "{pregunta_texto}"
     
-    Genera un objeto JSON estricto para guiar al estudiante.
-    
-    MUY IMPORTANTE SOBRE LATEX:
-    - Escribe todas las fórmulas matemáticas en formato LaTeX.
-    - Para que el JSON sea válido, DEBES ESCAPAR las barras invertidas.
-    - Usa DOBLLE BARRA INVERTIDA (\\\\) para los comandos.
-    - Ejemplo MAL: "\\frac{{dy}}{{dx}}" -> Rompe el JSON.
-    - Ejemplo BIEN: "\\\\frac{{dy}}{{dx}}" -> Funciona perfecto.
+    Genera un objeto JSON estricto.
+    MUY IMPORTANTE: Usa DOBLE BARRA INVERTIDA (\\\\) para comandos LaTeX.
+    Ejemplo: usa \\\\frac en lugar de \\frac.
     
     Estructura JSON requerida:
     {{
         "estrategias": [
-            "Estrategia CORRECTA (breve)",
+            "Estrategia CORRECTA",
             "Estrategia INCORRECTA 1",
             "Estrategia INCORRECTA 2"
         ],
         "indice_correcta": 0,
-        "feedback_estrategia": "Por qué es la mejor ruta.",
-        "paso_intermedio": "Ecuación LaTeX (con \\\\) del resultado a mitad de camino",
+        "feedback_estrategia": "Explicación breve.",
+        "paso_intermedio": "Ecuación LaTeX (con \\\\) del hito intermedio",
         "resultado_final": "Ecuación LaTeX (con \\\\) del resultado final"
     }}
     Orden aleatorio en estrategias. Solo devuelve el JSON.
     """
-    # Usamos la función segura que definimos antes
+    # USAMOS LA NUEVA FUNCIÓN SEGURA
     response = generar_contenido_seguro(prompt)
     if response:
         return limpiar_json(response.text)
