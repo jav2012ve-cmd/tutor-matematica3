@@ -68,18 +68,17 @@ if "messages" not in st.session_state:
 
 # Función auxiliar para limpiar JSON
 def limpiar_json(texto):
-    if not texto: return None
+    if not texto: return []
     texto = texto.replace("```json", "").replace("```", "").strip()
     try:
         return json.loads(texto)
     except json.JSONDecodeError:
-        # PARCHE DE SEGURIDAD PARA LATEX
-        # Si falla, intentamos duplicar las barras invertidas para salvar la ecuación
+        # Intento de reparación para LaTeX (fórmulas matemáticas)
         try:
             texto_reparado = texto.replace("\\", "\\\\")
             return json.loads(texto_reparado)
         except:
-            return None
+            return [] # Devuelve lista vacía en lugar de None para evitar TypeError
 
 def generar_tutor_paso_a_paso(pregunta_texto, tema):
     """
@@ -88,25 +87,21 @@ def generar_tutor_paso_a_paso(pregunta_texto, tema):
     2. Paso intermedio.
     3. Solución final.
     """
+
     prompt = f"""
     Actúa como un profesor experto de cálculo. Para el siguiente ejercicio de {tema}:
     "{pregunta_texto}"
     
     Genera un objeto JSON estricto.
-    MUY IMPORTANTE: Usa DOBLE BARRA INVERTIDA (\\\\) para comandos LaTeX.
-    Ejemplo: usa \\\\frac en lugar de \\frac.
+    IMPORTANTE: Usa DOBLE BARRA (\\\\) para comandos LaTeX (ej. \\\\frac, \\\\int).
     
-    Estructura JSON requerida:
+    Estructura JSON:
     {{
-        "estrategias": [
-            "Estrategia CORRECTA",
-            "Estrategia INCORRECTA 1",
-            "Estrategia INCORRECTA 2"
-        ],
+        "estrategias": ["Correcta", "Incorrecta 1", "Incorrecta 2"],
         "indice_correcta": 0,
         "feedback_estrategia": "Explicación breve.",
-        "paso_intermedio": "Ecuación LaTeX (con \\\\) del hito intermedio",
-        "resultado_final": "Ecuación LaTeX (con \\\\) del resultado final"
+        "paso_intermedio": "Ecuación LaTeX (con \\\\) del hito",
+        "resultado_final": "Ecuación LaTeX (con \\\\) del resultado"
     }}
     Orden aleatorio en estrategias. Solo devuelve el JSON.
     """
@@ -149,24 +144,34 @@ if ruta == "a) Entrenamiento (Temario)":
                         from modules import banco_preguntas
                         
                         lista_entrenamiento = []
-                        # Regla: 2 Banco + 3 IA
-                        preguntas_banco = banco_preguntas.obtener_preguntas_fijas(temas_entrenamiento, 2)
-                        lista_entrenamiento.extend(preguntas_banco)
                         
+                        # --- 1. BANCO DE PREGUNTAS (PROTEGIDO) ---
+                        # Si banco_preguntas falla o no trae nada, evitamos el error
+                        preguntas_banco = banco_preguntas.obtener_preguntas_fijas(temas_entrenamiento, 2)
+                        if preguntas_banco: 
+                            lista_entrenamiento.extend(preguntas_banco)
+                        
+                        # --- 2. GENERACIÓN IA (PROTEGIDA) ---
                         faltantes = 5 - len(lista_entrenamiento)
                         if faltantes > 0:
                             prompt_train = temario.generar_prompt_quiz(temas_entrenamiento, faltantes)
-                            # USAMOS LA NUEVA FUNCIÓN SEGURA
                             respuesta_ia = generar_contenido_seguro(prompt_train)
+                            
                             if respuesta_ia:
                                 preguntas_ia = limpiar_json(respuesta_ia.text)
-                                lista_entrenamiento.extend(preguntas_ia)
+                                # ¡AQUÍ ESTABA EL ERROR! Verificamos antes de agregar
+                                if preguntas_ia: 
+                                    lista_entrenamiento.extend(preguntas_ia)
                             else:
-                                st.warning("No se pudo conectar con la IA para generar ejercicios extras. Usando solo banco.")
+                                st.warning("⚠️ La IA está tomando un descanso. Usando solo banco de preguntas.")
                         
+                        if not lista_entrenamiento:
+                            st.error("No se encontraron preguntas. Intenta con otro tema.")
+                            st.stop()
+
                         random.shuffle(lista_entrenamiento)
                         
-                        # --- INICIALIZACIÓN SEGURA ---
+                        # Guardar en estado
                         st.session_state.entrenamiento_lista = lista_entrenamiento[:5]
                         st.session_state.entrenamiento_idx = 0
                         st.session_state.entrenamiento_step = 1
@@ -174,8 +179,9 @@ if ruta == "a) Entrenamiento (Temario)":
                         st.session_state.entrenamiento_validado = False 
                         st.session_state.entrenamiento_activo = True
                         st.rerun()
+
                     except Exception as e:
-                        st.error(f"Error al iniciar: {e}")
+                        st.error(f"Error al iniciar sesión: {e}")
 
     # --- PANTALLA DE EJERCICIOS (El Dojo) ---
     else:
