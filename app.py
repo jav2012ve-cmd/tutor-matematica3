@@ -12,6 +12,30 @@ if not ia_core.configurar_gemini():
 
 model, nombre_modelo = ia_core.iniciar_modelo()
 
+# --- FUNCIÓN DE SEGURIDAD PARA LLAMADAS A LA IA ---
+def generar_contenido_seguro(prompt, intentos_max=3):
+    """
+    Intenta llamar a la IA. Si falla por error 429 (Quota), espera y reintenta.
+    """
+    errores_recientes = ""
+    for i in range(intentos_max):
+        try:
+            return model.generate_content(prompt)
+        except Exception as e:
+            errores_recientes = str(e)
+            if "429" in str(e):
+                # Estrategia de espera: 5s, 10s, 15s...
+                tiempo_espera = 5 * (i + 1)
+                st.toast(f"🚦 Tráfico alto en la IA. Reintentando en {tiempo_espera}s... (Intento {i+1}/{intentos_max})", icon="⏳")
+                time.sleep(tiempo_espera)
+            else:
+                # Si es otro error (no de quota), fallamos inmediatamente
+                st.error(f"Error inesperado en la IA: {e}")
+                return None
+    
+    st.error(f"❌ No se pudo conectar tras {intentos_max} intentos. Error: {errores_recientes}")
+    return None
+
 # --- 2. GESTIÓN DE ESTADO (MEMORIA) ---
 if "quiz_activo" not in st.session_state:
     st.session_state.quiz_activo = False
@@ -26,8 +50,12 @@ if "messages" not in st.session_state:
 
 # Función auxiliar para limpiar JSON
 def limpiar_json(texto):
+    if not texto: return [] # Protección por si texto es None
     texto = texto.replace("```json", "").replace("```", "").strip()
-    return json.loads(texto)
+    try:
+        return json.loads(texto)
+    except json.JSONDecodeError:
+        return []
 
 def generar_tutor_paso_a_paso(pregunta_texto, tema):
     """
@@ -55,11 +83,12 @@ def generar_tutor_paso_a_paso(pregunta_texto, tema):
     El orden de las estrategias en la lista debe ser aleatorio, ajusta el "indice_correcta" según corresponda.
     Solo devuelve el JSON.
     """
-    try:
-        response = model.generate_content(prompt)
+    # USAMOS LA NUEVA FUNCIÓN SEGURA
+    response = generar_contenido_seguro(prompt)
+    if response:
         return limpiar_json(response.text)
-    except:
-        return None
+    return None
+
 # --- 3. INTERFAZ ---
 ruta, tema_actual = interfaz.mostrar_sidebar()
 interfaz.mostrar_bienvenida()
@@ -100,18 +129,22 @@ if ruta == "a) Entrenamiento (Temario)":
                         faltantes = 5 - len(lista_entrenamiento)
                         if faltantes > 0:
                             prompt_train = temario.generar_prompt_quiz(temas_entrenamiento, faltantes)
-                            respuesta_ia = model.generate_content(prompt_train)
-                            preguntas_ia = limpiar_json(respuesta_ia.text)
-                            lista_entrenamiento.extend(preguntas_ia)
+                            # USAMOS LA NUEVA FUNCIÓN SEGURA
+                            respuesta_ia = generar_contenido_seguro(prompt_train)
+                            if respuesta_ia:
+                                preguntas_ia = limpiar_json(respuesta_ia.text)
+                                lista_entrenamiento.extend(preguntas_ia)
+                            else:
+                                st.warning("No se pudo conectar con la IA para generar ejercicios extras. Usando solo banco.")
                         
                         random.shuffle(lista_entrenamiento)
                         
                         # --- INICIALIZACIÓN SEGURA ---
                         st.session_state.entrenamiento_lista = lista_entrenamiento[:5]
-                        st.session_state.entrenamiento_idx = 0  # <--- FORZAR REINICIO A 0
+                        st.session_state.entrenamiento_idx = 0
                         st.session_state.entrenamiento_step = 1
                         st.session_state.entrenamiento_data_ia = None
-                        st.session_state.entrenamiento_validado = False # Reiniciar validación
+                        st.session_state.entrenamiento_validado = False 
                         st.session_state.entrenamiento_activo = True
                         st.rerun()
                     except Exception as e:
@@ -134,14 +167,15 @@ if ruta == "a) Entrenamiento (Temario)":
             # --- LLAMADA A LA IA TUTOR ---
             if st.session_state.entrenamiento_data_ia is None:
                 with st.spinner("🧠 El profesor está analizando el mejor camino de resolución..."):
-                    # Generamos la tutoría y guardamos en sesión
+                    # Generamos la tutoría de forma segura
                     datos_tutor = generar_tutor_paso_a_paso(ejercicio['pregunta'], ejercicio.get('tema', 'Cálculo'))
                     if datos_tutor:
                         st.session_state.entrenamiento_data_ia = datos_tutor
                         st.rerun()
                     else:
-                        st.error("Error conectando con el tutor IA. Saltando ejercicio.")
+                        st.error("Error conectando con el tutor IA. Saltando ejercicio por seguridad.")
                         st.session_state.entrenamiento_idx += 1
+                        time.sleep(2)
                         st.rerun()
             
             tutor = st.session_state.entrenamiento_data_ia
@@ -158,7 +192,7 @@ if ruta == "a) Entrenamiento (Temario)":
                     "Selecciona el método:",
                     tutor['estrategias'],
                     index=None,
-                    key=f"radio_estrat_{idx}" # Key única
+                    key=f"radio_estrat_{idx}" 
                 )
                 
                 # Botón Validar
@@ -166,22 +200,21 @@ if ruta == "a) Entrenamiento (Temario)":
                     if opcion_estrategia:
                         idx_seleccionado = tutor['estrategias'].index(opcion_estrategia)
                         if idx_seleccionado == tutor['indice_correcta']:
-                            st.session_state.entrenamiento_validado = True # Guardar éxito
+                            st.session_state.entrenamiento_validado = True 
                         else:
                             st.error("❌ Mmm, no es el mejor camino.")
                             st.warning(f"Pista: {tutor['feedback_estrategia']}")
                     else:
                         st.warning("Debes seleccionar una opción.")
 
-                # Lógica de Avance (FUERA del botón validar, leyendo el estado)
+                # Lógica de Avance
                 if st.session_state.get("entrenamiento_validado", False):
                     st.success("✅ ¡Exacto! Esa es la ruta.")
                     st.info(f"👨‍🏫 **Feedback:** {tutor['feedback_estrategia']}")
                     
-                    # Botón para avanzar al paso 2
                     if st.button("Ir al Paso Intermedio ➡️", type="primary", key=f"btn_go_step2_{idx}"):
                         st.session_state.entrenamiento_step = 2
-                        st.session_state.entrenamiento_validado = False # Limpiar flag
+                        st.session_state.entrenamiento_validado = False
                         st.rerun()
 
             # ====================================================
@@ -237,7 +270,7 @@ if ruta == "a) Entrenamiento (Temario)":
 elif ruta == "b) Respuesta Guiada (Consultas)":
     st.info("Sube tu ejercicio o escribe tu duda.")
     
-    # Historial de Chat (Solo visualización)
+    # Historial
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -250,9 +283,13 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
         
         with st.chat_message("assistant"):
             with st.spinner("Analizando..."):
-                res = model.generate_content(f"Ayuda al alumno con esto: {prompt}")
-                st.markdown(res.text)
-                st.session_state.messages.append({"role": "assistant", "content": res.text})
+                # USAMOS LA NUEVA FUNCIÓN SEGURA
+                res = generar_contenido_seguro(f"Ayuda al alumno con esto: {prompt}")
+                if res:
+                    st.markdown(res.text)
+                    st.session_state.messages.append({"role": "assistant", "content": res.text})
+                else:
+                    st.error("El tutor está ocupado ahora. Intenta de nuevo en unos segundos.")
 
 # =======================================================
 # LÓGICA C: AUTOEVALUACIÓN (Quiz) - MODO HÍBRIDO AUTOMÁTICO
@@ -262,14 +299,12 @@ elif ruta == "c) Autoevaluación (Quiz)":
 
     # --- PANTALLA 1: CONFIGURACIÓN ---
     if not st.session_state.quiz_activo:
-        # Mensaje simplificado (ya no hay botones de selección de fuente)
         st.info("Configura tu prueba (El sistema combinará ejercicios oficiales y generados por IA):")
         
         col1, col2 = st.columns(2)
         with col1:
             if st.button("🏆 Generar Primer Parcial (Simulacro)", use_container_width=True):
                 st.session_state.config_temas = temario.TEMAS_PARCIAL_1
-                # Usamos 5 para probar rápido, puedes subirlo a 8 o 10 luego
                 st.session_state.config_cant = 5 
                 st.session_state.trigger_quiz = True
                 st.rerun()
@@ -292,7 +327,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.session_state.trigger_quiz = True
                     st.rerun()
 
-        # --- LÓGICA DE GENERACIÓN (MEZCLA 50/50) ---
+        # --- LÓGICA DE GENERACIÓN ---
         if st.session_state.get("trigger_quiz"):
             with st.spinner("Compilando examen (Balanceando 50% Banco Oficial / 50% IA)..."):
                 try:
@@ -303,43 +338,40 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     cantidad_total = st.session_state.config_cant
                     temas = st.session_state.config_temas
 
-                    # 1. CALCULAR CUOTAS (Regla: 50% y 50%. Si es impar, 1 más a la IA)
                     cuota_banco = cantidad_total // 2
                     cuota_ia = cantidad_total - cuota_banco
 
-                    # 2. OBTENER DEL BANCO FIJO (Intentar llenar la cuota)
-                    # Solicitamos exactamente la cuota calculada
                     preguntas_banco = banco_preguntas.obtener_preguntas_fijas(temas, cuota_banco)
                     lista_final_preguntas.extend(preguntas_banco)
                     
-                    # 3. AJUSTAR FALTANTES (Fallback)
-                    # Si el banco no tenía suficientes (ej. pedimos 2 y solo halló 1),
-                    # sumamos lo que falta a la cuota de la IA para llegar al total.
                     encontradas_banco = len(preguntas_banco)
                     faltantes_banco = cuota_banco - encontradas_banco
-                    
                     total_a_generar_ia = cuota_ia + faltantes_banco
                     
-                    # 4. GENERAR CON IA
                     if total_a_generar_ia > 0:
                         prompt_quiz = temario.generar_prompt_quiz(temas, total_a_generar_ia)
-                        respuesta = model.generate_content(prompt_quiz)
-                        preguntas_ia = limpiar_json(respuesta.text)
-                        lista_final_preguntas.extend(preguntas_ia)
+                        # USAMOS LA NUEVA FUNCIÓN SEGURA
+                        respuesta = generar_contenido_seguro(prompt_quiz)
+                        
+                        if respuesta:
+                            preguntas_ia = limpiar_json(respuesta.text)
+                            lista_final_preguntas.extend(preguntas_ia)
+                        else:
+                            st.warning("⚠️ No se pudo conectar con la IA para completar el examen. Usando preguntas disponibles.")
                     
-                    # 5. MEZCLAR Y GUARDAR
                     random.shuffle(lista_final_preguntas)
-                    
-                    # Recorte de seguridad (por si la IA generó de más)
                     lista_final_preguntas = lista_final_preguntas[:cantidad_total]
 
-                    # Guardar en estado
-                    st.session_state.preguntas_quiz = lista_final_preguntas
-                    st.session_state.indice_pregunta = 0
-                    st.session_state.respuestas_usuario = []
-                    st.session_state.quiz_activo = True
-                    st.session_state.trigger_quiz = False
-                    st.rerun()
+                    if not lista_final_preguntas:
+                         st.error("No se pudieron generar preguntas. Intenta de nuevo más tarde.")
+                         st.session_state.trigger_quiz = False
+                    else:
+                        st.session_state.preguntas_quiz = lista_final_preguntas
+                        st.session_state.indice_pregunta = 0
+                        st.session_state.respuestas_usuario = []
+                        st.session_state.quiz_activo = True
+                        st.session_state.trigger_quiz = False
+                        st.rerun()
                     
                 except Exception as e:
                     st.error(f"Ocurrió un error generando el examen: {e}")
@@ -350,19 +382,15 @@ elif ruta == "c) Autoevaluación (Quiz)":
         total = len(st.session_state.preguntas_quiz)
         actual = st.session_state.indice_pregunta
         
-        # Si aún quedan preguntas
         if actual < total:
             pregunta_data = st.session_state.preguntas_quiz[actual]
             
             st.progress((actual) / total, text=f"Pregunta {actual + 1} de {total}")
             st.markdown(f"#### {pregunta_data['pregunta']}")
             
-            # Verificamos si ya respondió esta pregunta
             ya_respondido = len(st.session_state.respuestas_usuario) > actual
             
-            # -- Estado: Usuario Responde --
             if not ya_respondido:
-                # Usamos radio sin index por defecto para obligar a elegir
                 opcion = st.radio(
                     "Selecciona:", 
                     pregunta_data['opciones'], 
@@ -372,11 +400,9 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 
                 if st.button("Responder", type="primary"):
                     if opcion:
-                        # --- CORRECCIÓN DE LETRAS (A vs A) ---
                         letra_usuario = opcion.strip()[0].upper()
                         letra_correcta = pregunta_data['respuesta_correcta'].strip()[0].upper()
                         es_correcta = (letra_usuario == letra_correcta)
-                        # -------------------------------------
 
                         pts = round(20 / total, 2) if es_correcta else 0
                         
@@ -392,7 +418,6 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     else:
                         st.warning("⚠️ Selecciona una opción.")
             
-            # -- Estado: Feedback --
             else:
                 ultimo_dato = st.session_state.respuestas_usuario[actual]
                 st.info(f"Tu respuesta: **{ultimo_dato['elegida']}**")
@@ -409,19 +434,16 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.session_state.indice_pregunta += 1
                     st.rerun()
 
-# --- PANTALLA 3: RESULTADOS (Vista de Impresión) ---
         else:
-            # 1. PRIMERO calculamos la nota (para que la variable exista)
+            # PANTALLA 3: RESULTADOS
             suma_puntos = sum(r['puntos'] for r in st.session_state.respuestas_usuario)
             nota_final = round(suma_puntos, 2)
 
-            # 2. AHORA sí podemos usar 'nota_final' en el condicional
             if nota_final >= 10:
                 st.success(f"✅ Examen Finalizado - Aprobado con {nota_final}")
             else:
                 st.warning(f"⚠️ Examen Finalizado - Nota: {nota_final}")
             
-            # --- BLOQUE DE NOTA SUPERIOR ---
             col_nota_top, col_info_top = st.columns([1, 2])
             with col_nota_top:
                 st.metric("Calificación Final", f"{nota_final} / 20 pts")
@@ -431,10 +453,9 @@ elif ruta == "c) Autoevaluación (Quiz)":
             st.divider()
             st.subheader("📄 Detalle del Examen")
 
-            # Renderizado del detalle
             for i, r in enumerate(st.session_state.respuestas_usuario):
                 st.markdown(f"#### 🔹 Pregunta {i+1} ({r['puntos']} pts)")
-                st.markdown(r['pregunta']) # Enunciado LaTeX
+                st.markdown(r['pregunta']) 
                 
                 col_res1, col_res2 = st.columns(2)
                 with col_res1:
@@ -451,7 +472,6 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 st.write(r['explicacion']) 
                 st.markdown("---")
 
-            # --- BLOQUE DE NOTA INFERIOR ---
             st.markdown("### 🏁 Resumen Final")
             col_nota_bot, col_info_bot = st.columns([1, 2])
             with col_nota_bot:
@@ -461,7 +481,6 @@ elif ruta == "c) Autoevaluación (Quiz)":
 
             st.divider()
 
-            # Botón de reinicio
             col_b, _, _ = st.columns([1, 2, 1])
             with col_b:
                 if st.button("🔄 Comenzar Nuevo Examen", type="primary"):
