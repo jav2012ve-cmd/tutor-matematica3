@@ -5,7 +5,7 @@ import re
 from PIL import Image
 from modules import ia_core, interfaz, temario, banco_preguntas
 
-# --- 1. CONFIGURACIÓN ---
+# --- 1. CONFIGURACIÓN INICIAL ---
 interfaz.configurar_pagina()
 
 if not ia_core.configurar_gemini():
@@ -13,108 +13,140 @@ if not ia_core.configurar_gemini():
 
 model, nombre_modelo = ia_core.iniciar_modelo()
 
-# --- FUNCIONES DE SEGURIDAD Y UTILIDADES (CORREGIDAS) ---
+# =======================================================
+# FUNCIONES DE SEGURIDAD Y UTILIDADES
+# =======================================================
 
-def generar_contenido_seguro(prompt, intentos_max=3):
+def generar_contenido_seguro(prompt_parts, intentos_max=3):
     """
-    Intenta llamar a la IA. Si falla por error 429 (Quota), espera y reintenta.
+    Intenta llamar a la IA con texto o imágenes. 
+    Soporta lista de partes (prompt + imagen) o solo texto.
     """
     errores_recientes = ""
     for i in range(intentos_max):
         try:
-            # CORRECCIÓN: Llamamos a 'model', NO a la función misma (evita recursión infinita)
-            return model.generate_content(prompt)
+            # CORRECCIÓN: Llamamos a 'model.generate_content' directo
+            # Soporta tanto string como lista [texto, imagen]
+            return model.generate_content(prompt_parts)
         except Exception as e:
             errores_recientes = str(e)
             if "429" in str(e):
                 tiempo_espera = 4 * (i + 1)
-                st.toast(f"🚦 Tráfico alto en la IA. Reintentando en {tiempo_espera}s...", icon="⏳")
+                st.toast(f"🚦 Tráfico alto. Reintentando en {tiempo_espera}s...", icon="⏳")
                 time.sleep(tiempo_espera)
             else:
                 time.sleep(1)
     
-    st.error(f"❌ No se pudo conectar tras {intentos_max} intentos. Error: {errores_recientes}")
+    st.error(f"❌ Error de conexión: {errores_recientes}")
     return None
 
 def limpiar_json(texto):
     """
-    Limpieza robusta para respuestas con LaTeX.
-    Usa Regex para escapar barras invertidas que no sean de control JSON.
+    Limpieza quirúrgica para respuestas con LaTeX.
     """
     if not texto: return None
-    
-    # 1. Quitar etiquetas de código Markdown
     texto = texto.replace("```json", "").replace("```", "").strip()
     
-    # 2. INTENTO DIRECTO (Si la IA lo hizo perfecto)
+    # Intento 1: Directo
     try:
         return json.loads(texto)
     except json.JSONDecodeError:
-        pass # Si falla, pasamos al plan B (reparación)
+        pass
 
-    # 3. REPARACIÓN CON REGEX (Plan B)
-    # Esto busca cualquier barra "\" que NO sea parte de un escape válido de JSON (\n, \t, \", etc.)
-    # y la duplica ("\\") para que sea texto literal (LaTeX).
+    # Intento 2: Reparación Regex para LaTeX
     try:
-        # Patrón: Barra invertida que NO va seguida de " \ / b f n r t u
+        # Escapa barras invertidas que no sean de control JSON
         texto_reparado = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', texto)
         return json.loads(texto_reparado)
     except Exception:
-        # 4. ÚLTIMO RECURSO (Plan C: Fuerza bruta)
+        # Intento 3: Fuerza bruta si falla regex
         try:
-            texto_bruto = texto.replace("\\", "\\\\")
-            return json.loads(texto_bruto)
+             return json.loads(texto.replace("\\", "\\\\"))
         except:
-            return None
-        
+             return None
+
 def generar_tutor_paso_a_paso(pregunta_texto, tema):
-    """ Genera la tutoría asegurando el formato LaTeX compatible con Streamlit """
+    """ Genera la tutoría para el modo Entrenamiento (Banco/IA) """
     prompt = f"""
     Actúa como un profesor experto de cálculo. Para el siguiente ejercicio de {tema}:
     "{pregunta_texto}"
     
     Genera un objeto JSON estricto.
+    REGLAS LATEX: Usa $$ para fórmulas y escapa barras (\\\\frac).
     
-    REGLAS DE FORMATO (CRÍTICO):
-    1. Usa FORMATO LATEX para todas las fórmulas.
-    2. Encierra las fórmulas matemáticas entre signos de dólar dobles ($$).
-       Ejemplo BIEN: "$$ \\\\int x dx $$"
-       Ejemplo MAL: "\\int x dx"
-    3. ESCAPA las barras invertidas: Usa \\\\frac en vez de \\frac.
-    
-    Estructura JSON requerida:
+    Estructura JSON:
     {{
-        "estrategias": [
-            "Estrategia CORRECTA (breve)", 
-            "Estrategia INCORRECTA 1", 
-            "Estrategia INCORRECTA 2"
-        ],
+        "estrategias": ["Estrategia Correcta", "Estrategia Incorrecta 1", "Estrategia Incorrecta 2"],
         "indice_correcta": 0,
-        "feedback_estrategia": "Explicación breve de la elección.",
-        "paso_intermedio": "Fórmula del hito intermedio (con $$ y \\\\)",
-        "resultado_final": "Fórmula del resultado final (con $$ y \\\\)"
+        "feedback_estrategia": "Explicación breve.",
+        "paso_intermedio": "Ecuación LaTeX (con $$ y \\\\) del hito",
+        "resultado_final": "Ecuación LaTeX (con $$ y \\\\) del resultado"
     }}
-    Orden aleatorio en estrategias. Solo devuelve el JSON sin texto extra.
+    Orden aleatorio en estrategias.
     """
-    
     response = generar_contenido_seguro(prompt)
     if response:
         return limpiar_json(response.text)
     return None
 
-# --- 2. GESTIÓN DE ESTADO (MEMORIA) ---
-if "quiz_activo" not in st.session_state:
-    st.session_state.quiz_activo = False
-if "preguntas_quiz" not in st.session_state:
-    st.session_state.preguntas_quiz = []
-if "indice_pregunta" not in st.session_state:
-    st.session_state.indice_pregunta = 0
-if "respuestas_usuario" not in st.session_state:
-    st.session_state.respuestas_usuario = [] 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+def analizar_problema_usuario(texto_usuario, imagen_usuario=None):
+    """
+    Analiza un problema subido por el alumno (Texto o Imagen).
+    Distingue entre Integrales/EDO (Rígido) y Aplicaciones (Flexible).
+    """
+    prompt_base = """
+    Actúa como un Tutor Experto de Matemáticas III.
+    Analiza el problema del estudiante (texto o imagen).
 
-# --- 3. INTERFAZ ---
+    OBJETIVO: Generar una guía paso a paso JSON.
+
+    REGLAS DE ESTRATEGIAS (CRÍTICO):
+    1. Si es INTEGRAL (Cálculo directo): Las opciones DEBEN ser Técnicas (ej. "Por Partes", "Sustitución", "Fracciones Parciales").
+    2. Si es EDO (Resolver ecuación): Las opciones DEBEN ser Tipos (ej. "Variables Separables", "Lineal", "Exacta").
+    3. Si es CÁLCULO DE ÁREAS, VOLÚMENES, EXCEDENTES O APLICACIONES:
+       - Tienes LIBERTAD TOTAL.
+       - Las opciones deben ser PLANTEAMIENTOS o ENFOQUES (ej. "Integrar con respecto a Y", "Usar método de arandelas", "Igualar Oferta y Demanda").
+
+    REGLAS DE FORMATO:
+    - Usa LaTeX para fórmulas, encerrado en $$ ... $$.
+    - Escapa las barras invertidas (usa \\\\frac).
+    
+    Estructura JSON requerida:
+    {
+        "tema_detectado": "Nombre del tema (ej. Volumen de Revolución)",
+        "enunciado_latex": "El problema transcrito a LaTeX",
+        "estrategias": ["Planteamiento/Técnica CORRECTA", "Opción INCORRECTA 1", "Opción INCORRECTA 2"],
+        "indice_correcta": 0,
+        "feedback_estrategia": "Por qué este es el camino correcto.",
+        "paso_intermedio": "Un hito clave a mitad del desarrollo (en LaTeX $$)",
+        "resultado_final": "La solución final (en LaTeX $$)"
+    }
+    """
+    
+    contenido = [prompt_base]
+    if texto_usuario:
+        contenido.append(f"Enunciado del estudiante: {texto_usuario}")
+    if imagen_usuario:
+        contenido.append(imagen_usuario)
+        contenido.append("Transcribe y resuelve.")
+
+    response = generar_contenido_seguro(contenido)
+    if response:
+        return limpiar_json(response.text)
+    return None
+
+# --- 2. GESTIÓN DE ESTADO ---
+if "quiz_activo" not in st.session_state: st.session_state.quiz_activo = False
+if "preguntas_quiz" not in st.session_state: st.session_state.preguntas_quiz = []
+if "indice_pregunta" not in st.session_state: st.session_state.indice_pregunta = 0
+if "respuestas_usuario" not in st.session_state: st.session_state.respuestas_usuario = [] 
+
+# Estados para Respuesta Guiada (Modo B)
+if "consulta_step" not in st.session_state: st.session_state.consulta_step = 0
+if "consulta_data" not in st.session_state: st.session_state.consulta_data = None
+if "consulta_validada" not in st.session_state: st.session_state.consulta_validada = False
+
+# --- 3. INTERFAZ PRINCIPAL ---
 ruta, tema_actual = interfaz.mostrar_sidebar()
 interfaz.mostrar_bienvenida()
 
@@ -140,8 +172,7 @@ if ruta == "a) Entrenamiento (Temario)":
             if not temas_entrenamiento:
                 st.error("⚠️ Selecciona al menos un tema.")
             else:
-                # CORRECCIÓN: Usamos una bandera para el rerun fuera del try/except
-                cargar_exito = False 
+                cargar_exito = False
                 with st.spinner("Preparando tu serie de ejercicios..."):
                     try:
                         import random
@@ -181,7 +212,6 @@ if ruta == "a) Entrenamiento (Temario)":
                     except Exception as e:
                         st.error(f"Error técnico al iniciar: {e}")
                 
-                # Ejecutamos el rerun FUERA del try para evitar el TypeError
                 if cargar_exito:
                     st.rerun()
 
@@ -245,7 +275,7 @@ if ruta == "a) Entrenamiento (Temario)":
             if step == 2:
                 st.success(f"✅ Estrategia: {tutor['estrategias'][tutor['indice_correcta']]}")
                 st.markdown("#### 2️⃣ Paso 2: Ejecución Intermedia")
-                st.write("Aplica la estrategia. Deberías llegar a una expresión similar a esta:")
+                st.write("Aplica la estrategia seleccionada. Deberías llegar a una expresión similar a esta:")
                 
                 st.info(f"**Hito Intermedio:**\n\n$${tutor['paso_intermedio']}$$")
                 st.write("¿Lograste llegar a este punto o algo equivalente?")
@@ -284,29 +314,119 @@ if ruta == "a) Entrenamiento (Temario)":
                 st.rerun()
 
 # =======================================================
-# LÓGICA B: CONSULTAS (Respuesta Guiada)
+# LÓGICA B: RESPUESTA GUIADA (Consultas) - TUTOR PERSONALIZADO
 # =======================================================
 elif ruta == "b) Respuesta Guiada (Consultas)":
-    st.info("Sube tu ejercicio o escribe tu duda.")
-    
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    st.markdown("### 🎓 Tutor Personalizado")
+    st.info("Sube tu ejercicio (foto o texto) y te guiaré paso a paso.")
 
-    prompt = st.chat_input("Escribe tu consulta...")
-    if prompt:
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+    # 1. INPUT (Foto o Texto)
+    if st.session_state.consulta_step == 0:
+        col_img, col_txt = st.columns([1, 2])
+        with col_img:
+            imagen_subida = st.file_uploader("📸 Foto del ejercicio", type=["png", "jpg", "jpeg"])
+        with col_txt:
+            texto_subido = st.text_area("✍️ O escribe el enunciado aquí:", height=100)
+
+        if st.button("🚀 Resolver Paso a Paso", type="primary", use_container_width=True):
+            if not imagen_subida and not texto_subido:
+                st.warning("⚠️ Sube una imagen o escribe el texto para comenzar.")
+            else:
+                exito_analisis = False
+                with st.spinner("🤖 Analizando el tipo de problema..."):
+                    try:
+                        # Procesar imagen si existe
+                        img_pil = Image.open(imagen_subida) if imagen_subida else None
+                        
+                        # Llamada a la IA con la función de análisis
+                        datos_problema = analizar_problema_usuario(texto_subido, img_pil)
+                        
+                        if datos_problema:
+                            st.session_state.consulta_data = datos_problema
+                            st.session_state.consulta_step = 1
+                            st.session_state.consulta_validada = False
+                            exito_analisis = True
+                        else:
+                            st.error("No pude entender el problema. Intenta mejorar la foto o el texto.")
+                    except Exception as e:
+                        st.error(f"Error técnico: {e}")
+                
+                if exito_analisis:
+                    st.rerun()
+
+    # 2. INTERACCIÓN (Similar al Dojo pero para el problema del usuario)
+    else:
+        datos = st.session_state.consulta_data
+        step = st.session_state.consulta_step
+
+        # Botón para cancelar/reiniciar arriba
+        if st.button("🔄 Nueva Consulta", key="btn_new_query_top"):
+            st.session_state.consulta_step = 0
+            st.session_state.consulta_data = None
+            st.rerun()
+
+        st.divider()
+        st.markdown(f"**Tema Detectado:** `{datos.get('tema_detectado', 'Matemáticas')}`")
+        if datos.get('enunciado_latex'):
+            st.markdown(f"**Problema Identificado:**\n$$ {datos['enunciado_latex']} $$")
         
-        with st.chat_message("assistant"):
-            with st.spinner("Analizando..."):
-                res = generar_contenido_seguro(f"Ayuda al alumno con esto: {prompt}")
-                if res:
-                    st.markdown(res.text)
-                    st.session_state.messages.append({"role": "assistant", "content": res.text})
+        # PASO 1: Identificar Técnica/Tipo o Planteamiento
+        if step == 1:
+            st.subheader("1️⃣ Paso 1: Planteamiento")
+            
+            # Lógica dinámica para el mensaje
+            tema_lower = datos.get('tema_detectado', '').lower()
+            if "integral" in tema_lower and "área" not in tema_lower and "volumen" not in tema_lower:
+                st.write("¿Qué **técnica de integración** usarías?")
+            elif "ecuación diferencial" in tema_lower and "aplicación" not in tema_lower:
+                st.write("¿Qué **tipo de EDO** es esta?")
+            else:
+                # Caso Áreas, Volúmenes, Excedentes, etc.
+                st.write("¿Cuál es el **planteamiento o enfoque** correcto?")
+
+            opcion = st.radio("Selecciona:", datos['estrategias'], index=None, key="rad_cons")
+            
+            if st.button("Validar Estrategia", type="primary"):
+                if opcion and datos['estrategias'].index(opcion) == datos['indice_correcta']:
+                    st.session_state.consulta_validada = True
+                    st.rerun()
                 else:
-                    st.error("El tutor está ocupado. Intenta de nuevo.")
+                    st.error("❌ No es lo más eficiente.")
+                    st.warning(datos['feedback_estrategia'])
+            
+            if st.session_state.consulta_validada:
+                st.success("✅ ¡Correcto! Vamos a desarrollarlo.")
+                if st.button("Ver Paso Intermedio ➡️"):
+                    st.session_state.consulta_step = 2
+                    st.session_state.consulta_validada = False
+                    st.rerun()
+
+        # PASO 2: Hito Intermedio
+        if step == 2:
+            st.success(f"✅ Estrategia: {datos['estrategias'][datos['indice_correcta']]}")
+            st.subheader("2️⃣ Paso 2: Desarrollo")
+            st.write("Aplicando la técnica, deberías llegar a esta expresión intermedia:")
+            
+            st.info(f"$$ {datos['paso_intermedio']} $$")
+            
+            c1, c2 = st.columns(2)
+            if c1.button("👍 Llegué a eso"):
+                st.session_state.consulta_step = 3
+                st.rerun()
+            if c2.button("👎 Me perdí, explícame"):
+                st.info(f"💡 Pista: {datos.get('feedback_estrategia', 'Revisa las operaciones algebraicas.')}")
+
+        # PASO 3: Solución Final
+        if step == 3:
+            st.success("✅ Desarrollo intermedio correcto")
+            st.subheader("3️⃣ Solución Final")
+            st.success(f"### {datos['resultado_final']}")
+            
+            st.balloons()
+            if st.button("🏁 Terminar ejercicio"):
+                st.session_state.consulta_step = 0
+                st.session_state.consulta_data = None
+                st.rerun()
 
 # =======================================================
 # LÓGICA C: AUTOEVALUACIÓN (Quiz)
@@ -345,7 +465,6 @@ elif ruta == "c) Autoevaluación (Quiz)":
 
         # --- LÓGICA DE GENERACIÓN ---
         if st.session_state.get("trigger_quiz"):
-            # Usamos bandera para evitar error de rerun dentro de try
             quiz_generado = False
             with st.spinner("Compilando examen (Balanceando 50% Banco Oficial / 50% IA)..."):
                 try:
