@@ -26,7 +26,6 @@ def generar_contenido_seguro(prompt_parts, intentos_max=3):
     for i in range(intentos_max):
         try:
             # CORRECCIÓN: Llamamos a 'model.generate_content' directo
-            # Soporta tanto string como lista [texto, imagen]
             return model.generate_content(prompt_parts)
         except Exception as e:
             errores_recientes = str(e)
