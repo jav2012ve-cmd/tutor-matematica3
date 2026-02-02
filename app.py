@@ -25,7 +25,6 @@ def generar_contenido_seguro(prompt_parts, intentos_max=3):
     errores_recientes = ""
     for i in range(intentos_max):
         try:
-            # CORRECCIÓN: Llamamos a 'model.generate_content' directo
             return model.generate_content(prompt_parts)
         except Exception as e:
             errores_recientes = str(e)
@@ -71,15 +70,17 @@ def generar_tutor_paso_a_paso(pregunta_texto, tema):
     "{pregunta_texto}"
     
     Genera un objeto JSON estricto.
-    REGLAS LATEX: Usa $$ para fórmulas y escapa barras (\\\\frac).
+    REGLAS LATEX (CRÍTICO):
+    1. Escribe la fórmula pura. NO incluyas signos "$$" dentro del JSON.
+    2. Usa DOBLE BARRA para comandos: \\\\frac, \\\\int.
     
     Estructura JSON:
     {{
         "estrategias": ["Estrategia Correcta", "Estrategia Incorrecta 1", "Estrategia Incorrecta 2"],
         "indice_correcta": 0,
         "feedback_estrategia": "Explicación breve.",
-        "paso_intermedio": "Ecuación LaTeX (con $$ y \\\\) del hito",
-        "resultado_final": "Ecuación LaTeX (con $$ y \\\\) del resultado"
+        "paso_intermedio": "Ecuación LaTeX PURA (sin $$) del hito",
+        "resultado_final": "Ecuación LaTeX PURA (sin $$) del resultado"
     }}
     Orden aleatorio en estrategias.
     """
@@ -106,19 +107,19 @@ def analizar_problema_usuario(texto_usuario, imagen_usuario=None):
        - Tienes LIBERTAD TOTAL.
        - Las opciones deben ser PLANTEAMIENTOS o ENFOQUES (ej. "Integrar con respecto a Y", "Usar método de arandelas", "Igualar Oferta y Demanda").
 
-    REGLAS DE FORMATO:
-    - Usa LaTeX para fórmulas, encerrado en $$ ... $$.
-    - Escapa las barras invertidas (usa \\\\frac).
+    REGLAS LATEX (CRÍTICO):
+    1. Escribe la fórmula pura. NO incluyas signos "$$" dentro del JSON.
+    2. Usa DOBLE BARRA para comandos: \\\\frac, \\\\int.
     
     Estructura JSON requerida:
     {
         "tema_detectado": "Nombre del tema (ej. Volumen de Revolución)",
-        "enunciado_latex": "El problema transcrito a LaTeX",
+        "enunciado_latex": "El problema transcrito a LaTeX (sin $$)",
         "estrategias": ["Planteamiento/Técnica CORRECTA", "Opción INCORRECTA 1", "Opción INCORRECTA 2"],
         "indice_correcta": 0,
         "feedback_estrategia": "Por qué este es el camino correcto.",
-        "paso_intermedio": "Un hito clave a mitad del desarrollo (en LaTeX $$)",
-        "resultado_final": "La solución final (en LaTeX $$)"
+        "paso_intermedio": "Un hito clave a mitad del desarrollo (LaTeX puro, sin $$)",
+        "resultado_final": "La solución final (LaTeX puro, sin $$)"
     }
     """
     
@@ -276,7 +277,10 @@ if ruta == "a) Entrenamiento (Temario)":
                 st.markdown("#### 2️⃣ Paso 2: Ejecución Intermedia")
                 st.write("Aplica la estrategia seleccionada. Deberías llegar a una expresión similar a esta:")
                 
-                st.info(f"**Hito Intermedio:**\n\n$${tutor['paso_intermedio']}$$")
+                # CORRECCIÓN LATEX: Limpiamos por seguridad
+                latex_limpio = tutor['paso_intermedio'].replace('$', '')
+                st.info(f"$${latex_limpio}$$")
+                
                 st.write("¿Lograste llegar a este punto o algo equivalente?")
                 
                 col_si, col_no = st.columns(2)
@@ -294,7 +298,10 @@ if ruta == "a) Entrenamiento (Temario)":
                 st.markdown("#### 3️⃣ Paso 3: Resolución Final")
                 st.write("El resultado definitivo es:")
                 
-                st.success(f"### {tutor['resultado_final']}")
+                # CORRECCIÓN LATEX
+                latex_final = tutor['resultado_final'].replace('$', '')
+                st.success(f"$$ {latex_final} $$")
+                
                 with st.expander("Ver explicación completa"):
                     st.write(ejercicio.get('explicacion', 'Procedimiento estándar aplicado correctamente.'))
 
@@ -367,7 +374,9 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
         st.divider()
         st.markdown(f"**Tema Detectado:** `{datos.get('tema_detectado', 'Matemáticas')}`")
         if datos.get('enunciado_latex'):
-            st.markdown(f"**Problema Identificado:**\n$$ {datos['enunciado_latex']} $$")
+            # CORRECCIÓN LATEX
+            enunciado_limpio = datos['enunciado_latex'].replace('$', '')
+            st.markdown(f"**Problema Identificado:**\n$$ {enunciado_limpio} $$")
         
         # PASO 1: Identificar Técnica/Tipo o Planteamiento
         if step == 1:
@@ -406,7 +415,9 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
             st.subheader("2️⃣ Paso 2: Desarrollo")
             st.write("Aplicando la técnica, deberías llegar a esta expresión intermedia:")
             
-            st.info(f"$$ {datos['paso_intermedio']} $$")
+            # CORRECCIÓN LATEX
+            intermedio_limpio = datos['paso_intermedio'].replace('$', '')
+            st.info(f"$$ {intermedio_limpio} $$")
             
             c1, c2 = st.columns(2)
             if c1.button("👍 Llegué a eso"):
@@ -419,7 +430,10 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
         if step == 3:
             st.success("✅ Desarrollo intermedio correcto")
             st.subheader("3️⃣ Solución Final")
-            st.success(f"### {datos['resultado_final']}")
+            
+            # CORRECCIÓN LATEX
+            final_limpio = datos['resultado_final'].replace('$', '')
+            st.success(f"### $$ {final_limpio} $$")
             
             st.balloons()
             if st.button("🏁 Terminar ejercicio"):
