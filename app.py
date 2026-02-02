@@ -37,38 +37,66 @@ def generar_contenido_seguro(prompt, intentos_max=3):
     return None
 
 def limpiar_json(texto):
-    """ Limpia el JSON y repara errores de LaTeX """
-    if not texto: return []
+    """
+    Limpieza robusta para respuestas con LaTeX.
+    Usa Regex para escapar barras invertidas que no sean de control JSON.
+    """
+    if not texto: return None
+    
+    # 1. Quitar etiquetas de código Markdown
     texto = texto.replace("```json", "").replace("```", "").strip()
+    
+    # 2. INTENTO DIRECTO (Si la IA lo hizo perfecto)
     try:
         return json.loads(texto)
     except json.JSONDecodeError:
-        try:
-            # CORRECCIÓN: Parche para que las fórmulas LaTeX (con \) no rompan el JSON
-            texto_reparado = texto.replace("\\", "\\\\")
-            return json.loads(texto_reparado)
-        except:
-            return [] 
+        pass # Si falla, pasamos al plan B (reparación)
 
+    # 3. REPARACIÓN CON REGEX (Plan B)
+    # Esto busca cualquier barra "\" que NO sea parte de un escape válido de JSON (\n, \t, \", etc.)
+    # y la duplica ("\\") para que sea texto literal (LaTeX).
+    try:
+        # Patrón: Barra invertida que NO va seguida de " \ / b f n r t u
+        texto_reparado = re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', texto)
+        return json.loads(texto_reparado)
+    except Exception:
+        # 4. ÚLTIMO RECURSO (Plan C: Fuerza bruta)
+        try:
+            texto_bruto = texto.replace("\\", "\\\\")
+            return json.loads(texto_bruto)
+        except:
+            return None
+        
 def generar_tutor_paso_a_paso(pregunta_texto, tema):
-    """ Genera la tutoría asegurando el formato LaTeX """
+    """ Genera la tutoría asegurando el formato LaTeX compatible con Streamlit """
     prompt = f"""
     Actúa como un profesor experto de cálculo. Para el siguiente ejercicio de {tema}:
     "{pregunta_texto}"
     
     Genera un objeto JSON estricto.
-    IMPORTANTE: Usa DOBLE BARRA (\\\\) para comandos LaTeX (ej. \\\\frac, \\\\int).
     
-    Estructura JSON:
+    REGLAS DE FORMATO (CRÍTICO):
+    1. Usa FORMATO LATEX para todas las fórmulas.
+    2. Encierra las fórmulas matemáticas entre signos de dólar dobles ($$).
+       Ejemplo BIEN: "$$ \\\\int x dx $$"
+       Ejemplo MAL: "\\int x dx"
+    3. ESCAPA las barras invertidas: Usa \\\\frac en vez de \\frac.
+    
+    Estructura JSON requerida:
     {{
-        "estrategias": ["Estrategia Correcta", "Estrategia Incorrecta 1", "Estrategia Incorrecta 2"],
+        "estrategias": [
+            "Estrategia CORRECTA (breve)", 
+            "Estrategia INCORRECTA 1", 
+            "Estrategia INCORRECTA 2"
+        ],
         "indice_correcta": 0,
-        "feedback_estrategia": "Explicación breve.",
-        "paso_intermedio": "Ecuación LaTeX (con \\\\) del hito",
-        "resultado_final": "Ecuación LaTeX (con \\\\) del resultado"
+        "feedback_estrategia": "Explicación breve de la elección.",
+        "paso_intermedio": "Fórmula del hito intermedio (con $$ y \\\\)",
+        "resultado_final": "Fórmula del resultado final (con $$ y \\\\)"
     }}
-    Orden aleatorio en estrategias. Solo devuelve el JSON.
+    Orden aleatorio en estrategias. Solo devuelve el JSON sin texto extra.
     """
+    
     response = generar_contenido_seguro(prompt)
     if response:
         return limpiar_json(response.text)
