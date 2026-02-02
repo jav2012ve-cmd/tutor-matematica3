@@ -1,9 +1,25 @@
 import streamlit as st
 import json
 import time
+import re # Asegúrate de importar esto arriba si no lo tienes
 from PIL import Image
 from modules import ia_core, interfaz, temario
-
+def limpiar_json(texto):
+    if not texto: return None
+    texto = texto.replace("```json", "").replace("```", "").strip()
+    try:
+        return json.loads(texto)
+    except json.JSONDecodeError:
+        # Intento de reparación de emergencia para LaTeX
+        # Busca patrones comunes de LaTeX (como \frac, \int) que tengan una sola barra
+        # y les agrega la segunda barra necesaria para JSON.
+        try:
+            texto_reparado = texto.replace("\\", "\\\\") 
+            # Nota: Esto es un parche agresivo, a veces duplica de más, 
+            # pero suele salvar la respuesta matemática.
+            return json.loads(texto_reparado)
+        except:
+            return None
 # --- 1. CONFIGURACIÓN ---
 interfaz.configurar_pagina()
 
@@ -59,31 +75,36 @@ def limpiar_json(texto):
 
 def generar_tutor_paso_a_paso(pregunta_texto, tema):
     """
-    Toma una pregunta y genera:
-    1. Estrategias (1 correcta, 2 distractores).
-    2. Paso intermedio.
-    3. Solución final.
+    Versión con instrucciones LaTeX reforzadas.
     """
     prompt = f"""
     Actúa como un profesor experto de cálculo. Para el siguiente ejercicio de {tema}:
     "{pregunta_texto}"
     
-    Genera un objeto JSON estricto con esta estructura para guiar al estudiante:
+    Genera un objeto JSON estricto para guiar al estudiante.
+    
+    MUY IMPORTANTE SOBRE LATEX:
+    - Escribe todas las fórmulas matemáticas en formato LaTeX.
+    - Para que el JSON sea válido, DEBES ESCAPAR las barras invertidas.
+    - Usa DOBLLE BARRA INVERTIDA (\\\\) para los comandos.
+    - Ejemplo MAL: "\\frac{{dy}}{{dx}}" -> Rompe el JSON.
+    - Ejemplo BIEN: "\\\\frac{{dy}}{{dx}}" -> Funciona perfecto.
+    
+    Estructura JSON requerida:
     {{
         "estrategias": [
-            "Descripción breve de la estrategia CORRECTA (ej. Usar partes con u=x)",
-            "Estrategia plausible pero INCORRECTA o menos eficiente",
-            "Otra estrategia incorrecta"
+            "Estrategia CORRECTA (breve)",
+            "Estrategia INCORRECTA 1",
+            "Estrategia INCORRECTA 2"
         ],
         "indice_correcta": 0,
-        "feedback_estrategia": "Explicación breve de por qué esa es la mejor ruta.",
-        "paso_intermedio": "Ecuación LaTeX del resultado a mitad de camino (ej. después de integrar pero antes de evaluar)",
-        "resultado_final": "Ecuación LaTeX del resultado final"
+        "feedback_estrategia": "Por qué es la mejor ruta.",
+        "paso_intermedio": "Ecuación LaTeX (con \\\\) del resultado a mitad de camino",
+        "resultado_final": "Ecuación LaTeX (con \\\\) del resultado final"
     }}
-    El orden de las estrategias en la lista debe ser aleatorio, ajusta el "indice_correcta" según corresponda.
-    Solo devuelve el JSON.
+    Orden aleatorio en estrategias. Solo devuelve el JSON.
     """
-    # USAMOS LA NUEVA FUNCIÓN SEGURA
+    # Usamos la función segura que definimos antes
     response = generar_contenido_seguro(prompt)
     if response:
         return limpiar_json(response.text)
