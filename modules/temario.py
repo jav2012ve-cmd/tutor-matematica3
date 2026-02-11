@@ -6,9 +6,12 @@ TEMAS_PARCIAL_1 = [
     "1.1.2 Cambios de variables (Sustitución)",
     "1.1.3 División de Polinomios",
     "1.1.4 Fracciones Simples",
-    "1.1.7 Integral por partes",
+    "1.1.5 Integral por partes",
     "1.2.1 Áreas entre curvas",
-    "1.2.2 Excedentes del consumidor y productor"
+    "1.2.2 Excedentes del consumidor y productor",
+    "1.2.3 Integrales Impropias", 
+    "1.2.4 Volúmenes de Sólidos de Revolución",
+    "1.2.5 Integrales Dobles"
 ]
 
 TEMAS_PARCIAL_2 = [
@@ -16,8 +19,10 @@ TEMAS_PARCIAL_2 = [
     "2.1.2 ED 1er Orden: Homogéneas",
     "2.1.3 ED 1er Orden: Exactas",
     "2.1.4 ED 1er Orden: Lineales",
+    "2.1.5 Aplicaciones de Ecuaciones Diferenciales en Economía",
     "2.2.1 ED Orden Superior: Homogéneas",
-    "2.3 Aplicaciones de Ecuaciones Diferenciales en Economía"
+    "2.2.2 ED Orden Superior: No Homogéneas",
+    "2.2.3 Aplicaciones de Ecuaciones Diferenciales de Orden superior"   
 ]
 
 # Unimos todo para el menú general

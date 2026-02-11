@@ -536,22 +536,61 @@ elif ruta == "c) Autoevaluación (Quiz)":
             pregunta_data = st.session_state.preguntas_quiz[actual]
             
             st.progress((actual) / total, text=f"Pregunta {actual + 1} de {total}")
-            st.markdown(f"#### {pregunta_data['pregunta']}")
             
+            # 1. RENDERIZADO DE LA PREGUNTA
+            st.markdown(f"#### {pregunta_data['pregunta']}")
+            st.divider()
+            
+            # 2. RENDERIZADO DE LAS OPCIONES (VISUAL)
+            # Esto corrige el problema de LaTeX en los radio buttons.
+            # Mostramos las opciones formateadas con Markdown primero.
+            st.write("Opciones:")
+            col_ops = st.columns(2)
+            opciones_completas = pregunta_data['opciones']
+            
+            for i, opcion_texto in enumerate(opciones_completas):
+                # Extraemos la letra si existe formato "A) ..." para negrita
+                if ")" in opcion_texto:
+                    letra, resto = opcion_texto.split(")", 1)
+                    texto_mostrar = f"**{letra})** {resto}"
+                else:
+                    texto_mostrar = opcion_texto
+
+                with col_ops[i % 2]:
+                    st.markdown(texto_mostrar)
+            
+            st.divider()
+
+            # 3. SELECTOR DE RESPUESTA (LÓGICA)
             ya_respondido = len(st.session_state.respuestas_usuario) > actual
             
             if not ya_respondido:
-                opcion = st.radio("Selecciona:", pregunta_data['opciones'], key=f"radio_{actual}", index=None)
+                # Creamos opciones simplificadas (Solo A, B, C, D) para el selector
+                # Así evitamos que Streamlit intente renderizar LaTeX crudo en el widget
+                opciones_radio = [op.split(")")[0] + ")" for op in opciones_completas]
+                
+                seleccion_letra = st.radio(
+                    "Selecciona tu respuesta:", 
+                    opciones_radio, 
+                    key=f"radio_{actual}", 
+                    index=None,
+                    horizontal=True
+                )
+
                 if st.button("Responder", type="primary"):
-                    if opcion:
-                        letra_usuario = opcion.strip()[0].upper()
+                    if seleccion_letra:
+                        # Recuperamos la opción completa original basada en la letra seleccionada
+                        letra_elegida = seleccion_letra.split(")")[0] # Ej: "A"
+                        # Buscamos la opción original que empieza con esa letra
+                        opcion_elegida_completa = next(op for op in opciones_completas if op.startswith(letra_elegida))
+                        
                         letra_correcta = pregunta_data['respuesta_correcta'].strip()[0].upper()
-                        es_correcta = (letra_usuario == letra_correcta)
+                        es_correcta = (letra_elegida == letra_correcta)
                         pts = round(20 / total, 2) if es_correcta else 0
                         
                         st.session_state.respuestas_usuario.append({
                             "pregunta": pregunta_data['pregunta'],
-                            "elegida": opcion,
+                            "elegida": opcion_elegida_completa, # Guardamos la completa para el reporte final
                             "correcta": pregunta_data['respuesta_correcta'],
                             "explicacion": pregunta_data['explicacion'],
                             "puntos": pts,
@@ -562,7 +601,10 @@ elif ruta == "c) Autoevaluación (Quiz)":
                         st.warning("⚠️ Selecciona una opción.")
             
             else:
+                # FEEDBACK INMEDIATO (Si ya respondió pero no ha pasado a la siguiente)
                 ultimo_dato = st.session_state.respuestas_usuario[actual]
+                
+                # Renderizamos la elección del usuario de forma bonita
                 st.info(f"Tu respuesta: **{ultimo_dato['elegida']}**")
                 
                 if ultimo_dato['es_correcta']:
