@@ -17,7 +17,8 @@ def mostrar_sidebar():
             "1. Selecciona tu Modo de Estudio:",
             ["a) Entrenamiento (Temario)", 
              "b) Respuesta Guiada (Consultas)", 
-             "c) Autoevaluación (Quiz)"],
+             "c) Autoevaluación (Quiz)",
+             "d) Tutor: Preguntas Abiertas"],
             index=None,
             key="radio_seleccion"
         )
