@@ -457,6 +457,30 @@ BANCO_FIXED = [
         "respuesta_correcta": r"A) $0.5$",
         "explicacion": r"$-1/(2x^2)$ evaluado da $0 - (-0.5) = 0.5$."
     },
+    {
+        "tema": "1.2.3 Integrales Impropias",
+        "pregunta": r"Determine la convergencia de $\int_1^{\infty} \frac{1}{x^p} dx$:",
+        "opciones": [
+            r"A) Converge si $p > 1$",
+            r"B) Converge si $p \ge 1$",
+            r"C) Converge si $p < 1$",
+            r"D) Diverge para todo $p$"
+        ],
+        "respuesta_correcta": r"A) Converge si $p > 1$",
+        "explicacion": r"Es una p-integral básica. Si $p > 1$, el resultado es $\frac{1}{p-1}$. Si $p \le 1$, el área es infinita."
+    },
+    {
+        "tema": "1.2.3 Integrales Impropias",
+        "pregunta": r"Evalúe la integral impropia $\int_0^{\infty} e^{-2x} dx$:",
+        "opciones": [
+            r"A) $1/2$",
+            r"B) $1$",
+            r"C) $2$",
+            r"D) Diverge"
+        ],
+        "respuesta_correcta": r"A) $1/2$",
+        "explicacion": r"$\lim_{b \to \infty} \left[ -\frac{1}{2}e^{-2x} \right]_0^b = 0 - (-\frac{1}{2}) = 1/2$."
+    },
     # --- INTEGRALES DOBLES ---
     {
         "tema": "1.2.4 Integrales Dobles",
@@ -529,6 +553,30 @@ BANCO_FIXED = [
         ],
         "respuesta_correcta": r"A) $\int_{-4}^{2} \int_{x^2}^{8-2x} (1+x-y) dy dx$",
         "explicacion": r"Cortes en $x=-4, 2$. Recta por encima de parábola."
+    },
+    {
+        "tema": "1.2.4 Integrales Dobles",
+        "pregunta": r"Calcule la integral doble $\iint_R 2xy \, dA$ sobre el rectángulo $R = [0,2] \times [0,1]$:",
+        "opciones": [
+            r"A) 2",
+            r"B) 4",
+            r"C) 1",
+            r"D) 8"
+        ],
+        "respuesta_correcta": r"A) 2",
+        "explicacion": r"$\int_0^2 \int_0^1 2xy \, dy \, dx = \int_0^2 x [y^2]_0^1 dx = \int_0^2 x dx = [\frac{x^2}{2}]_0^2 = 2$."
+    },
+    {
+        "tema": "1.2.4 Integrales Dobles",
+        "pregunta": r"Al cambiar el orden de integración en $\int_0^1 \int_x^1 f(x,y) \, dy \, dx$, la nueva integral es:",
+        "opciones": [
+            r"A) $\int_0^1 \int_0^y f(x,y) \, dx \, dy$",
+            r"B) $\int_0^1 \int_0^x f(x,y) \, dx \, dy$",
+            r"C) $\int_x^1 \int_0^1 f(x,y) \, dx \, dy$",
+            r"D) $\int_0^y \int_0^1 f(x,y) \, dx \, dy$"
+        ],
+        "respuesta_correcta": r"A) $\int_0^1 \int_0^y f(x,y) \, dx \, dy$",
+        "explicacion": r"La región es un triángulo definido por $0 \le x \le 1$ y $x \le y \le 1$. Al invertir, $y$ va de 0 a 1 y $x$ va de 0 a $y$."
     },
     # --- VOLÚMENES DE REVOLUCIÓN ---
     {
@@ -1018,6 +1066,42 @@ BANCO_FIXED = [
         "respuesta_correcta": r"A) $T(t) = T_a + (T_0 - T_a)e^{kt}$",
         "explicacion": r"Solución analítica estándar."
     },
+    {
+        "tema": "2.1.5 Aplicaciones de Ecuaciones Diferenciales en Economía",
+        "pregunta": r"Si el crecimiento de una inversión $K(t)$ es proporcional a su tamaño actual ($K' = rK$) con una tasa $r=0.05$ y capital inicial $1000$:",
+        "opciones": [
+            r"A) $K(t) = 1000 e^{0.05t}$",
+            r"B) $K(t) = 1000 + 0.05t$",
+            r"C) $K(t) = 1000(1.05)^t$",
+            r"D) $K(t) = 50 e^{1000t}$"
+        ],
+        "respuesta_correcta": r"A) $K(t) = 1000 e^{0.05t}$",
+        "explicacion": r"Es una ED de variables separables típica de crecimiento continuo. La solución es $K(t) = K_0 e^{rt}$."
+    },
+    {
+        "tema": "2.1.5 Aplicaciones de Ecuaciones Diferenciales en Economía",
+        "pregunta": r"La elasticidad precio de la demanda es constante e igual a -2. Si $\frac{dQ}{dp} \frac{p}{Q} = -2$, halle la función de demanda $Q(p)$:",
+        "opciones": [
+            r"A) $Q = C p^{-2}$",
+            r"B) $Q = -2p + C$",
+            r"C) $Q = C e^{-2p}$",
+            r"D) $Q = p^2 + C$"
+        ],
+        "respuesta_correcta": r"A) $Q = C p^{-2}$",
+        "explicacion": r"Separando variables: $\frac{dQ}{Q} = -2 \frac{dp}{p} \Rightarrow \ln Q = -2 \ln p + c \Rightarrow Q = e^c p^{-2}$."
+    },
+    {
+        "tema": "2.1.5 Aplicaciones de Ecuaciones Diferenciales en Economía",
+        "pregunta": r"En un modelo de ajuste de precios, el precio cambia proporcionalmente al exceso de demanda: $P'(t) = \alpha (Q_d - Q_s)$. Si $Q_d = 10-P$ y $Q_s = P-2$, con $\alpha=0.5$:",
+        "opciones": [
+            r"A) $P' = 6 - P$",
+            r"B) $P' = 12 - 2P$",
+            r"C) $P' = 0.5(8 - 2P)$",
+            r"D) $P' = 5 - 0.5P$"
+        ],
+        "respuesta_correcta": r"A) $P' = 6 - P$",
+        "explicacion": r"$P' = 0.5[(10-P) - (P-2)] = 0.5[12 - 2P] = 6 - P$. Esta es una ED lineal hacia el equilibrio."
+    },
     # --------------------------------------------------------------------------
     # AMPLIACIÓN: ED ORDEN SUPERIOR NO HOMOGÉNEAS (Meta: 5 ejercicios)
     # Fuente: Taller 2 - 202525
@@ -1081,6 +1165,43 @@ BANCO_FIXED = [
         ],
         "respuesta_correcta": r"A) $y_p = A e^x + (Bx^2 + Cx + D)$",
         "explicacion": r"Principio de superposición. Para $12e^x$ proponemos $Ae^x$. Para $-x^2$ proponemos polinomio completo grado 2 ($Bx^2+Cx+D$). No hay conflicto con la homogénea ($r = -1 \pm 2i$)."
+    },
+    # --- APLICACIONES DE ED (ORDEN SUPERIOR) ---
+    {
+        "tema": "2.2.3 Aplicaciones de Ecuaciones Diferenciales de Orden superior",
+        "pregunta": r"Un modelo de dinámica de precios con expectativas genera la ecuación $P'' + 3P' + 2P = 10$. ¿Cuál es el precio de equilibrio a largo plazo ($P_e$)?",
+        "opciones": [
+            r"A) $P_e = 5$",
+            r"B) $P_e = 10$",
+            r"C) $P_e = 2$",
+            r"D) $P_e = 0$"
+        ],
+        "respuesta_correcta": r"A) $P_e = 5$",
+        "explicacion": r"En el equilibrio, las derivadas se anulan ($P''=0, P'=0$). Queda $2P = 10 \Rightarrow P = 5$. También es la solución particular $y_p$."
+    },
+    {
+        "tema": "2.2.3 Aplicaciones de Ecuaciones Diferenciales de Orden superior",
+        "pregunta": r"La ecuación $y'' + 4y = 0$ modela un ciclo económico sin fricción. Su comportamiento es:",
+        "opciones": [
+            r"A) Oscilatorio perpetuo (Senos y Cosenos)",
+            r"B) Convergente (Exponencial decreciente)",
+            r"C) Explosivo (Exponencial creciente)",
+            r"D) Lineal"
+        ],
+        "respuesta_correcta": r"A) Oscilatorio perpetuo (Senos y Cosenos)",
+        "explicacion": r"Las raíces características son imaginarias puras ($r = \pm 2i$), lo que genera soluciones de la forma $C_1 \cos(2t) + C_2 \sin(2t)$."
+    },
+    {
+        "tema": "2.2.3 Aplicaciones de Ecuaciones Diferenciales de Orden superior",
+        "pregunta": r"Si el ingreso nacional $Y(t)$ sigue la ecuación $Y'' - Y' - 6Y = 0$, ¿qué sucede a largo plazo?",
+        "opciones": [
+            r"A) Crece explosivamente (inestable)",
+            r"B) Converge a 0 (estable)",
+            r"C) Se mantiene constante",
+            r"D) Oscila"
+        ],
+        "respuesta_correcta": r"A) Crece explosivamente (inestable)",
+        "explicacion": r"Raíces: $r^2 - r - 6 = 0 \Rightarrow (r-3)(r+2)=0$. Como hay una raíz positiva ($r=3$), el término $C_1 e^{3t}$ domina y tiende a infinito."
     }
 ]
 
