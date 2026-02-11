@@ -158,7 +158,12 @@ def generar_respuesta_tutor_abierto(pregunta_usuario, historial_previo):
     1. Responde a la pregunta del estudiante de forma clara y pedagógica.
     2. VINCULACIÓN: Si explicas un concepto, menciona si aparece en los estilos de examen o ejercicios. 
        Ejemplo: "Esto se aplica igual que en el Ejemplo 9 de demanda..." o "Es similar a las integrales del banco...".
-    3. Usa LaTeX para fórmulas (sin $$).
+    
+    3. FORMATO MATEMÁTICO (CRÍTICO): 
+       - Usa SIEMPRE signos de dólar para encerrar el LaTeX.
+       - Para fórmulas dentro del texto usa uno solo: $ f(x) = x^2 $
+       - Para ecuaciones grandes o centradas usa doble signo: $$ \\int_{{a}}^{{b}} f(x) dx $$
+       
     4. Si la pregunta es sobre un tema fuera de la materia, indícalo amablemente.
 
     Historial de chat reciente:
@@ -724,8 +729,8 @@ elif ruta == "d) Tutor: Preguntas Abiertas":
         with st.chat_message(mensaje["role"]):
             st.markdown(mensaje["content"])
 
-    # Input del usuario
-    if prompt := st.chat_input("Ej: ¿Cómo se relacionan las integrales con el Excedente del Consumidor?"):
+    # Input del usuario (Texto actualizado)
+    if prompt := st.chat_input("Ej. puedes preguntar por resumen o explicación corta de cualquier tema a partir de las ejercicios del profesor"):
         # 1. Guardar y mostrar mensaje usuario
         st.session_state.historial_tutor_abierto.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
