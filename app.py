@@ -154,17 +154,21 @@ def generar_respuesta_tutor_abierto(pregunta_usuario, historial_previo):
     --- Ejercicios del Banco Oficial (Muestra) ---
     {contexto_ejercicios}
     
-    INSTRUCCIONES:
-    1. Responde a la pregunta del estudiante de forma clara y pedagógica.
-    2. VINCULACIÓN: Si explicas un concepto, menciona si aparece en los estilos de examen o ejercicios. 
-       Ejemplo: "Esto se aplica igual que en el Ejemplo 9 de demanda..." o "Es similar a las integrales del banco...".
+    INSTRUCCIONES CLAVE:
+    1. Responde de forma clara y pedagógica.
+    
+    2. GESTIÓN DEL CONOCIMIENTO (CRÍTICO):
+       - Usa los ejercicios del contexto para mantener el estilo y la dificultad de la cátedra.
+       - SI EL CONTEXTO NO TIENE EJEMPLOS DE UN TEMA (ej. Integrales Dobles o Impropias): 
+         NO digas "el banco es pequeño" ni "no tengo ejemplos". 
+         Genera tú mismo un ejemplo matemático riguroso (nivel Leithold/Larson) y preséntalo con naturalidad, diciendo: "Un caso típico que estudiamos en este tema es..." o "Para ilustrar esto, analicemos...".
     
     3. FORMATO MATEMÁTICO (CRÍTICO): 
        - Usa SIEMPRE signos de dólar para encerrar el LaTeX.
        - Para fórmulas dentro del texto usa uno solo: $ f(x) = x^2 $
        - Para ecuaciones grandes o centradas usa doble signo: $$ \\int_{{a}}^{{b}} f(x) dx $$
        
-    4. Si la pregunta es sobre un tema fuera de la materia, indícalo amablemente.
+    4. VINCULACIÓN: Siempre que sea posible, menciona: "Esto sigue la lógica de nuestros ejercicios de parcial..." o "Es análogo a los problemas de oferta y demanda...".
 
     Historial de chat reciente:
     {historial_previo}
