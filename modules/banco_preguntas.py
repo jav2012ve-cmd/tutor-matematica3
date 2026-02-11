@@ -191,7 +191,7 @@ BANCO_FIXED = [
     },
     # --- POR PARTES ---
     {
-        "tema": "1.1.7 Integral por partes",
+        "tema": "1.1.5 Integral por partes",
         "pregunta": r"Elección $u, dv$ para $\int x^3 \ln(x^2-4) dx$:",
         "opciones": [
             r"A) $u = \ln(x^2-4)$, $dv = x^3 dx$",
@@ -203,7 +203,7 @@ BANCO_FIXED = [
         "explicacion": r"LIATE: Logarítmica va antes que Algebraica para $u$."
     },
     {
-        "tema": "1.1.7 Integral por partes",
+        "tema": "1.1.5 Integral por partes",
         "pregunta": r"Resultado de la cíclica $\int e^{-x} \cos x dx$:",
         "opciones": [
             r"A) $\frac{e^{-x}}{2}(\sin x - \cos x) + C$",
@@ -215,7 +215,7 @@ BANCO_FIXED = [
         "explicacion": r"Aplicando partes dos veces y despejando la integral original."
     },
     {
-        "tema": "1.1.7 Integral por partes",
+        "tema": "1.1.5 Integral por partes",
         "pregunta": r"Resuelva: $$ \int 6x e^{1-2x} dx $$",
         "opciones": [
             r"A) $-3xe^{1-2x} - \frac{3}{2}e^{1-2x} + C$",
@@ -227,7 +227,7 @@ BANCO_FIXED = [
         "explicacion": r"$u=6x, dv=e^{1-2x}dx$. Fórmula $uv - \int v du$."
     },
     {
-        "tema": "1.1.7 Integral por partes",
+        "tema": "1.1.5 Integral por partes",
         "pregunta": r"Resuelva: $$ \int x \ln x dx $$",
         "opciones": [
             r"A) $\frac{x^2}{2}\ln x - \frac{x^2}{4} + C$",
@@ -239,7 +239,7 @@ BANCO_FIXED = [
         "explicacion": r"$u=\ln x, dv=x dx \Rightarrow v=x^2/2$. $\int v du = \int x/2 dx = x^2/4$."
     },
     {
-        "tema": "1.1.7 Integral por partes",
+        "tema": "1.1.5 Integral por partes",
         "pregunta": r"Resuelva: $$ \int \arcsin(x) dx $$",
         "opciones": [
             r"A) $x \arcsin x + \sqrt{1-x^2} + C$",
@@ -251,7 +251,7 @@ BANCO_FIXED = [
         "explicacion": r"$u=\arcsin x, dv=dx$. La integral resultante se hace por sustitución $w=1-x^2$."
     },
     {
-        "tema": "1.1.7 Integral por partes",
+        "tema": "1.1.5 Integral por partes",
         "pregunta": r"Resuelva: $$ \int x^3 e^{-x} dx $$",
         "opciones": [
             r"A) $-e^{-x}(x^3 + 3x^2 + 6x + 6) + C$",
@@ -483,7 +483,7 @@ BANCO_FIXED = [
     },
     # --- INTEGRALES DOBLES ---
     {
-        "tema": "1.2.4 Integrales Dobles",
+        "tema": "1.2.5 Integrales Dobles",
         "pregunta": r"Calcule $\int_{0}^{1}\int_{1}^{2} (3x^2 - 6z) dx dz$ (orden $dx, dz$):",
         "opciones": [
             r"A) $-2$",
@@ -495,7 +495,7 @@ BANCO_FIXED = [
         "explicacion": r"Integral interna $x^3-6zx|_1^2 = 7-6z$. Integral externa $7z-3z^2|_0^1 = 4$."
     },
     {
-        "tema": "1.2.4 Integrales Dobles",
+        "tema": "1.2.5 Integrales Dobles",
         "pregunta": r"Calcule $\int_{0}^{1}\int_{1}^{2} (3x^2 - 6z) dx dz$:",
         "opciones": [
             r"A) $4$",
@@ -507,7 +507,7 @@ BANCO_FIXED = [
         "explicacion": r"Evaluación directa: Interna da $7-6z$. Externa da $4$."
     },
     {
-        "tema": "1.2.4 Integrales Dobles",
+        "tema": "1.2.5 Integrales Dobles",
         "pregunta": r"Plantee para región entre parábola $x = y^2 - 4y$ y recta $y = x - 6$:",
         "opciones": [
             r"A) $\int_{-1}^{6} \int_{y^2-4y}^{y+6} f(x,y) dx dy$",
@@ -519,7 +519,7 @@ BANCO_FIXED = [
         "explicacion": r"Integración tipo II (dx primero). Límites de y $[-1, 6]$."
     },
     {
-        "tema": "1.2.4 Integrales Dobles",
+        "tema": "1.2.5 Integrales Dobles",
         "pregunta": r"Cambie orden $\int_0^4 \int_0^x f(x,y) dy dx$:",
         "opciones": [
             r"A) $\int_0^4 \int_y^4 f(x,y) dx dy$",
@@ -531,7 +531,7 @@ BANCO_FIXED = [
         "explicacion": r"Región triangular $0 \le y \le x \le 4$. En orden inverso $y \le x \le 4$."
     },
     {
-        "tema": "1.2.4 Integrales Dobles",
+        "tema": "1.2.5 Integrales Dobles",
         "pregunta": r"Calcule $\int_0^1 \int_0^2 (x+y) dy dx$:",
         "opciones": [
             r"A) $3$",
@@ -543,7 +543,7 @@ BANCO_FIXED = [
         "explicacion": r"Interna $2x+2$. Externa $1+2=3$."
     },
     {
-        "tema": "1.2.4 Integrales Dobles",
+        "tema": "1.2.5 Integrales Dobles",
         "pregunta": r"Volumen bajo $z=1+x-y$ sobre región limitada por $y=x^2$ y $y=8-2x$:",
         "opciones": [
             r"A) $\int_{-4}^{2} \int_{x^2}^{8-2x} (1+x-y) dy dx$",
@@ -555,7 +555,7 @@ BANCO_FIXED = [
         "explicacion": r"Cortes en $x=-4, 2$. Recta por encima de parábola."
     },
     {
-        "tema": "1.2.4 Integrales Dobles",
+        "tema": "1.2.5 Integrales Dobles",
         "pregunta": r"Calcule la integral doble $\iint_R 2xy \, dA$ sobre el rectángulo $R = [0,2] \times [0,1]$:",
         "opciones": [
             r"A) 2",
@@ -567,7 +567,7 @@ BANCO_FIXED = [
         "explicacion": r"$\int_0^2 \int_0^1 2xy \, dy \, dx = \int_0^2 x [y^2]_0^1 dx = \int_0^2 x dx = [\frac{x^2}{2}]_0^2 = 2$."
     },
     {
-        "tema": "1.2.4 Integrales Dobles",
+        "tema": "1.2.5 Integrales Dobles",
         "pregunta": r"Al cambiar el orden de integración en $\int_0^1 \int_x^1 f(x,y) \, dy \, dx$, la nueva integral es:",
         "opciones": [
             r"A) $\int_0^1 \int_0^y f(x,y) \, dx \, dy$",
@@ -580,7 +580,7 @@ BANCO_FIXED = [
     },
     # --- VOLÚMENES DE REVOLUCIÓN ---
     {
-        "tema": "1.2.5 Volúmenes de Revolución",
+        "tema": "1.2.4 Volúmenes de Sólido de Revolución",
         "pregunta": r"Volumen de $f(x)=1+x^2$ entre $x=-1, 5$ girando en $y=-1$:",
         "opciones": [
             r"A) $\pi \int_{-1}^{5} (2+x^2)^2 dx$",
@@ -592,7 +592,7 @@ BANCO_FIXED = [
         "explicacion": r"Radio $R = (1+x^2) - (-1) = 2+x^2$. No hay hueco (disco)."
     },
     {
-        "tema": "1.2.5 Volúmenes de Revolución",
+        "tema": "1.2.4 Volúmenes de Sólido de Revolución",
         "pregunta": r"Volumen región $y=x^2-4x$, $y=0$ girando en $y=4$:",
         "opciones": [
             r"A) $\pi \int_0^4 [ 4^2 - (4-(x^2-4x))^2 ] dx$",
@@ -604,7 +604,7 @@ BANCO_FIXED = [
         "explicacion": r"Arandelas. Radio exterior constante 4 (hasta el eje x). Radio interior hasta la curva."
     },
     {
-        "tema": "1.2.5 Volúmenes de Revolución",
+        "tema": "1.2.4 Volúmenes de Sólido de Revolución",
         "pregunta": r"Volumen región $x=y^2+2, x=1$ girando en $x=-2$:",
         "opciones": [
             r"A) $\pi \int_{-2}^{2} [ (y^2+4)^2 - 3^2 ] dy$",
@@ -616,7 +616,7 @@ BANCO_FIXED = [
         "explicacion": r"Radio mayor $R=(y^2+2)-(-2)$. Radio menor $r=1-(-2)$."
     },
     {
-        "tema": "1.2.5 Volúmenes de Revolución",
+        "tema": "1.2.4 Volúmenes de Sólido de Revolución",
         "pregunta": r"Volumen región $y=2+x^2, y=6$ girando en $y=1$:",
         "opciones": [
             r"A) $\pi \int_{-2}^{2} [ (6-1)^2 - (2+x^2-1)^2 ] dx$",
@@ -628,7 +628,7 @@ BANCO_FIXED = [
         "explicacion": r"Radio mayor constante $5$. Radio menor variable $1+x^2$."
     },
     {
-        "tema": "1.2.5 Volúmenes de Revolución",
+        "tema": "1.2.4 Volúmenes de Sólido de Revolución",
         "pregunta": r"Volumen región $y=4-x^2, y=3$ girando en $y=2$:",
         "opciones": [
             r"A) $\pi \int_{0}^{1} [ (4-x^2-2)^2 - (3-2)^2 ] dx$",
@@ -995,7 +995,7 @@ BANCO_FIXED = [
     },
     # --- APLICACIONES ---
     {
-        "tema": "2.3 Aplicaciones de Ecuaciones Diferenciales en Economía",
+        "tema": "2.3.1 Aplicaciones de Ecuaciones Diferenciales de primer orden",
         "pregunta": r"Modelo $\frac{dp}{dt} = kp(1000-p)$:",
         "opciones": [
             r"A) Crecimiento Logístico",
@@ -1007,7 +1007,7 @@ BANCO_FIXED = [
         "explicacion": r"Ecuación verhulst."
     },
     {
-        "tema": "2.3 Aplicaciones de Ecuaciones Diferenciales en Economía",
+        "tema": "2.3.1 Aplicaciones de Ecuaciones Diferenciales de primer orden",
         "pregunta": r"Límite de $\frac{dp}{dt} = kp(200-p)$:",
         "opciones": [
             r"A) 200 unidades",
@@ -1019,7 +1019,7 @@ BANCO_FIXED = [
         "explicacion": r"Capacidad de carga."
     },
     {
-        "tema": "2.3 Aplicaciones de Ecuaciones Diferenciales en Economía",
+        "tema": "2.3.1 Aplicaciones de Ecuaciones Diferenciales de primer orden",
         "pregunta": r"Ley Enfriamiento: $100 \to 80$ en 10 min ($T_a=25$). Temp a los 20 min:",
         "opciones": [
             r"A) $65.33^{\circ}C$",
@@ -1031,7 +1031,7 @@ BANCO_FIXED = [
         "explicacion": r"Cálculo exponencial iterativo."
     },
     {
-        "tema": "2.3 Aplicaciones de Ecuaciones Diferenciales en Economía",
+        "tema": "2.3.1 Aplicaciones de Ecuaciones Diferenciales de primer orden",
         "pregunta": r"Límite $\frac{dp}{dt} = kt(1000 - p/2)$:",
         "opciones": [
             r"A) $2000$ unidades",
@@ -1043,7 +1043,7 @@ BANCO_FIXED = [
         "explicacion": r"Equilibrio cuando derivada es 0."
     },
     {
-        "tema": "2.3 Aplicaciones de Ecuaciones Diferenciales en Economía",
+        "tema": "2.3.1 Aplicaciones de Ecuaciones Diferenciales de primer orden",
         "pregunta": r"Carbono-14, 1/6 remanente. Vida media 5600. Ecuación:",
         "opciones": [
             r"A) $\frac{1}{6} = e^{k t}$ con $k = \frac{\ln(0.5)}{5600}$",
@@ -1055,7 +1055,7 @@ BANCO_FIXED = [
         "explicacion": r"Decaimiento radioactivo."
     },
     {
-        "tema": "2.3 Aplicaciones de Ecuaciones Diferenciales en Economía",
+        "tema": "2.3.1 Aplicaciones de Ecuaciones Diferenciales de primer orden",
         "pregunta": r"Solución general enfriamiento $T(t)$:",
         "opciones": [
             r"A) $T(t) = T_a + (T_0 - T_a)e^{kt}$",
@@ -1168,7 +1168,7 @@ BANCO_FIXED = [
     },
     # --- APLICACIONES DE ED (ORDEN SUPERIOR) ---
     {
-        "tema": "2.2.3 Aplicaciones de Ecuaciones Diferenciales de Orden superior",
+        "tema": "2.3.2 Aplicaciones de Ecuaciones Diferenciales de Orden superior",
         "pregunta": r"Un modelo de dinámica de precios con expectativas genera la ecuación $P'' + 3P' + 2P = 10$. ¿Cuál es el precio de equilibrio a largo plazo ($P_e$)?",
         "opciones": [
             r"A) $P_e = 5$",
@@ -1180,7 +1180,7 @@ BANCO_FIXED = [
         "explicacion": r"En el equilibrio, las derivadas se anulan ($P''=0, P'=0$). Queda $2P = 10 \Rightarrow P = 5$. También es la solución particular $y_p$."
     },
     {
-        "tema": "2.2.3 Aplicaciones de Ecuaciones Diferenciales de Orden superior",
+        "tema": "2.3.2 Aplicaciones de Ecuaciones Diferenciales de Orden superior",
         "pregunta": r"La ecuación $y'' + 4y = 0$ modela un ciclo económico sin fricción. Su comportamiento es:",
         "opciones": [
             r"A) Oscilatorio perpetuo (Senos y Cosenos)",
@@ -1192,7 +1192,7 @@ BANCO_FIXED = [
         "explicacion": r"Las raíces características son imaginarias puras ($r = \pm 2i$), lo que genera soluciones de la forma $C_1 \cos(2t) + C_2 \sin(2t)$."
     },
     {
-        "tema": "2.2.3 Aplicaciones de Ecuaciones Diferenciales de Orden superior",
+        "tema": "2.3.2 Aplicaciones de Ecuaciones Diferenciales de Orden superior",
         "pregunta": r"Si el ingreso nacional $Y(t)$ sigue la ecuación $Y'' - Y' - 6Y = 0$, ¿qué sucede a largo plazo?",
         "opciones": [
             r"A) Crece explosivamente (inestable)",

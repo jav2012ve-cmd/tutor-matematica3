@@ -19,10 +19,11 @@ TEMAS_PARCIAL_2 = [
     "2.1.2 ED 1er Orden: Homogéneas",
     "2.1.3 ED 1er Orden: Exactas",
     "2.1.4 ED 1er Orden: Lineales",
-    "2.1.5 Aplicaciones de Ecuaciones Diferenciales en Economía",
+    "2.1.5 ED 1er Orden: Bernoulli",
     "2.2.1 ED Orden Superior: Homogéneas",
     "2.2.2 ED Orden Superior: No Homogéneas",
-    "2.2.3 Aplicaciones de Ecuaciones Diferenciales de Orden superior"   
+    "2.3.1 Aplicaciones de Ecuaciones Diferenciales de primer orden",
+    "2.3.2 Aplicaciones de Ecuaciones Diferenciales de Orden superior"   
 ]
 
 # Unimos todo para el menú general
