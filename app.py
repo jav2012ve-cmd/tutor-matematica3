@@ -1,4 +1,5 @@
 from __future__ import annotations
+from datetime import datetime
 import json
 import os
 import re
@@ -41,6 +42,8 @@ INTENTOS_MAX_IA = 3
 MULTIPLICADOR_ESPERA_429 = 4  # segundos por intento ante error 429
 MAX_MENSAJES_HISTORIAL_TUTOR = 10  # últimos N mensajes para contexto IA
 AVISO_HISTORIAL_LARGO = 20  # si hay más mensajes, mostrar aviso
+ADMIN_EMAIL_PERMITIDO = os.environ.get("ADMIN_EMAIL", "jsalas@ucab.edu.ve").strip().lower()
+ADMIN_CLAVE_PERMITIDA = os.environ.get("ADMIN_PASSWORD", "J-2002-MateIII")
 
 # --- 1. CONFIGURACIÓN INICIAL ---
 interfaz.configurar_pagina()
@@ -311,8 +314,9 @@ Responde ÚNICAMENTE con JSON válido, sin markdown:
 
 def generar_tutor_paso_a_paso(pregunta_texto: str, tema: str) -> Optional[dict]:
     """Genera la tutoría para el modo Entrenamiento (Banco/IA)."""
+    tema_txt = tema or ""
     regla_tema = ""
-    if "1.1.1" in (tema or "") or "Integrales Indefinidas" in (tema or ""):
+    if "1.1.1" in tema_txt or "Integrales Indefinidas" in tema_txt:
         regla_tema = """
     RESTRICCIÓN DE CONTENIDO (CRÍTICO para este tema):
     - El tema "1.1.1 Integrales Indefinidas Directas" es EXCLUSIVO de integrales INDEFINIDAS.
@@ -325,6 +329,60 @@ def generar_tutor_paso_a_paso(pregunta_texto: str, tema: str) -> Optional[dict]:
       * Multiplicación por constantes y suma distributiva.
     - Si el ejercicio que te pasan tiene integral definida, reescríbelo como integral INDEFINIDA equivalente (misma función a integrar, sin límites) o genera un ejercicio de integral indefinida acorde al tema.
     """
+
+    estrategia_objetivo = ""
+    tecnicas_prohibidas: List[str] = []
+    terminos_obligatorios: List[str] = []
+    restricciones_edo = {
+        "2.1.1": (
+            "Variables separables",
+            ["lineal", "exacta", "homogénea", "bernoulli", "factor integrante"],
+            ["separable", "separ"],
+        ),
+        "2.1.2": (
+            "Homogéneas",
+            ["lineal", "exacta", "bernoulli", "factor integrante"],
+            ["homog"],
+        ),
+        "2.1.3": (
+            "Exactas",
+            ["lineal", "homogénea", "bernoulli", "separable", "factor integrante"],
+            ["exact", "potencial", "m(x,y)", "n(x,y)"],
+        ),
+        "2.1.4": (
+            "Lineales",
+            ["exacta", "homogénea", "bernoulli", "separable"],
+            ["lineal", "factor integrante"],
+        ),
+        "2.1.5": (
+            "Bernoulli",
+            ["lineal directa", "exacta", "homogénea", "separable"],
+            ["bernoulli", "cambio", "v=", "v(x)"],
+        ),
+        "2.2.1": (
+            "ED de orden superior homogénea",
+            ["no homogénea", "coeficientes indeterminados", "variación de parámetros"],
+            ["homog", "ecuación característica", "raíz"],
+        ),
+        "2.2.2": (
+            "ED de orden superior no homogénea",
+            ["homogénea pura solamente"],
+            ["no homog", "solución particular", "complementaria"],
+        ),
+    }
+    for code, (objetivo, prohibidas, obligatorios) in restricciones_edo.items():
+        if code in tema_txt:
+            estrategia_objetivo = objetivo
+            tecnicas_prohibidas = prohibidas
+            terminos_obligatorios = obligatorios
+            regla_tema += f"""
+    RESTRICCIÓN DE TÉCNICA (CRÍTICA para {code}):
+    - La estrategia CORRECTA debe ser explícitamente de tipo: "{objetivo}".
+    - El desarrollo (paso_intermedio y resultado_final) DEBE seguir ese método, no otro.
+    - Prohibido resolver usando técnicas fuera del tema (ej.: {", ".join(prohibidas)}).
+    - Si el enunciado no encaja, adáptalo mínimamente para que SÍ encaje con la técnica del tema.
+    """
+            break
     prompt = f"""
     Actúa como un profesor experto. Para el ejercicio: "{pregunta_texto}"
     {regla_tema}
@@ -354,9 +412,56 @@ def generar_tutor_paso_a_paso(pregunta_texto: str, tema: str) -> Optional[dict]:
     }}
     Orden aleatorio en estrategias.
     """
-    response = generar_contenido_seguro(prompt)
-    if response:
-        return limpiar_json(response.text)
+    if estrategia_objetivo:
+        prompt += """
+    AJUSTE PARA ENTRENAMIENTO EN ED:
+    - Como el estudiante ya conoce el tipo de ED por el tema, evita centrarte en "elegir técnica".
+    - En "feedback_estrategia" escribe el ARRANQUE DE RESOLUCIÓN: primeros pasos operativos concretos
+      para implementar esa técnica en este ejercicio (1-3 acciones claras).
+    - "paso_intermedio" debe ser una expresión/ecuación que naturalmente venga después de ese arranque.
+    """
+
+    def _cumple_restriccion_edo(data: Any) -> bool:
+        if not estrategia_objetivo:
+            return True
+        if not isinstance(data, dict):
+            return False
+        estrategias = data.get("estrategias") or []
+        idx_ok = data.get("indice_correcta", 0)
+        if not isinstance(estrategias, list) or not estrategias:
+            return False
+        try:
+            estrategia_ok = str(estrategias[int(idx_ok)]).lower()
+        except (TypeError, ValueError, IndexError):
+            return False
+        bloque = " ".join(
+            [
+                estrategia_ok,
+                str(data.get("feedback_estrategia", "")).lower(),
+                str(data.get("paso_intermedio", "")).lower(),
+                str(data.get("resultado_final", "")).lower(),
+            ]
+        )
+        if not any(t in bloque for t in terminos_obligatorios):
+            return False
+        return not any(t in bloque for t in tecnicas_prohibidas)
+
+    for intento in range(2):
+        prompt_actual = prompt
+        if intento == 1 and estrategia_objetivo:
+            prompt_actual += f"""
+    CORRECCIÓN OBLIGATORIA:
+    Tu intento previo no respetó completamente la técnica "{estrategia_objetivo}".
+    Rehaz el JSON asegurando que:
+    1) la opción correcta sea explícitamente "{estrategia_objetivo}";
+    2) paso_intermedio y resultado_final sigan ESA técnica y no otra.
+    """
+        response = generar_contenido_seguro(prompt_actual)
+        if not response:
+            continue
+        data = limpiar_json(response.text)
+        if _cumple_restriccion_edo(data):
+            return data
     return None
 
 def analizar_problema_usuario(
@@ -655,6 +760,7 @@ if "historial_tutor_abierto" not in st.session_state: st.session_state.historial
 
 # Estado E: Corrección de Manuscritos
 if "manuscrito_correccion" not in st.session_state: st.session_state.manuscrito_correccion = None
+if "admin_auth_ok" not in st.session_state: st.session_state.admin_auth_ok = False
 
 # --- 3. INTERFAZ PRINCIPAL ---
 ruta, tema_actual = interfaz.mostrar_sidebar()
@@ -742,6 +848,8 @@ elif ruta == "a) Entrenamiento (Temario)":
         
         if idx < len(lista):
             ejercicio = lista[idx]
+            tema_ejercicio = str(ejercicio.get("tema", ""))
+            es_tema_edo_entrenamiento = tema_ejercicio.startswith("2.")
             
             st.progress((idx + 1) / NUM_EJERCICIOS_ENTRENAMIENTO, text=f"Ejercicio {idx + 1} de {NUM_EJERCICIOS_ENTRENAMIENTO}")
             st.markdown(f"**Tema:** `{ejercicio.get('tema', 'General')}`")
@@ -766,36 +874,51 @@ elif ruta == "a) Entrenamiento (Temario)":
             tutor = st.session_state.entrenamiento_data_ia
             step = st.session_state.entrenamiento_step
 
-            # PASO 1: ESTRATEGIA
+            # PASO 1
             if step == 1:
-                st.markdown("#### 1️⃣ Paso 1: Selección de Estrategia")
-                st.write("Antes de calcular, ¿cuál crees que es el camino correcto?")
-                
-                opcion_estrategia = st.radio("Selecciona el método:", tutor['estrategias'], index=None, key=f"radio_estrat_{idx}")
-                
-                if st.button("Validar Estrategia", key=f"btn_val_{idx}"):
-                    if opcion_estrategia:
-                        idx_seleccionado = tutor['estrategias'].index(opcion_estrategia)
-                        if idx_seleccionado == tutor['indice_correcta']:
-                            st.session_state.entrenamiento_validado = True 
-                        else:
-                            st.error("❌ Mmm, no es el mejor camino.")
-                            st.warning("Pista: " + preparar_latex_para_streamlit(tutor['feedback_estrategia']))
-                    else:
-                        st.warning("Debes seleccionar una opción.")
-
-                if st.session_state.get("entrenamiento_validado", False):
-                    st.success("✅ ¡Exacto! Esa es la ruta.")
-                    st.info("👨‍🏫 **Feedback:** " + preparar_latex_para_streamlit(tutor['feedback_estrategia']))
-                    
+                if es_tema_edo_entrenamiento:
+                    st.markdown("#### 1️⃣ Paso 1: Inicio de la Resolución")
+                    st.write(
+                        "Ya conoces el tipo de ED por el tema. Empieza aplicando la técnica desde el primer paso."
+                    )
+                    tecnica_tema = tema_ejercicio.split(":", 1)[-1].strip() if ":" in tema_ejercicio else tema_ejercicio
+                    st.success(f"🎯 Técnica del tema: **{tecnica_tema}**")
+                    st.info("👨‍🏫 **Arranque sugerido:** " + preparar_latex_para_streamlit(tutor['feedback_estrategia']))
                     if st.button("Ir al Paso Intermedio ➡️", type="primary", key=f"btn_go_step2_{idx}"):
                         st.session_state.entrenamiento_step = 2
-                        st.session_state.entrenamiento_validado = False
                         st.rerun()
+                else:
+                    st.markdown("#### 1️⃣ Paso 1: Selección de Estrategia")
+                    st.write("Antes de calcular, ¿cuál crees que es el camino correcto?")
+                    
+                    opcion_estrategia = st.radio("Selecciona el método:", tutor['estrategias'], index=None, key=f"radio_estrat_{idx}")
+                    
+                    if st.button("Validar Estrategia", key=f"btn_val_{idx}"):
+                        if opcion_estrategia:
+                            idx_seleccionado = tutor['estrategias'].index(opcion_estrategia)
+                            if idx_seleccionado == tutor['indice_correcta']:
+                                st.session_state.entrenamiento_validado = True 
+                            else:
+                                st.error("❌ Mmm, no es el mejor camino.")
+                                st.warning("Pista: " + preparar_latex_para_streamlit(tutor['feedback_estrategia']))
+                        else:
+                            st.warning("Debes seleccionar una opción.")
+
+                    if st.session_state.get("entrenamiento_validado", False):
+                        st.success("✅ ¡Exacto! Esa es la ruta.")
+                        st.info("👨‍🏫 **Feedback:** " + preparar_latex_para_streamlit(tutor['feedback_estrategia']))
+                        
+                        if st.button("Ir al Paso Intermedio ➡️", type="primary", key=f"btn_go_step2_{idx}"):
+                            st.session_state.entrenamiento_step = 2
+                            st.session_state.entrenamiento_validado = False
+                            st.rerun()
 
             # PASO 2: HITO INTERMEDIO
             if step == 2:
-                st.success(f"✅ Estrategia: {tutor['estrategias'][tutor['indice_correcta']]}")
+                if es_tema_edo_entrenamiento:
+                    st.success("✅ Inicio de implementación completado")
+                else:
+                    st.success(f"✅ Estrategia: {tutor['estrategias'][tutor['indice_correcta']]}")
                 st.markdown("#### 2️⃣ Paso 2: Ejecución Intermedia")
                 st.write("Aplica la estrategia seleccionada. Deberías llegar a una expresión similar a esta:")
                 
@@ -1354,3 +1477,161 @@ elif ruta == "e) Corrección de Manuscritos":
         if st.button("🔄 Evaluar otro manuscrito", key="btn_nuevo_manuscrito"):
             st.session_state.manuscrito_correccion = None
             st.rerun()
+
+# =======================================================
+# LÓGICA F: ADMINISTRADOR (MÉTRICAS)
+# =======================================================
+elif ruta == "f) Administrador (Métricas)":
+    st.markdown("### 🛠️ Panel de Administrador")
+    if not st.session_state.get("admin_auth_ok", False):
+        st.warning("🔐 Acceso restringido: inicia sesión como administrador.")
+        with st.form("admin_login_form", clear_on_submit=False):
+            correo_admin = st.text_input("Correo de administrador")
+            clave_admin = st.text_input("Clave", type="password")
+            enviar = st.form_submit_button("Ingresar")
+        if enviar:
+            ok = (
+                (correo_admin or "").strip().lower() == ADMIN_EMAIL_PERMITIDO
+                and (clave_admin or "") == ADMIN_CLAVE_PERMITIDA
+            )
+            if ok:
+                st.session_state.admin_auth_ok = True
+                st.success("✅ Autenticación correcta.")
+                st.rerun()
+            else:
+                st.error("❌ Credenciales inválidas.")
+        st.stop()
+
+    c_auth1, c_auth2 = st.columns([3, 1])
+    with c_auth1:
+        st.info(
+            "Métricas globales de uso por módulo y tema. "
+            "Si Supabase está configurado, verás agregados globales; si no, datos locales."
+        )
+    with c_auth2:
+        if st.button("Cerrar sesión admin"):
+            st.session_state.admin_auth_ok = False
+            st.rerun()
+
+    warn = st.session_state.get("_uso_stats_supabase_warn")
+    if warn:
+        st.warning(warn)
+
+    stats = uso_stats.obtener_estadisticas()
+    total_uso = sum(int(stats.get(m, 0) or 0) for m in uso_stats.MODULOS)
+    mod_con_uso = sum(1 for m in uso_stats.MODULOS if int(stats.get(m, 0) or 0) > 0)
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("Interacciones totales", total_uso)
+    with c2:
+        st.metric("Módulos con uso", f"{mod_con_uso} / {len(uso_stats.MODULOS)}")
+    with c3:
+        st.metric("Módulo más usado", max(uso_stats.MODULOS, key=lambda m: int(stats.get(m, 0) or 0)))
+
+    st.subheader("Cantidad de accesos por cada funcionalidad")
+    st.bar_chart({m: int(stats.get(m, 0) or 0) for m in uso_stats.MODULOS})
+
+    st.subheader("Cantidad de ejercicios resueltos por cada tema del pensum")
+    por_tema = uso_stats.obtener_estadisticas_temas()
+    top_n = st.slider("Top de temas", min_value=5, max_value=25, value=10, step=1)
+    filas_temas = sorted(
+        [{"tema": t, "consultas": int(por_tema.get(t, 0) or 0)} for t in temario.LISTA_TEMAS],
+        key=lambda r: (-r["consultas"], r["tema"]),
+    )
+    st.dataframe(filas_temas[:top_n], use_container_width=True, hide_index=True)
+
+    st.subheader("Histograma de uso por fechas")
+    eventos_hist = uso_stats.obtener_eventos_recientes(limit=2000)
+    fechas_evento = []
+    for e in eventos_hist:
+        ts = e.get("timestamp")
+        if not ts:
+            continue
+        try:
+            dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+            fechas_evento.append(dt.date())
+        except ValueError:
+            continue
+
+    if fechas_evento:
+        min_f = min(fechas_evento)
+        max_f = max(fechas_evento)
+
+        cf1, cf2, cf3 = st.columns([1, 1, 1.2])
+        with cf1:
+            fecha_desde = st.date_input("Desde", value=min_f, min_value=min_f, max_value=max_f, key="admin_f_desde")
+        with cf2:
+            fecha_hasta = st.date_input("Hasta", value=max_f, min_value=min_f, max_value=max_f, key="admin_f_hasta")
+        with cf3:
+            granularidad = st.selectbox(
+                "Agrupar por",
+                ["Día", "Semana", "Mes"],
+                index=0,
+                key="admin_hist_granularidad",
+            )
+
+        if fecha_desde > fecha_hasta:
+            st.warning("La fecha 'Desde' no puede ser mayor que 'Hasta'.")
+        else:
+            hist: dict[str, int] = {}
+            for e in eventos_hist:
+                ts = e.get("timestamp")
+                if not ts:
+                    continue
+                try:
+                    dt = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+                    d = dt.date()
+                except ValueError:
+                    continue
+                if d < fecha_desde or d > fecha_hasta:
+                    continue
+
+                if granularidad == "Día":
+                    bucket = d.isoformat()
+                elif granularidad == "Semana":
+                    y, w, _ = d.isocalendar()
+                    bucket = f"{y}-W{w:02d}"
+                else:  # Mes
+                    bucket = d.strftime("%Y-%m")
+                hist[bucket] = hist.get(bucket, 0) + 1
+
+            if hist:
+                hist_rows = [
+                    {"periodo": p, "uso": n}
+                    for p, n in sorted(hist.items(), key=lambda x: x[0])
+                ]
+                st.bar_chart(hist_rows, x="periodo", y="uso")
+                st.caption(f"Periodos con actividad en el rango: {len(hist_rows)}")
+            else:
+                st.caption("No hay actividad en el rango seleccionado.")
+    else:
+        st.caption("No hay suficientes eventos con fecha para construir el histograma.")
+
+    st.subheader("Eventos recientes")
+    eventos = uso_stats.obtener_eventos_recientes(limit=250)
+    if not eventos:
+        st.caption("No hay eventos recientes disponibles.")
+    else:
+        opciones_modo = ["(Todos)"] + sorted({str(e.get("modo") or "") for e in eventos if e.get("modo")})
+        filtro_modo = st.selectbox("Filtrar por módulo", opciones_modo, index=0)
+        texto = st.text_input("Buscar en payload (texto)", value="").strip().lower()
+
+        rows = []
+        for e in eventos:
+            modo = str(e.get("modo") or "")
+            payload = e.get("payload") or {}
+            payload_txt = json.dumps(payload, ensure_ascii=False)
+            if filtro_modo != "(Todos)" and modo != filtro_modo:
+                continue
+            if texto and texto not in payload_txt.lower():
+                continue
+            rows.append(
+                {
+                    "timestamp": e.get("timestamp"),
+                    "modo": modo,
+                    "payload": payload_txt[:500],
+                }
+            )
+        st.caption(f"Mostrando {len(rows)} eventos")
+        st.dataframe(rows[:200], use_container_width=True, hide_index=True)

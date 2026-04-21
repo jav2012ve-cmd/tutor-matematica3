@@ -394,3 +394,57 @@ def obtener_estadisticas_temas() -> dict[str, int]:
         except (json.JSONDecodeError, OSError, TypeError):
             pass
     return base
+
+
+def obtener_eventos_recientes(limit: int = 150) -> list[dict[str, Any]]:
+    """
+    Devuelve eventos recientes de uso (modo + payload).
+    Prioriza Supabase (tabla app_usage_event); si no está disponible, usa JSONL local.
+    """
+    lim = max(1, min(int(limit or 150), 5000))
+    out: list[dict[str, Any]] = []
+
+    url, key = _credenciales_supabase()
+    if url and key:
+        try:
+            b = url.rstrip("/")
+            endpoint = (
+                f"{b}/rest/v1/app_usage_event"
+                f"?select=created_at,modo,payload&order=created_at.desc&limit={lim}"
+            )
+            r = requests.get(endpoint, headers=_headers_rest(key), timeout=_TIMEOUT_SEC)
+            if r.status_code == 200:
+                rows = r.json() or []
+                for row in rows:
+                    out.append(
+                        {
+                            "timestamp": row.get("created_at"),
+                            "modo": row.get("modo"),
+                            "payload": row.get("payload") or {},
+                        }
+                    )
+                return out
+        except (requests.RequestException, ValueError, TypeError):
+            pass
+
+    path = _ruta_eventos_jsonl()
+    if not os.path.isfile(path):
+        return out
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        for line in reversed(lines[-lim:]):
+            try:
+                rec = json.loads(line.strip())
+                out.append(
+                    {
+                        "timestamp": rec.get("ts"),
+                        "modo": rec.get("modo"),
+                        "payload": rec.get("payload") or {},
+                    }
+                )
+            except (json.JSONDecodeError, TypeError):
+                continue
+    except OSError:
+        return []
+    return out

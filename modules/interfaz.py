@@ -66,7 +66,8 @@ def mostrar_sidebar():
              "b) Respuesta Guiada (Consultas)", 
              "c) Autoevaluación (Quiz)",
              "d) Tutor: Preguntas Abiertas",
-             "e) Corrección de Manuscritos"],
+             "e) Corrección de Manuscritos",
+             "f) Administrador (Métricas)"],
             index=None,
             key="radio_seleccion"
         )
@@ -116,6 +117,7 @@ def mostrar_sidebar():
             **c) Autoevaluación:** Simulacro de parcial (Primer, Segundo o temas personalizados).  
             **d) Tutor abierto:** Chat sobre teoría y ejercicios de la cátedra.  
             **e) Corrección de Manuscritos:** Sube tu resolución escrita; la app identifica el enunciado, valora tu solución y sugiere ajustes.
+            **f) Administrador:** Métricas globales de uso (módulos, temas y eventos recientes).
             """)
 
         with st.expander("📊 Uso de la app"):
