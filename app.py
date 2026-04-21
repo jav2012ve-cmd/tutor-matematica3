@@ -1635,3 +1635,6 @@ elif ruta == "f) Administrador (Métricas)":
             )
         st.caption(f"Mostrando {len(rows)} eventos")
         st.dataframe(rows[:200], use_container_width=True, hide_index=True)
+
+# Cintillo institucional al cierre de la página.
+interfaz.mostrar_cintillo_cierre()

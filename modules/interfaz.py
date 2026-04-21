@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 import streamlit as st
 from modules.temario import LISTA_TEMAS
@@ -200,3 +201,22 @@ def mostrar_bienvenida():
     """, unsafe_allow_html=True)
     
     st.info("👆 **Elige un modo en el menú de la izquierda y pulsa *Iniciar* para comenzar.**")
+
+
+def mostrar_cintillo_cierre():
+    """Cintillo institucional de cierre para toda la app."""
+    anio = datetime.now().year
+    st.markdown(
+        f"""
+        <div style="margin-top: 28px; padding: 14px 18px; border-top: 1px solid #d9e2ec; background-color: #f8fafc; border-radius: 8px;">
+            <p style="margin: 0; color: #16324f; font-size: 0.95rem; line-height: 1.45;">
+                <strong>Universidad Católica Andrés Bello - Venezuela</strong> · Escuela de Economía · Cátedra de Matemáticas III
+            </p>
+            <p style="margin: 6px 0 0 0; color: #486581; font-size: 0.85rem; line-height: 1.4;">
+                Plataforma de apoyo académico para formación en Cálculo Integral y Ecuaciones Diferenciales.
+                Uso didáctico y de acompañamiento al aprendizaje. © {anio}
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
