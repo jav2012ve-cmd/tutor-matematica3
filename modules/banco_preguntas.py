@@ -200,7 +200,7 @@ BANCO_FIXED = [
             r"D) $u = 1$, $dv = x^3 \ln(...) dx$"
         ],
         "respuesta_correcta": r"A) $u = \ln(x^2-4)$, $dv = x^3 dx$",
-        "explicacion": r"LIATE: Logarítmica va antes que Algebraica para $u$."
+        "explicacion": r"Se elige $u=\ln(x^2-4)$ porque al derivar se simplifica y $dv=x^3dx$ se integra de forma directa."
     },
     {
         "tema": "1.1.5 Integral por partes",

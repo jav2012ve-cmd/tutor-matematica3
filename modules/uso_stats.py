@@ -29,7 +29,6 @@ MODULOS = (
     "Quiz",
     "Tutor Preguntas Abiertas",
     "Corrección de Manuscritos",
-    "Sube tu examen en PDF",
 )
 
 STATS_TEMA_NO_ESPECIFICADO = "(No especificado)"
@@ -230,11 +229,6 @@ def _extraer_topic_keys_validos(
         t = temario.normalizar_tema_curso(detalle.get("tema_catedra"))
         if t:
             raw.append(t)
-    elif modulo == "Sube tu examen en PDF":
-        for t_raw in detalle.get("temas_detectados") or []:
-            t = temario.normalizar_tema_curso(t_raw)
-            if t:
-                raw.append(t)
     seen: set[str] = set()
     out: list[str] = []
     for t in raw:

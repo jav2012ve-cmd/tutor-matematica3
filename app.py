@@ -142,12 +142,19 @@ def preparar_latex_para_streamlit(texto: Optional[str]) -> str:
             flags=re.DOTALL,
         )
 
-    # Opciones de quiz / fórmulas cortas con \frac, \ln, etc. sin delimitadores
+    # Opciones de quiz / fórmulas cortas con \frac, \ln, etc. sin delimitadores.
+    # IMPORTANTE: evitar envolver frases mixtas (texto + fórmula), porque
+    # terminan renderizadas como "todo matemático" y se pierde legibilidad.
     if "$" not in t and len(t.strip()) <= 280 and re.search(
         r'\\(?:frac|sqrt|ln|int|sum|cdot|left|right|infty|partial|alpha|beta|gamma|delta|theta|pi)\b',
         t,
     ):
-        t = f"${t.strip()}$"
+        texto_sin_cmd = re.sub(r"\\[a-zA-Z]+", " ", t)
+        texto_sin_cmd = re.sub(r"[{}[\]().,;:!?=+\-*/^_|$0-9]", " ", texto_sin_cmd)
+        palabras_normales = re.findall(r"[A-Za-zÁÉÍÓÚáéíóúÑñ]{3,}", texto_sin_cmd)
+        es_texto_mixto = len(palabras_normales) >= 3
+        if not es_texto_mixto:
+            t = f"${t.strip()}$"
 
     return t
 
@@ -766,58 +773,141 @@ def extraer_texto_pdf(archivo_pdf: Any, max_chars: int = 30000) -> str:
         return ""
 
 
-def resolver_examen_desde_texto_pdf(texto_pdf: str) -> Optional[list[dict]]:
-    """
-    Analiza texto de examen y devuelve lista de soluciones por planteamiento.
-    """
-    if not texto_pdf.strip():
-        return None
+def _ruta_admin_docs() -> str:
+    base = os.path.dirname(os.path.abspath(__file__))
+    carpeta = os.path.join(base, "data")
+    os.makedirs(carpeta, exist_ok=True)
+    return os.path.join(carpeta, "admin_docs.json")
 
+
+def cargar_admin_docs() -> list[dict]:
+    ruta = _ruta_admin_docs()
+    if not os.path.isfile(ruta):
+        return []
+    try:
+        with open(ruta, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, list) else []
+    except (OSError, json.JSONDecodeError):
+        return []
+
+
+def guardar_admin_docs(docs: list[dict]) -> None:
+    try:
+        with open(_ruta_admin_docs(), "w", encoding="utf-8") as f:
+            json.dump(docs, f, ensure_ascii=False, indent=2)
+    except OSError:
+        pass
+
+
+def detectar_temas_desde_pdf(texto_pdf: str) -> list[str]:
+    if not texto_pdf.strip():
+        return []
     lista_txt = _bloque_lista_temas_oficial()
     prompt = f"""
-    Eres profesor de Matemáticas III (Economía, UCAB).
-
-    Te daré el texto extraído de un examen en PDF.
-    Tu tarea es:
-    1) Identificar TODOS los planteamientos matemáticos que aparezcan.
-    2) Resolver cada uno con claridad.
-    3) Entregar una lista JSON con una entrada por planteamiento.
-
-    REGLAS:
-    - Responde ÚNICAMENTE JSON válido (sin markdown).
-    - Si el examen no tiene problemas resolubles, devuelve [].
-    - Usa LaTeX en texto cuando aplique (ej. \\int, \\frac, \\ln), sin envolver TODO en $$.
-    - Si hay numeración visible (1, 2, a, b...), consérvala en "id_planteamiento".
-    - Si no hay numeración, usa "Problema 1", "Problema 2", etc.
-    - Tema cátedra: usa un texto EXACTO de la lista oficial o null.
+    Eres un clasificador académico de Matemáticas III para Economía (UCAB).
+    Analiza el texto de un documento (examen o guía) y detecta cuáles temas oficiales de la cátedra aparecen.
 
     Lista oficial de temas:
 {lista_txt}
 
-    Estructura de salida (lista):
-    [
-      {{
-        "id_planteamiento": "1",
-        "tema_catedra": "<texto exacto de la lista oficial>" | null,
-        "planteamiento": "enunciado identificado",
-        "solucion_paso_a_paso": [
-          "paso 1",
-          "paso 2"
-        ],
-        "respuesta_final": "resultado final"
-      }}
-    ]
+    Responde ÚNICAMENTE con un JSON tipo lista de strings con textos EXACTOS de la lista oficial.
+    Si no detectas temas, responde [].
 
     Texto del PDF:
     {texto_pdf}
     """
     response = generar_contenido_seguro(prompt)
     if not response:
-        return None
+        return []
     data = limpiar_json(response.text)
-    if isinstance(data, list):
-        return data
-    return None
+    if not isinstance(data, list):
+        return []
+
+    temas_validos = set(temario.LISTA_TEMAS)
+    out: list[str] = []
+    for item in data:
+        t = temario.normalizar_tema_curso(item)
+        if t and t in temas_validos and t not in out:
+            out.append(t)
+    return out
+
+
+def generar_preguntas_quiz_desde_documento(
+    texto_pdf: str,
+    temas_detectados: list[str],
+    cantidad: int = 4,
+) -> list[dict]:
+    """
+    Genera preguntas tipo quiz (A-D) a partir de un documento PDF.
+    """
+    if not texto_pdf.strip() or not temas_detectados:
+        return []
+    n = max(1, min(int(cantidad or 4), 8))
+    prompt = f"""
+    Actúa como profesor de Matemáticas III para Economía (UCAB).
+    Usa el texto del documento como referencia para proponer preguntas de quiz de selección simple.
+
+    REGLAS:
+    - Devuelve ÚNICAMENTE un array JSON válido.
+    - Genera {n} preguntas.
+    - Cada pregunta debe tener exactamente 4 opciones: A), B), C), D).
+    - "respuesta_correcta" debe coincidir literalmente con una opción.
+    - Usa LaTeX en formato $...$ cuando aplique.
+    - Evita acrónimos o reglas nemotécnicas no utilizadas en la cátedra.
+    - El campo "tema" debe ser uno exacto de esta lista:
+      {", ".join(temas_detectados)}
+
+    FORMATO:
+    [
+      {{
+        "tema": "Tema exacto",
+        "pregunta": "Enunciado",
+        "opciones": ["A) ...", "B) ...", "C) ...", "D) ..."],
+        "respuesta_correcta": "A) ...",
+        "explicacion": "Explicación breve"
+      }}
+    ]
+
+    Texto del documento:
+    {texto_pdf}
+    """
+    response = generar_contenido_seguro(prompt)
+    if not response:
+        return []
+    data = limpiar_json(response.text)
+    if not isinstance(data, list):
+        return []
+
+    out: list[dict] = []
+    temas_validos = set(temario.LISTA_TEMAS)
+    for q in data:
+        if not isinstance(q, dict):
+            continue
+        tema_q = temario.normalizar_tema_curso(q.get("tema"))
+        opciones = q.get("opciones")
+        correcta = str(q.get("respuesta_correcta") or "").strip()
+        if (
+            not tema_q
+            or tema_q not in temas_validos
+            or not isinstance(opciones, list)
+            or len(opciones) != 4
+            or not correcta
+        ):
+            continue
+        opciones_txt = [str(x).strip() for x in opciones]
+        if not any(correcta == op for op in opciones_txt):
+            continue
+        out.append(
+            {
+                "tema": tema_q,
+                "pregunta": str(q.get("pregunta") or "").strip(),
+                "opciones": opciones_txt,
+                "respuesta_correcta": correcta,
+                "explicacion": str(q.get("explicacion") or "").strip(),
+            }
+        )
+    return out
 
 # --- 2. GESTIÓN DE ESTADO ---
 if "quiz_activo" not in st.session_state: st.session_state.quiz_activo = False
@@ -836,7 +926,7 @@ if "historial_tutor_abierto" not in st.session_state: st.session_state.historial
 # Estado E: Corrección de Manuscritos
 if "manuscrito_correccion" not in st.session_state: st.session_state.manuscrito_correccion = None
 if "admin_auth_ok" not in st.session_state: st.session_state.admin_auth_ok = False
-if "pdf_examen_resultados" not in st.session_state: st.session_state.pdf_examen_resultados = None
+if "quiz_temas_custom_widget" not in st.session_state: st.session_state.quiz_temas_custom_widget = []
 
 # --- 3. INTERFAZ PRINCIPAL ---
 ruta, tema_actual = interfaz.mostrar_sidebar()
@@ -1175,6 +1265,11 @@ elif ruta == "c) Autoevaluación (Quiz)":
     # --- PANTALLA 1: CONFIGURACIÓN ---
     if not st.session_state.quiz_activo:
         st.info("Configura tu prueba (El sistema combinará ejercicios oficiales y generados por IA):")
+        temas_sugeridos = st.session_state.pop("quiz_temas_sugeridos", None)
+        if isinstance(temas_sugeridos, list):
+            st.session_state.quiz_temas_custom_widget = [
+                t for t in temas_sugeridos if t in temario.LISTA_TEMAS
+            ]
         
         col1, col2 = st.columns(2)
         with col1:
@@ -1193,7 +1288,32 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 st.rerun()
 
         with st.expander("⚙️ Personalizado"):
-            temas_custom = st.multiselect("Temas:", temario.LISTA_TEMAS)
+            docs_admin = [d for d in cargar_admin_docs() if d.get("activo_quiz")]
+            if docs_admin:
+                opciones_docs = {
+                    f"{d.get('nombre', 'Documento')} ({len(d.get('temas', []))} temas)": d
+                    for d in docs_admin
+                }
+                doc_sel = st.selectbox(
+                    "📌 Sugerencia desde documentos cargados por Administración:",
+                    list(opciones_docs.keys()),
+                    key="quiz_doc_admin_sugerido",
+                )
+                doc_data = opciones_docs.get(doc_sel) or {}
+                temas_doc = [
+                    t for t in (doc_data.get("temas") or []) if t in temario.LISTA_TEMAS
+                ]
+                if temas_doc:
+                    st.caption("Temas sugeridos: " + ", ".join(temas_doc))
+                    if st.button("Usar estos temas sugeridos", key="btn_quiz_usar_sugerencia"):
+                        st.session_state.quiz_temas_custom_widget = temas_doc
+                        st.rerun()
+
+            temas_custom = st.multiselect(
+                "Temas:",
+                temario.LISTA_TEMAS,
+                key="quiz_temas_custom_widget",
+            )
             if st.button("▶️ Iniciar Quiz Custom"):
                 if not temas_custom:
                     st.error("Selecciona tema.")
@@ -1214,8 +1334,26 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     cantidad_total = st.session_state.config_cant
                     temas = st.session_state.config_temas
 
-                    cuota_banco = cantidad_total // 2
-                    cuota_ia = cantidad_total - cuota_banco
+                    # 0. Banco auxiliar desde PDFs curados por administración
+                    preguntas_docs: list[dict] = []
+                    for doc in cargar_admin_docs():
+                        if not doc.get("activo_quiz"):
+                            continue
+                        temas_doc = [t for t in (doc.get("temas") or []) if t in temas]
+                        if not temas_doc:
+                            continue
+                        for q in (doc.get("preguntas_quiz") or []):
+                            if isinstance(q, dict):
+                                tq = temario.normalizar_tema_curso(q.get("tema"))
+                                if tq and tq in temas:
+                                    preguntas_docs.append(q)
+                    random.shuffle(preguntas_docs)
+                    cuota_docs = min(max(1, cantidad_total // 3), len(preguntas_docs)) if preguntas_docs else 0
+                    if cuota_docs > 0:
+                        lista_final_preguntas.extend(preguntas_docs[:cuota_docs])
+
+                    restantes = cantidad_total - len(lista_final_preguntas)
+                    cuota_banco = max(0, restantes // 2)
 
                     # 1. Banco
                     try:
@@ -1563,85 +1701,9 @@ elif ruta == "e) Corrección de Manuscritos":
             st.rerun()
 
 # =======================================================
-# LÓGICA F: SUBE TU EXAMEN EN PDF
+# LÓGICA F: ADMINISTRADOR (MÉTRICAS + ACTUALIZACIÓN DE CORE)
 # =======================================================
-elif ruta == "f) Sube tu examen en PDF":
-    st.markdown("### 📚 Sube tu examen en PDF")
-    st.info(
-        "Carga un examen en PDF para identificar y resolver automáticamente todos los planteamientos detectados."
-    )
-
-    archivo_examen_pdf = st.file_uploader(
-        "📎 Sube tu examen (PDF)",
-        type=["pdf"],
-        key="upload_examen_pdf",
-    )
-
-    if archivo_examen_pdf:
-        st.caption(f"Archivo cargado: `{archivo_examen_pdf.name}`")
-        if st.button("🧠 Resolver planteamientos del examen", type="primary", use_container_width=True):
-            with st.spinner("Extrayendo texto y resolviendo planteamientos..."):
-                texto_pdf = extraer_texto_pdf(archivo_examen_pdf)
-                if not texto_pdf:
-                    st.error(
-                        "No se pudo extraer texto del PDF. Si es escaneado como imagen, prueba con una versión con texto seleccionable."
-                    )
-                else:
-                    resultados_pdf = resolver_examen_desde_texto_pdf(texto_pdf)
-                    if resultados_pdf is None:
-                        st.error("No se pudo interpretar la respuesta de la IA. Intenta nuevamente.")
-                    else:
-                        st.session_state.pdf_examen_resultados = resultados_pdf
-                        temas_detectados = [
-                            str(x.get("tema_catedra") or "").strip()
-                            for x in resultados_pdf
-                            if isinstance(x, dict) and x.get("tema_catedra")
-                        ]
-                        uso_stats.registrar_uso(
-                            "Sube tu examen en PDF",
-                            detalle={
-                                "archivo": archivo_examen_pdf.name,
-                                "num_planteamientos": len(resultados_pdf),
-                                "temas_detectados": temas_detectados[:20],
-                            },
-                        )
-                        st.rerun()
-
-    resultados = st.session_state.get("pdf_examen_resultados")
-    if resultados is not None:
-        if not resultados:
-            st.warning("No se detectaron planteamientos resolubles en el PDF cargado.")
-        else:
-            st.success(f"Se detectaron y resolvieron **{len(resultados)}** planteamientos.")
-            for i, item in enumerate(resultados, start=1):
-                if not isinstance(item, dict):
-                    continue
-                id_pl = str(item.get("id_planteamiento") or f"Problema {i}")
-                tema_pl = temario.normalizar_tema_curso(item.get("tema_catedra"))
-                with st.expander(f"Planteamiento {i}: {id_pl}", expanded=(i == 1)):
-                    if tema_pl:
-                        st.caption(f"📌 Tema cátedra: `{tema_pl}`")
-                    st.markdown("**Enunciado**")
-                    _render_texto_con_latex(str(item.get("planteamiento") or ""))
-
-                    pasos = item.get("solucion_paso_a_paso") or []
-                    if pasos:
-                        st.markdown("**Resolución paso a paso**")
-                        for paso in pasos:
-                            st.markdown("- " + preparar_latex_para_streamlit(str(paso)))
-
-                    st.markdown("**Respuesta final**")
-                    _render_texto_con_latex(str(item.get("respuesta_final") or ""))
-
-            st.divider()
-            if st.button("🔄 Cargar otro examen PDF", key="btn_nuevo_pdf_examen"):
-                st.session_state.pdf_examen_resultados = None
-                st.rerun()
-
-# =======================================================
-# LÓGICA G: ADMINISTRADOR (MÉTRICAS)
-# =======================================================
-elif ruta == "g) Administrador (Métricas)":
+elif ruta == "f) Administrador (Métricas)":
     st.markdown("### 🛠️ Panel de Administrador")
     if not st.session_state.get("admin_auth_ok", False):
         st.warning("🔐 Acceso restringido: inicia sesión como administrador.")
@@ -1673,6 +1735,99 @@ elif ruta == "g) Administrador (Métricas)":
             st.session_state.admin_auth_ok = False
             st.rerun()
 
+    st.subheader("📚 Actualización del core con documentos PDF")
+    st.caption(
+        "Sube exámenes o guías para detectar temas del temario y habilitar sugerencias de quiz específico en Autoevaluación."
+    )
+
+    tipo_doc = st.selectbox(
+        "Tipo de documento",
+        ["Examen", "Guía", "Otro"],
+        key="admin_tipo_doc",
+    )
+    docs_pdf = st.file_uploader(
+        "Cargar documentos PDF",
+        type=["pdf"],
+        accept_multiple_files=True,
+        key="admin_upload_pdf_docs",
+    )
+    if st.button("Procesar documentos", type="primary", use_container_width=True, key="admin_procesar_docs"):
+        if not docs_pdf:
+            st.warning("Selecciona al menos un PDF.")
+        else:
+            almacenados = cargar_admin_docs()
+            nuevos = 0
+            for archivo in docs_pdf:
+                texto_pdf = extraer_texto_pdf(archivo, max_chars=45000)
+                if not texto_pdf:
+                    continue
+                temas_detectados = detectar_temas_desde_pdf(texto_pdf[:12000])
+                registro = {
+                    "id": f"{int(time.time())}_{len(almacenados)+1}",
+                    "nombre": archivo.name,
+                    "tipo": tipo_doc,
+                    "fecha_carga": datetime.now().isoformat(timespec="seconds"),
+                    "temas": temas_detectados,
+                    "activo_quiz": True,
+                    "extracto": texto_pdf[:1500],
+                    "preguntas_quiz": generar_preguntas_quiz_desde_documento(
+                        texto_pdf=texto_pdf[:12000],
+                        temas_detectados=temas_detectados,
+                        cantidad=4,
+                    ),
+                }
+                almacenados.insert(0, registro)
+                nuevos += 1
+            guardar_admin_docs(almacenados)
+            if nuevos:
+                st.success(f"Documentos procesados y guardados: {nuevos}")
+                st.rerun()
+            else:
+                st.error("No se pudo extraer texto utilizable de los PDF cargados.")
+
+    docs_guardados = cargar_admin_docs()
+    if docs_guardados:
+        st.markdown("**Documentos registrados**")
+        for doc in docs_guardados[:40]:
+            doc_id = str(doc.get("id") or "")
+            nombre = doc.get("nombre") or "Documento"
+            temas = [t for t in (doc.get("temas") or []) if t in temario.LISTA_TEMAS]
+            estado = "Activo para sugerencias de quiz" if doc.get("activo_quiz") else "Inactivo"
+            with st.expander(f"{nombre} · {doc.get('tipo', 'N/D')} · {estado}", expanded=False):
+                st.caption(f"Cargado: {doc.get('fecha_carga', '-')}")
+                st.caption("Temas detectados: " + (", ".join(temas) if temas else "Ninguno"))
+                st.caption(f"Preguntas candidatas para quiz: {len(doc.get('preguntas_quiz') or [])}")
+                st.caption((doc.get("extracto") or "").strip()[:500] or "_Sin extracto_")
+
+                c_d1, c_d2, c_d3 = st.columns(3)
+                with c_d1:
+                    if st.button("Usar para quiz", key=f"admin_set_quiz_{doc_id}"):
+                        if temas:
+                            st.session_state.quiz_temas_sugeridos = temas
+                            st.session_state.modo_actual = "c) Autoevaluación (Quiz)"
+                            st.success("Sugerencia enviada a Autoevaluación.")
+                            st.rerun()
+                        else:
+                            st.warning("Este documento no tiene temas detectados del temario.")
+                with c_d2:
+                    btn_label = "Desactivar" if doc.get("activo_quiz") else "Activar"
+                    if st.button(btn_label, key=f"admin_toggle_doc_{doc_id}"):
+                        nuevos_docs = cargar_admin_docs()
+                        for x in nuevos_docs:
+                            if str(x.get("id")) == doc_id:
+                                x["activo_quiz"] = not bool(x.get("activo_quiz"))
+                                break
+                        guardar_admin_docs(nuevos_docs)
+                        st.rerun()
+                with c_d3:
+                    if st.button("Eliminar", key=f"admin_delete_doc_{doc_id}"):
+                        nuevos_docs = [
+                            x for x in cargar_admin_docs() if str(x.get("id")) != doc_id
+                        ]
+                        guardar_admin_docs(nuevos_docs)
+                        st.rerun()
+
+    st.divider()
     warn = st.session_state.get("_uso_stats_supabase_warn")
     if warn:
         st.warning(warn)
