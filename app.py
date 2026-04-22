@@ -800,6 +800,26 @@ def guardar_admin_docs(docs: list[dict]) -> None:
         pass
 
 
+def obtener_evaluaciones_publicadas() -> list[dict]:
+    out: list[dict] = []
+    for doc in cargar_admin_docs():
+        if not doc.get("evaluacion_publicada"):
+            continue
+        temas_doc = [t for t in (doc.get("temas") or []) if t in temario.LISTA_TEMAS]
+        if not temas_doc:
+            continue
+        out.append(
+            {
+                "id": str(doc.get("id") or ""),
+                "nombre": str(doc.get("evaluacion_nombre") or doc.get("nombre") or "Evaluación"),
+                "tipo": str(doc.get("evaluacion_tipo") or "Evaluación"),
+                "cantidad": max(1, int(doc.get("evaluacion_cantidad") or NUM_PREGUNTAS_QUIZ)),
+                "temas": temas_doc,
+            }
+        )
+    return out
+
+
 def detectar_temas_desde_pdf(texto_pdf: str) -> list[str]:
     if not texto_pdf.strip():
         return []
@@ -1277,6 +1297,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 st.session_state.quiz_modalidad = "primer_parcial"
                 st.session_state.config_temas = temario.TEMAS_PARCIAL_1
                 st.session_state.config_cant = NUM_PREGUNTAS_QUIZ 
+                st.session_state.quiz_doc_eval_id = None
                 st.session_state.trigger_quiz = True
                 st.rerun()
         with col2:
@@ -1284,8 +1305,24 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 st.session_state.quiz_modalidad = "segundo_parcial"
                 st.session_state.config_temas = temario.TEMAS_PARCIAL_2
                 st.session_state.config_cant = NUM_PREGUNTAS_QUIZ
+                st.session_state.quiz_doc_eval_id = None
                 st.session_state.trigger_quiz = True
                 st.rerun()
+
+        evaluaciones_publicadas = obtener_evaluaciones_publicadas()
+        if evaluaciones_publicadas:
+            st.markdown("#### 📄 Evaluaciones publicadas por Administración")
+            cols_eval = st.columns(2)
+            for idx, ev in enumerate(evaluaciones_publicadas):
+                with cols_eval[idx % 2]:
+                    etiqueta = f"🧾 Generar {ev['tipo']}: {ev['nombre']}"
+                    if st.button(etiqueta, key=f"btn_eval_pub_{ev['id']}", use_container_width=True):
+                        st.session_state.quiz_modalidad = f"evaluacion_publicada_{ev['id']}"
+                        st.session_state.config_temas = ev["temas"]
+                        st.session_state.config_cant = ev["cantidad"]
+                        st.session_state.quiz_doc_eval_id = ev["id"]
+                        st.session_state.trigger_quiz = True
+                        st.rerun()
 
         with st.expander("⚙️ Personalizado"):
             docs_admin = [d for d in cargar_admin_docs() if d.get("activo_quiz")]
@@ -1321,6 +1358,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.session_state.quiz_modalidad = "personalizado"
                     st.session_state.config_temas = temas_custom
                     st.session_state.config_cant = NUM_PREGUNTAS_QUIZ
+                    st.session_state.quiz_doc_eval_id = None
                     st.session_state.trigger_quiz = True
                     st.rerun()
 
@@ -1333,22 +1371,39 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     lista_final_preguntas = []
                     cantidad_total = st.session_state.config_cant
                     temas = st.session_state.config_temas
+                    doc_eval_id = st.session_state.get("quiz_doc_eval_id")
+                    doc_eval = None
+                    if doc_eval_id:
+                        for d in cargar_admin_docs():
+                            if str(d.get("id")) == str(doc_eval_id):
+                                doc_eval = d
+                                break
 
                     # 0. Banco auxiliar desde PDFs curados por administración
                     preguntas_docs: list[dict] = []
-                    for doc in cargar_admin_docs():
-                        if not doc.get("activo_quiz"):
-                            continue
-                        temas_doc = [t for t in (doc.get("temas") or []) if t in temas]
-                        if not temas_doc:
-                            continue
-                        for q in (doc.get("preguntas_quiz") or []):
+                    if doc_eval:
+                        for q in (doc_eval.get("preguntas_quiz") or []):
                             if isinstance(q, dict):
                                 tq = temario.normalizar_tema_curso(q.get("tema"))
                                 if tq and tq in temas:
                                     preguntas_docs.append(q)
+                    else:
+                        for doc in cargar_admin_docs():
+                            if not doc.get("activo_quiz"):
+                                continue
+                            temas_doc = [t for t in (doc.get("temas") or []) if t in temas]
+                            if not temas_doc:
+                                continue
+                            for q in (doc.get("preguntas_quiz") or []):
+                                if isinstance(q, dict):
+                                    tq = temario.normalizar_tema_curso(q.get("tema"))
+                                    if tq and tq in temas:
+                                        preguntas_docs.append(q)
                     random.shuffle(preguntas_docs)
-                    cuota_docs = min(max(1, cantidad_total // 3), len(preguntas_docs)) if preguntas_docs else 0
+                    if doc_eval:
+                        cuota_docs = min(cantidad_total, len(preguntas_docs))
+                    else:
+                        cuota_docs = min(max(1, cantidad_total // 3), len(preguntas_docs)) if preguntas_docs else 0
                     if cuota_docs > 0:
                         lista_final_preguntas.extend(preguntas_docs[:cuota_docs])
 
@@ -1384,6 +1439,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                         st.session_state.respuestas_usuario = []
                         st.session_state.quiz_activo = True
                         st.session_state.trigger_quiz = False
+                        st.session_state.quiz_doc_eval_id = None
                         quiz_generado = True
                         uso_stats.registrar_uso(
                             "Quiz",
@@ -1745,6 +1801,24 @@ elif ruta == "f) Administrador (Métricas)":
         ["Examen", "Guía", "Otro"],
         key="admin_tipo_doc",
     )
+    publicar_en_autoeval = st.checkbox(
+        "Publicar estos documentos como evaluación en Autoevaluación",
+        value=True,
+        key="admin_publicar_autoeval",
+    )
+    tipo_evaluacion = st.selectbox(
+        "Tipo de evaluación a publicar",
+        ["Prueba Corta", "Quiz Temático", "Evaluación Especial"],
+        key="admin_tipo_eval_pub",
+    )
+    cantidad_eval = st.slider(
+        "Cantidad de preguntas para la evaluación publicada",
+        min_value=3,
+        max_value=20,
+        value=NUM_PREGUNTAS_QUIZ,
+        step=1,
+        key="admin_cantidad_eval_pub",
+    )
     docs_pdf = st.file_uploader(
         "Cargar documentos PDF",
         type=["pdf"],
@@ -1773,8 +1847,12 @@ elif ruta == "f) Administrador (Métricas)":
                     "preguntas_quiz": generar_preguntas_quiz_desde_documento(
                         texto_pdf=texto_pdf[:12000],
                         temas_detectados=temas_detectados,
-                        cantidad=4,
+                        cantidad=max(4, int(cantidad_eval)),
                     ),
+                    "evaluacion_publicada": bool(publicar_en_autoeval),
+                    "evaluacion_tipo": tipo_evaluacion,
+                    "evaluacion_nombre": os.path.splitext(archivo.name)[0],
+                    "evaluacion_cantidad": int(cantidad_eval),
                 }
                 almacenados.insert(0, registro)
                 nuevos += 1
@@ -1793,13 +1871,16 @@ elif ruta == "f) Administrador (Métricas)":
             nombre = doc.get("nombre") or "Documento"
             temas = [t for t in (doc.get("temas") or []) if t in temario.LISTA_TEMAS]
             estado = "Activo para sugerencias de quiz" if doc.get("activo_quiz") else "Inactivo"
-            with st.expander(f"{nombre} · {doc.get('tipo', 'N/D')} · {estado}", expanded=False):
+            ev_txt = ""
+            if doc.get("evaluacion_publicada"):
+                ev_txt = f" · Publicado: {doc.get('evaluacion_tipo', 'Evaluación')} ({int(doc.get('evaluacion_cantidad') or NUM_PREGUNTAS_QUIZ)} preg.)"
+            with st.expander(f"{nombre} · {doc.get('tipo', 'N/D')} · {estado}{ev_txt}", expanded=False):
                 st.caption(f"Cargado: {doc.get('fecha_carga', '-')}")
                 st.caption("Temas detectados: " + (", ".join(temas) if temas else "Ninguno"))
                 st.caption(f"Preguntas candidatas para quiz: {len(doc.get('preguntas_quiz') or [])}")
                 st.caption((doc.get("extracto") or "").strip()[:500] or "_Sin extracto_")
 
-                c_d1, c_d2, c_d3 = st.columns(3)
+                c_d1, c_d2, c_d3, c_d4 = st.columns(4)
                 with c_d1:
                     if st.button("Usar para quiz", key=f"admin_set_quiz_{doc_id}"):
                         if temas:
@@ -1820,6 +1901,22 @@ elif ruta == "f) Administrador (Métricas)":
                         guardar_admin_docs(nuevos_docs)
                         st.rerun()
                 with c_d3:
+                    pub_label = "Quitar de Autoeval" if doc.get("evaluacion_publicada") else "Publicar en Autoeval"
+                    if st.button(pub_label, key=f"admin_toggle_pub_{doc_id}"):
+                        nuevos_docs = cargar_admin_docs()
+                        for x in nuevos_docs:
+                            if str(x.get("id")) == doc_id:
+                                x["evaluacion_publicada"] = not bool(x.get("evaluacion_publicada"))
+                                if not x.get("evaluacion_tipo"):
+                                    x["evaluacion_tipo"] = "Evaluación Especial"
+                                if not x.get("evaluacion_nombre"):
+                                    x["evaluacion_nombre"] = os.path.splitext(str(x.get("nombre") or "Evaluación"))[0]
+                                if not x.get("evaluacion_cantidad"):
+                                    x["evaluacion_cantidad"] = NUM_PREGUNTAS_QUIZ
+                                break
+                        guardar_admin_docs(nuevos_docs)
+                        st.rerun()
+                with c_d4:
                     if st.button("Eliminar", key=f"admin_delete_doc_{doc_id}"):
                         nuevos_docs = [
                             x for x in cargar_admin_docs() if str(x.get("id")) != doc_id
