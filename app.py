@@ -801,22 +801,37 @@ def guardar_admin_docs(docs: list[dict]) -> None:
 
 
 def obtener_evaluaciones_publicadas() -> list[dict]:
-    out: list[dict] = []
+    grupos: dict[str, dict] = {}
     for doc in cargar_admin_docs():
         if not doc.get("evaluacion_publicada"):
             continue
         temas_doc = [t for t in (doc.get("temas") or []) if t in temario.LISTA_TEMAS]
         if not temas_doc:
             continue
-        out.append(
-            {
-                "id": str(doc.get("id") or ""),
-                "nombre": str(doc.get("evaluacion_nombre") or doc.get("nombre") or "Evaluación"),
+        preguntas_doc = [q for q in (doc.get("preguntas_quiz") or []) if isinstance(q, dict)]
+        if not preguntas_doc:
+            continue
+        nombre_eval = str(doc.get("evaluacion_nombre") or doc.get("nombre") or "Evaluación").strip()
+        key = nombre_eval.lower()
+        if key not in grupos:
+            grupos[key] = {
+                "id": key,
+                "nombre": nombre_eval,
                 "tipo": str(doc.get("evaluacion_tipo") or "Evaluación"),
                 "cantidad": max(1, int(doc.get("evaluacion_cantidad") or NUM_PREGUNTAS_QUIZ)),
-                "temas": temas_doc,
+                "temas": list(temas_doc),
+                "modelos": [],
             }
-        )
+        else:
+            grupos[key]["cantidad"] = max(
+                int(grupos[key].get("cantidad") or NUM_PREGUNTAS_QUIZ),
+                int(doc.get("evaluacion_cantidad") or NUM_PREGUNTAS_QUIZ),
+            )
+            temas_union = set(grupos[key].get("temas") or [])
+            temas_union.update(temas_doc)
+            grupos[key]["temas"] = [t for t in temario.LISTA_TEMAS if t in temas_union]
+        grupos[key]["modelos"].append(doc)
+    out = sorted(grupos.values(), key=lambda x: str(x.get("nombre") or "").lower())
     return out
 
 
@@ -871,6 +886,7 @@ def generar_preguntas_quiz_desde_documento(
     REGLAS:
     - Devuelve ÚNICAMENTE un array JSON válido.
     - Genera {n} preguntas.
+    - Toma ejercicios del documento y conserva el enunciado lo más textual posible.
     - Cada pregunta debe tener exactamente 4 opciones: A), B), C), D).
     - "respuesta_correcta" debe coincidir literalmente con una opción.
     - Usa LaTeX en formato $...$ cuando aplique.
@@ -882,6 +898,7 @@ def generar_preguntas_quiz_desde_documento(
     [
       {{
         "tema": "Tema exacto",
+        "tipo_ejercicio": "tipo breve (ej. integral por partes, fracciones simples, área entre curvas, edo lineal)",
         "pregunta": "Enunciado",
         "opciones": ["A) ...", "B) ...", "C) ...", "D) ..."],
         "respuesta_correcta": "A) ...",
@@ -921,6 +938,7 @@ def generar_preguntas_quiz_desde_documento(
         out.append(
             {
                 "tema": tema_q,
+                "tipo_ejercicio": str(q.get("tipo_ejercicio") or "general").strip().lower(),
                 "pregunta": str(q.get("pregunta") or "").strip(),
                 "opciones": opciones_txt,
                 "respuesta_correcta": correcta,
@@ -928,6 +946,63 @@ def generar_preguntas_quiz_desde_documento(
             }
         )
     return out
+
+
+def construir_quiz_equivalente_desde_modelos(
+    modelos_docs: list[dict],
+    cantidad_total: int,
+    temas_permitidos: list[str],
+) -> list[dict]:
+    """
+    Si hay varios modelos de una misma evaluación, crea una versión equivalente:
+    respeta cantidad y distribuye tipos de ejercicio del modelo base de forma aleatoria.
+    """
+    import random
+
+    modelos_validos: list[list[dict]] = []
+    for d in modelos_docs:
+        qs = []
+        for q in (d.get("preguntas_quiz") or []):
+            if not isinstance(q, dict):
+                continue
+            tq = temario.normalizar_tema_curso(q.get("tema"))
+            if tq and tq in temas_permitidos:
+                qs.append(q)
+        if qs:
+            modelos_validos.append(qs)
+    if not modelos_validos:
+        return []
+
+    base = random.choice(modelos_validos)
+    random.shuffle(base)
+    base = base[:cantidad_total]
+
+    tipo_counts: dict[str, int] = {}
+    for q in base:
+        t = str(q.get("tipo_ejercicio") or "general").strip().lower()
+        tipo_counts[t] = tipo_counts.get(t, 0) + 1
+
+    pool_por_tipo: dict[str, list[dict]] = {}
+    pool_general: list[dict] = []
+    for qs in modelos_validos:
+        for q in qs:
+            t = str(q.get("tipo_ejercicio") or "general").strip().lower()
+            pool_por_tipo.setdefault(t, []).append(q)
+            pool_general.append(q)
+
+    quiz: list[dict] = []
+    for tipo, n in tipo_counts.items():
+        candidatos = list(pool_por_tipo.get(tipo) or [])
+        random.shuffle(candidatos)
+        quiz.extend(candidatos[:n])
+
+    if len(quiz) < cantidad_total:
+        resto = [q for q in pool_general if q not in quiz]
+        random.shuffle(resto)
+        quiz.extend(resto[: (cantidad_total - len(quiz))])
+
+    random.shuffle(quiz)
+    return quiz[:cantidad_total]
 
 # --- 2. GESTIÓN DE ESTADO ---
 if "quiz_activo" not in st.session_state: st.session_state.quiz_activo = False
@@ -947,6 +1022,7 @@ if "historial_tutor_abierto" not in st.session_state: st.session_state.historial
 if "manuscrito_correccion" not in st.session_state: st.session_state.manuscrito_correccion = None
 if "admin_auth_ok" not in st.session_state: st.session_state.admin_auth_ok = False
 if "quiz_temas_custom_widget" not in st.session_state: st.session_state.quiz_temas_custom_widget = []
+if "quiz_eval_group_id" not in st.session_state: st.session_state.quiz_eval_group_id = None
 
 # --- 3. INTERFAZ PRINCIPAL ---
 ruta, tema_actual = interfaz.mostrar_sidebar()
@@ -1297,7 +1373,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 st.session_state.quiz_modalidad = "primer_parcial"
                 st.session_state.config_temas = temario.TEMAS_PARCIAL_1
                 st.session_state.config_cant = NUM_PREGUNTAS_QUIZ 
-                st.session_state.quiz_doc_eval_id = None
+                st.session_state.quiz_eval_group_id = None
                 st.session_state.trigger_quiz = True
                 st.rerun()
         with col2:
@@ -1305,7 +1381,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 st.session_state.quiz_modalidad = "segundo_parcial"
                 st.session_state.config_temas = temario.TEMAS_PARCIAL_2
                 st.session_state.config_cant = NUM_PREGUNTAS_QUIZ
-                st.session_state.quiz_doc_eval_id = None
+                st.session_state.quiz_eval_group_id = None
                 st.session_state.trigger_quiz = True
                 st.rerun()
 
@@ -1315,12 +1391,14 @@ elif ruta == "c) Autoevaluación (Quiz)":
             cols_eval = st.columns(2)
             for idx, ev in enumerate(evaluaciones_publicadas):
                 with cols_eval[idx % 2]:
-                    etiqueta = f"🧾 Generar {ev['tipo']}: {ev['nombre']}"
+                    n_modelos = len(ev.get("modelos") or [])
+                    suf = f" · {n_modelos} modelo(s)" if n_modelos > 1 else ""
+                    etiqueta = f"🧾 Generar {ev['tipo']}: {ev['nombre']}{suf}"
                     if st.button(etiqueta, key=f"btn_eval_pub_{ev['id']}", use_container_width=True):
                         st.session_state.quiz_modalidad = f"evaluacion_publicada_{ev['id']}"
                         st.session_state.config_temas = ev["temas"]
                         st.session_state.config_cant = ev["cantidad"]
-                        st.session_state.quiz_doc_eval_id = ev["id"]
+                        st.session_state.quiz_eval_group_id = ev["id"]
                         st.session_state.trigger_quiz = True
                         st.rerun()
 
@@ -1358,7 +1436,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.session_state.quiz_modalidad = "personalizado"
                     st.session_state.config_temas = temas_custom
                     st.session_state.config_cant = NUM_PREGUNTAS_QUIZ
-                    st.session_state.quiz_doc_eval_id = None
+                    st.session_state.quiz_eval_group_id = None
                     st.session_state.trigger_quiz = True
                     st.rerun()
 
@@ -1371,22 +1449,22 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     lista_final_preguntas = []
                     cantidad_total = st.session_state.config_cant
                     temas = st.session_state.config_temas
-                    doc_eval_id = st.session_state.get("quiz_doc_eval_id")
-                    doc_eval = None
-                    if doc_eval_id:
-                        for d in cargar_admin_docs():
-                            if str(d.get("id")) == str(doc_eval_id):
-                                doc_eval = d
+                    eval_group_id = st.session_state.get("quiz_eval_group_id")
+                    eval_group = None
+                    if eval_group_id:
+                        for ev in obtener_evaluaciones_publicadas():
+                            if str(ev.get("id")) == str(eval_group_id):
+                                eval_group = ev
                                 break
 
                     # 0. Banco auxiliar desde PDFs curados por administración
                     preguntas_docs: list[dict] = []
-                    if doc_eval:
-                        for q in (doc_eval.get("preguntas_quiz") or []):
-                            if isinstance(q, dict):
-                                tq = temario.normalizar_tema_curso(q.get("tema"))
-                                if tq and tq in temas:
-                                    preguntas_docs.append(q)
+                    if eval_group:
+                        preguntas_docs = construir_quiz_equivalente_desde_modelos(
+                            modelos_docs=list(eval_group.get("modelos") or []),
+                            cantidad_total=cantidad_total,
+                            temas_permitidos=temas,
+                        )
                     else:
                         for doc in cargar_admin_docs():
                             if not doc.get("activo_quiz"):
@@ -1400,7 +1478,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                                     if tq and tq in temas:
                                         preguntas_docs.append(q)
                     random.shuffle(preguntas_docs)
-                    if doc_eval:
+                    if eval_group:
                         cuota_docs = min(cantidad_total, len(preguntas_docs))
                     else:
                         cuota_docs = min(max(1, cantidad_total // 3), len(preguntas_docs)) if preguntas_docs else 0
@@ -1439,7 +1517,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                         st.session_state.respuestas_usuario = []
                         st.session_state.quiz_activo = True
                         st.session_state.trigger_quiz = False
-                        st.session_state.quiz_doc_eval_id = None
+                        st.session_state.quiz_eval_group_id = None
                         quiz_generado = True
                         uso_stats.registrar_uso(
                             "Quiz",
