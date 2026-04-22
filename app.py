@@ -750,7 +750,17 @@ def generar_pdf_informe_quiz(
         pdf.cell(0, 4, "Comentario: " + _sanitizar_para_pdf(r.get("explicacion", "")), ln=True)
         pdf.ln(2)
     out = pdf.output()
-    return bytes(out) if not isinstance(out, bytes) else out
+    if isinstance(out, bytes):
+        return out
+    if isinstance(out, bytearray):
+        return bytes(out)
+    if isinstance(out, str):
+        # Compatibilidad con implementaciones que devuelven string binario latin-1.
+        return out.encode("latin-1", errors="replace")
+    try:
+        return bytes(out)
+    except Exception:
+        return str(out).encode("latin-1", errors="replace")
 
 
 def extraer_texto_pdf(archivo_pdf: Any, max_chars: int = 30000) -> str:
@@ -1412,7 +1422,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
 
         evaluaciones_publicadas = obtener_evaluaciones_publicadas()
         if evaluaciones_publicadas:
-            st.markdown("#### 📄 Evaluaciones publicadas por Administración")
+            st.markdown("#### 📄 Repasa con tus evaluaciones recientes")
             cols_eval = st.columns(2)
             for idx, ev in enumerate(evaluaciones_publicadas):
                 with cols_eval[idx % 2]:
