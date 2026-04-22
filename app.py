@@ -887,6 +887,7 @@ def generar_preguntas_quiz_desde_documento(
     - Devuelve ÚNICAMENTE un array JSON válido.
     - Genera {n} preguntas.
     - Toma ejercicios del documento y conserva el enunciado lo más textual posible.
+    - Conserva el orden del documento en el campo "orden_documento" (1, 2, 3, ...).
     - Cada pregunta debe tener exactamente 4 opciones: A), B), C), D).
     - "respuesta_correcta" debe coincidir literalmente con una opción.
     - Usa LaTeX en formato $...$ cuando aplique.
@@ -897,6 +898,7 @@ def generar_preguntas_quiz_desde_documento(
     FORMATO:
     [
       {{
+        "orden_documento": 1,
         "tema": "Tema exacto",
         "tipo_ejercicio": "tipo breve (ej. integral por partes, fracciones simples, área entre curvas, edo lineal)",
         "pregunta": "Enunciado",
@@ -918,7 +920,7 @@ def generar_preguntas_quiz_desde_documento(
 
     out: list[dict] = []
     temas_validos = set(temario.LISTA_TEMAS)
-    for q in data:
+    for i, q in enumerate(data, start=1):
         if not isinstance(q, dict):
             continue
         tema_q = temario.normalizar_tema_curso(q.get("tema"))
@@ -937,6 +939,7 @@ def generar_preguntas_quiz_desde_documento(
             continue
         out.append(
             {
+                "orden_documento": int(q.get("orden_documento") or i),
                 "tema": tema_q,
                 "tipo_ejercicio": str(q.get("tipo_ejercicio") or "general").strip().lower(),
                 "pregunta": str(q.get("pregunta") or "").strip(),
@@ -945,17 +948,17 @@ def generar_preguntas_quiz_desde_documento(
                 "explicacion": str(q.get("explicacion") or "").strip(),
             }
         )
+    out = sorted(out, key=lambda x: int(x.get("orden_documento") or 9999))
     return out
 
 
 def construir_quiz_equivalente_desde_modelos(
     modelos_docs: list[dict],
-    cantidad_total: int,
     temas_permitidos: list[str],
 ) -> list[dict]:
     """
-    Si hay varios modelos de una misma evaluación, crea una versión equivalente:
-    respeta cantidad y distribuye tipos de ejercicio del modelo base de forma aleatoria.
+    Si hay varios modelos de una misma evaluación, crea una versión equivalente
+    respetando la estructura del modelo base: misma cantidad, orden y distribución por tipo.
     """
     import random
 
@@ -973,36 +976,58 @@ def construir_quiz_equivalente_desde_modelos(
     if not modelos_validos:
         return []
 
-    base = random.choice(modelos_validos)
-    random.shuffle(base)
-    base = base[:cantidad_total]
-
-    tipo_counts: dict[str, int] = {}
-    for q in base:
-        t = str(q.get("tipo_ejercicio") or "general").strip().lower()
-        tipo_counts[t] = tipo_counts.get(t, 0) + 1
+    base = list(random.choice(modelos_validos))
+    base = sorted(base, key=lambda q: int(q.get("orden_documento") or 9999))
 
     pool_por_tipo: dict[str, list[dict]] = {}
-    pool_general: list[dict] = []
     for qs in modelos_validos:
         for q in qs:
             t = str(q.get("tipo_ejercicio") or "general").strip().lower()
             pool_por_tipo.setdefault(t, []).append(q)
-            pool_general.append(q)
 
+    usados: set[str] = set()
     quiz: list[dict] = []
-    for tipo, n in tipo_counts.items():
-        candidatos = list(pool_por_tipo.get(tipo) or [])
-        random.shuffle(candidatos)
-        quiz.extend(candidatos[:n])
+    for idx, q_base in enumerate(base, start=1):
+        tipo_slot = str(q_base.get("tipo_ejercicio") or "general").strip().lower()
+        tema_slot = temario.normalizar_tema_curso(q_base.get("tema"))
+        candidatos = []
+        for q in pool_por_tipo.get(tipo_slot, []):
+            tema_q = temario.normalizar_tema_curso(q.get("tema"))
+            if tema_slot and tema_q != tema_slot:
+                continue
+            sig = json.dumps(
+                {
+                    "tema": tema_q,
+                    "pregunta": q.get("pregunta"),
+                    "respuesta_correcta": q.get("respuesta_correcta"),
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            if sig in usados:
+                continue
+            candidatos.append((q, sig))
 
-    if len(quiz) < cantidad_total:
-        resto = [q for q in pool_general if q not in quiz]
-        random.shuffle(resto)
-        quiz.extend(resto[: (cantidad_total - len(quiz))])
+        if not candidatos:
+            q_sel = dict(q_base)
+            sig_sel = json.dumps(
+                {
+                    "tema": tema_slot,
+                    "pregunta": q_sel.get("pregunta"),
+                    "respuesta_correcta": q_sel.get("respuesta_correcta"),
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        else:
+            q_sel, sig_sel = random.choice(candidatos)
+            q_sel = dict(q_sel)
 
-    random.shuffle(quiz)
-    return quiz[:cantidad_total]
+        usados.add(sig_sel)
+        q_sel["orden_documento"] = idx
+        quiz.append(q_sel)
+
+    return quiz
 
 # --- 2. GESTIÓN DE ESTADO ---
 if "quiz_activo" not in st.session_state: st.session_state.quiz_activo = False
@@ -1462,7 +1487,6 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     if eval_group:
                         preguntas_docs = construir_quiz_equivalente_desde_modelos(
                             modelos_docs=list(eval_group.get("modelos") or []),
-                            cantidad_total=cantidad_total,
                             temas_permitidos=temas,
                         )
                     else:
@@ -1479,6 +1503,9 @@ elif ruta == "c) Autoevaluación (Quiz)":
                                         preguntas_docs.append(q)
                     random.shuffle(preguntas_docs)
                     if eval_group:
+                        # Evaluación publicada: se respeta la cantidad del modelo/documento.
+                        cantidad_total = len(preguntas_docs) if preguntas_docs else cantidad_total
+                        st.session_state.config_cant = cantidad_total
                         cuota_docs = min(cantidad_total, len(preguntas_docs))
                     else:
                         cuota_docs = min(max(1, cantidad_total // 3), len(preguntas_docs)) if preguntas_docs else 0
@@ -1897,6 +1924,9 @@ elif ruta == "f) Administrador (Métricas)":
         step=1,
         key="admin_cantidad_eval_pub",
     )
+    st.caption(
+        "La cantidad final publicada se ajusta al número de ítems detectados en el documento/modelo."
+    )
     docs_pdf = st.file_uploader(
         "Cargar documentos PDF",
         type=["pdf"],
@@ -1914,6 +1944,11 @@ elif ruta == "f) Administrador (Métricas)":
                 if not texto_pdf:
                     continue
                 temas_detectados = detectar_temas_desde_pdf(texto_pdf[:12000])
+                preguntas_generadas = generar_preguntas_quiz_desde_documento(
+                    texto_pdf=texto_pdf[:12000],
+                    temas_detectados=temas_detectados,
+                    cantidad=max(4, int(cantidad_eval)),
+                )
                 registro = {
                     "id": f"{int(time.time())}_{len(almacenados)+1}",
                     "nombre": archivo.name,
@@ -1922,15 +1957,11 @@ elif ruta == "f) Administrador (Métricas)":
                     "temas": temas_detectados,
                     "activo_quiz": True,
                     "extracto": texto_pdf[:1500],
-                    "preguntas_quiz": generar_preguntas_quiz_desde_documento(
-                        texto_pdf=texto_pdf[:12000],
-                        temas_detectados=temas_detectados,
-                        cantidad=max(4, int(cantidad_eval)),
-                    ),
+                    "preguntas_quiz": preguntas_generadas,
                     "evaluacion_publicada": bool(publicar_en_autoeval),
                     "evaluacion_tipo": tipo_evaluacion,
                     "evaluacion_nombre": os.path.splitext(archivo.name)[0],
-                    "evaluacion_cantidad": int(cantidad_eval),
+                    "evaluacion_cantidad": len(preguntas_generadas),
                 }
                 almacenados.insert(0, registro)
                 nuevos += 1
