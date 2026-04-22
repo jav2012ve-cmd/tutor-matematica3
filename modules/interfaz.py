@@ -68,7 +68,8 @@ def mostrar_sidebar():
              "c) Autoevaluación (Quiz)",
              "d) Tutor: Preguntas Abiertas",
              "e) Corrección de Manuscritos",
-             "f) Administrador (Métricas)"],
+             "f) Sube tu examen en PDF",
+             "g) Administrador (Métricas)"],
             index=None,
             key="radio_seleccion"
         )
@@ -118,7 +119,8 @@ def mostrar_sidebar():
             **c) Autoevaluación:** Simulacro de parcial (Primer, Segundo o temas personalizados).  
             **d) Tutor abierto:** Chat sobre teoría y ejercicios de la cátedra.  
             **e) Corrección de Manuscritos:** Sube tu resolución escrita; la app identifica el enunciado, valora tu solución y sugiere ajustes.
-            **f) Administrador:** Métricas globales de uso (módulos, temas y eventos recientes).
+            **f) Sube tu examen en PDF:** Carga un examen en PDF y obtén la resolución de todos los planteamientos detectados.
+            **g) Administrador:** Métricas globales de uso (módulos, temas y eventos recientes).
             """)
 
         with st.expander("📊 Uso de la app"):
@@ -187,6 +189,8 @@ def mostrar_bienvenida():
             <li><strong>c) Autoevaluación:</strong> Simulacro de parcial (Primer, Segundo o temas personalizados).</li>
             <li><strong>d) Tutor Preguntas Abiertas:</strong> Chat sobre teoría y ejercicios de la cátedra.</li>
             <li><strong>e) Corrección de Manuscritos:</strong> Sube tu resolución escrita; la app identifica el enunciado, valora tu solución (correcto / parcial / incorrecto) y sugiere ajustes.</li>
+            <li><strong>f) Sube tu examen en PDF:</strong> Carga un examen completo en PDF y obtén la resolución de los planteamientos detectados.</li>
+            <li><strong>g) Administrador:</strong> Métricas globales de uso y eventos recientes (acceso restringido).</li>
         </ul>
         <p style="color: #0066cc;">Dos pilares del curso: <strong>Cálculo Integral</strong> (métodos de integración, excedentes, áreas, volúmenes) y <strong>Ecuaciones Diferenciales</strong> (primer orden, orden superior, modelos económicos).</p>
     </div>

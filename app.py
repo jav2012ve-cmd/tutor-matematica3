@@ -9,6 +9,7 @@ from typing import Any, List, Optional, Union
 
 import streamlit as st
 from PIL import Image
+from pypdf import PdfReader
 
 # Asegura que la carpeta `modules/` esté en `sys.path` aunque Streamlit Cloud
 # ejecute desde una ubicación distinta (o "App location" no sea la raíz del repo).
@@ -744,6 +745,80 @@ def generar_pdf_informe_quiz(
     out = pdf.output()
     return bytes(out) if not isinstance(out, bytes) else out
 
+
+def extraer_texto_pdf(archivo_pdf: Any, max_chars: int = 30000) -> str:
+    """
+    Extrae texto de un PDF usando pypdf.
+    Limita tamaño para evitar prompts excesivos.
+    """
+    try:
+        reader = PdfReader(archivo_pdf)
+        partes: list[str] = []
+        for i, pagina in enumerate(reader.pages, start=1):
+            texto = (pagina.extract_text() or "").strip()
+            if texto:
+                partes.append(f"[Página {i}]\n{texto}")
+        unido = "\n\n".join(partes).strip()
+        if len(unido) > max_chars:
+            return unido[:max_chars]
+        return unido
+    except Exception:
+        return ""
+
+
+def resolver_examen_desde_texto_pdf(texto_pdf: str) -> Optional[list[dict]]:
+    """
+    Analiza texto de examen y devuelve lista de soluciones por planteamiento.
+    """
+    if not texto_pdf.strip():
+        return None
+
+    lista_txt = _bloque_lista_temas_oficial()
+    prompt = f"""
+    Eres profesor de Matemáticas III (Economía, UCAB).
+
+    Te daré el texto extraído de un examen en PDF.
+    Tu tarea es:
+    1) Identificar TODOS los planteamientos matemáticos que aparezcan.
+    2) Resolver cada uno con claridad.
+    3) Entregar una lista JSON con una entrada por planteamiento.
+
+    REGLAS:
+    - Responde ÚNICAMENTE JSON válido (sin markdown).
+    - Si el examen no tiene problemas resolubles, devuelve [].
+    - Usa LaTeX en texto cuando aplique (ej. \\int, \\frac, \\ln), sin envolver TODO en $$.
+    - Si hay numeración visible (1, 2, a, b...), consérvala en "id_planteamiento".
+    - Si no hay numeración, usa "Problema 1", "Problema 2", etc.
+    - Tema cátedra: usa un texto EXACTO de la lista oficial o null.
+
+    Lista oficial de temas:
+{lista_txt}
+
+    Estructura de salida (lista):
+    [
+      {{
+        "id_planteamiento": "1",
+        "tema_catedra": "<texto exacto de la lista oficial>" | null,
+        "planteamiento": "enunciado identificado",
+        "solucion_paso_a_paso": [
+          "paso 1",
+          "paso 2"
+        ],
+        "respuesta_final": "resultado final"
+      }}
+    ]
+
+    Texto del PDF:
+    {texto_pdf}
+    """
+    response = generar_contenido_seguro(prompt)
+    if not response:
+        return None
+    data = limpiar_json(response.text)
+    if isinstance(data, list):
+        return data
+    return None
+
 # --- 2. GESTIÓN DE ESTADO ---
 if "quiz_activo" not in st.session_state: st.session_state.quiz_activo = False
 if "preguntas_quiz" not in st.session_state: st.session_state.preguntas_quiz = []
@@ -761,6 +836,7 @@ if "historial_tutor_abierto" not in st.session_state: st.session_state.historial
 # Estado E: Corrección de Manuscritos
 if "manuscrito_correccion" not in st.session_state: st.session_state.manuscrito_correccion = None
 if "admin_auth_ok" not in st.session_state: st.session_state.admin_auth_ok = False
+if "pdf_examen_resultados" not in st.session_state: st.session_state.pdf_examen_resultados = None
 
 # --- 3. INTERFAZ PRINCIPAL ---
 ruta, tema_actual = interfaz.mostrar_sidebar()
@@ -1347,6 +1423,13 @@ elif ruta == "c) Autoevaluación (Quiz)":
 # =======================================================
 elif ruta == "d) Tutor: Preguntas Abiertas":
     st.markdown("### 💬 Preguntas Abiertas al Tutor")
+    with st.form("form_pregunta_abierta", clear_on_submit=True):
+        prompt = st.text_input(
+            "Escribe tu pregunta",
+            placeholder="Ej. Puedes pedir un resumen o una explicación corta de cualquier tema a partir de ejercicios del profesor.",
+        )
+        enviar_pregunta = st.form_submit_button("Enviar pregunta", use_container_width=True)
+
     st.markdown("""
     Haz cualquier pregunta teórica. El tutor te responderá **vinculando la teoría con
     los ejercicios y estilos de examen** de nuestra cátedra.
@@ -1359,7 +1442,8 @@ elif ruta == "d) Tutor: Preguntas Abiertas":
         with st.chat_message(mensaje["role"]):
             st.markdown(mensaje["content"])
 
-    if prompt := st.chat_input("Ej. puedes preguntar por resumen o explicación corta de cualquier tema a partir de las ejercicios del profesor"):
+    if enviar_pregunta and prompt.strip():
+        prompt = prompt.strip()
         with st.spinner("Clasificando tema para estadísticas…"):
             _tema_stats = clasificar_tema_desde_texto(prompt)
         uso_stats.registrar_uso(
@@ -1479,9 +1563,85 @@ elif ruta == "e) Corrección de Manuscritos":
             st.rerun()
 
 # =======================================================
-# LÓGICA F: ADMINISTRADOR (MÉTRICAS)
+# LÓGICA F: SUBE TU EXAMEN EN PDF
 # =======================================================
-elif ruta == "f) Administrador (Métricas)":
+elif ruta == "f) Sube tu examen en PDF":
+    st.markdown("### 📚 Sube tu examen en PDF")
+    st.info(
+        "Carga un examen en PDF para identificar y resolver automáticamente todos los planteamientos detectados."
+    )
+
+    archivo_examen_pdf = st.file_uploader(
+        "📎 Sube tu examen (PDF)",
+        type=["pdf"],
+        key="upload_examen_pdf",
+    )
+
+    if archivo_examen_pdf:
+        st.caption(f"Archivo cargado: `{archivo_examen_pdf.name}`")
+        if st.button("🧠 Resolver planteamientos del examen", type="primary", use_container_width=True):
+            with st.spinner("Extrayendo texto y resolviendo planteamientos..."):
+                texto_pdf = extraer_texto_pdf(archivo_examen_pdf)
+                if not texto_pdf:
+                    st.error(
+                        "No se pudo extraer texto del PDF. Si es escaneado como imagen, prueba con una versión con texto seleccionable."
+                    )
+                else:
+                    resultados_pdf = resolver_examen_desde_texto_pdf(texto_pdf)
+                    if resultados_pdf is None:
+                        st.error("No se pudo interpretar la respuesta de la IA. Intenta nuevamente.")
+                    else:
+                        st.session_state.pdf_examen_resultados = resultados_pdf
+                        temas_detectados = [
+                            str(x.get("tema_catedra") or "").strip()
+                            for x in resultados_pdf
+                            if isinstance(x, dict) and x.get("tema_catedra")
+                        ]
+                        uso_stats.registrar_uso(
+                            "Sube tu examen en PDF",
+                            detalle={
+                                "archivo": archivo_examen_pdf.name,
+                                "num_planteamientos": len(resultados_pdf),
+                                "temas_detectados": temas_detectados[:20],
+                            },
+                        )
+                        st.rerun()
+
+    resultados = st.session_state.get("pdf_examen_resultados")
+    if resultados is not None:
+        if not resultados:
+            st.warning("No se detectaron planteamientos resolubles en el PDF cargado.")
+        else:
+            st.success(f"Se detectaron y resolvieron **{len(resultados)}** planteamientos.")
+            for i, item in enumerate(resultados, start=1):
+                if not isinstance(item, dict):
+                    continue
+                id_pl = str(item.get("id_planteamiento") or f"Problema {i}")
+                tema_pl = temario.normalizar_tema_curso(item.get("tema_catedra"))
+                with st.expander(f"Planteamiento {i}: {id_pl}", expanded=(i == 1)):
+                    if tema_pl:
+                        st.caption(f"📌 Tema cátedra: `{tema_pl}`")
+                    st.markdown("**Enunciado**")
+                    _render_texto_con_latex(str(item.get("planteamiento") or ""))
+
+                    pasos = item.get("solucion_paso_a_paso") or []
+                    if pasos:
+                        st.markdown("**Resolución paso a paso**")
+                        for paso in pasos:
+                            st.markdown("- " + preparar_latex_para_streamlit(str(paso)))
+
+                    st.markdown("**Respuesta final**")
+                    _render_texto_con_latex(str(item.get("respuesta_final") or ""))
+
+            st.divider()
+            if st.button("🔄 Cargar otro examen PDF", key="btn_nuevo_pdf_examen"):
+                st.session_state.pdf_examen_resultados = None
+                st.rerun()
+
+# =======================================================
+# LÓGICA G: ADMINISTRADOR (MÉTRICAS)
+# =======================================================
+elif ruta == "g) Administrador (Métricas)":
     st.markdown("### 🛠️ Panel de Administrador")
     if not st.session_state.get("admin_auth_ok", False):
         st.warning("🔐 Acceso restringido: inicia sesión como administrador.")
