@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import time
+import unicodedata
 from typing import Any, List, Optional, Union
 
 import streamlit as st
@@ -299,6 +300,19 @@ def _normalizar_texto_match(s: Any) -> str:
     return t.strip()
 
 
+def _normalizar_texto_compacto(s: Any) -> str:
+    t = _normalizar_texto_match(s)
+    if not t:
+        return ""
+    # Quita tildes para detección robusta OCR/pegado.
+    t = "".join(
+        ch for ch in unicodedata.normalize("NFD", t)
+        if unicodedata.category(ch) != "Mn"
+    )
+    t = re.sub(r"\s+", "", t)
+    return t
+
+
 def _tokens_match(s: Any) -> set[str]:
     base = _normalizar_texto_match(s)
     toks = re.findall(r"[a-z0-9]+", base)
@@ -311,12 +325,30 @@ def _tokens_match(s: Any) -> set[str]:
     return out
 
 
+def _inferir_tema_grafico_desde_texto(texto: Optional[str]) -> Optional[str]:
+    s = _normalizar_texto_match(texto)
+    sc = _normalizar_texto_compacto(texto)
+    if not s:
+        return None
+    if ("excedente" in s) or ("excedente" in sc) or ("oferta" in s and "demanda" in s):
+        return "1.2.3 Excedentes del consumidor y productor"
+    if ("oferta" in sc and "demanda" in sc):
+        return "1.2.3 Excedentes del consumidor y productor"
+    if ("area entre" in s) or ("área entre" in s) or ("areaentre" in sc):
+        return "1.2.2 Áreas entre curvas"
+    if ("curva" in s and "intersecci" in s) or ("curvas" in sc and "intersecci" in sc):
+        return "1.2.2 Áreas entre curvas"
+    return None
+
+
 def _buscar_ejemplo_banco_con_grafico(tema: Optional[str], texto: Optional[str]) -> Optional[dict]:
     """
     Retorna un ejercicio del banco que tenga `grafico` para usar como apoyo visual
     en modos fuera de Entrenamiento (Respuesta Guiada / Tutor Abierto).
     """
     tema_n = temario.normalizar_tema_curso(tema)
+    if not tema_n:
+        tema_n = _inferir_tema_grafico_desde_texto(texto)
     if not tema_n or not temario.tema_admite_grafico_plotly_entrenamiento(tema_n):
         return None
 
@@ -352,6 +384,8 @@ def _mostrar_apoyo_grafico_referencia(
 ) -> None:
     ej = _buscar_ejemplo_banco_con_grafico(tema, texto_referencia)
     if not ej:
+        # Transparencia para depurar casos donde la IA no devuelve tema útil.
+        st.caption("_No se encontró referencia gráfica compatible para este enunciado._")
         return
     spec = ej.get("grafico")
     try:
@@ -364,6 +398,24 @@ def _mostrar_apoyo_grafico_referencia(
         st.plotly_chart(fig, use_container_width=True)
     except Exception:
         st.caption("_No se pudo generar la figura de referencia para este caso._")
+
+
+def _render_enunciado_identificado(texto: Optional[str]) -> None:
+    """
+    Enunciado de Respuesta Guiada: prioriza texto legible cuando OCR pega palabras.
+    Si viene como fórmula pura, conserva render matemático.
+    """
+    raw = str(texto or "").strip()
+    if not raw:
+        return
+
+    # Si es texto predominantemente natural (3+ palabras), evitamos forzarlo como bloque LaTeX.
+    palabras = re.findall(r"[A-Za-zÁÉÍÓÚáéíóúÑñ]{3,}", raw)
+    if len(palabras) >= 3:
+        st.markdown(preparar_latex_para_streamlit(raw.replace("$", "")))
+        return
+
+    _render_texto_con_latex(mostrar_como_formula_si_corresponde(raw))
 
 
 def clasificar_tema_desde_texto(texto_usuario: str) -> Optional[str]:
@@ -1403,7 +1455,21 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
         st.markdown(f"**Tema Detectado:** `{datos.get('tema_detectado', 'Matemáticas')}`")
         if datos.get('enunciado_latex'):
             st.markdown("**Problema Identificado:**")
-            st.markdown(latex_display_puro(datos['enunciado_latex']))
+            _render_enunciado_identificado(datos.get("enunciado_latex"))
+            _mostrar_apoyo_grafico_referencia(
+                tema=datos.get("tema_detectado"),
+                texto_referencia=" ".join(
+                    [
+                        str(datos.get("tema_detectado") or ""),
+                        str(datos.get("enunciado_latex") or ""),
+                    ]
+                ),
+                titulo="Apoyo gráfico — referencia inicial",
+                caption=(
+                    "Vista previa para problemas de áreas/excedentes. "
+                    "En el Paso 2 se mantiene este apoyo para validar el planteamiento."
+                ),
+            )
         
         # PASO 1: Identificar Técnica/Tipo o Planteamiento
         if step == 1:
@@ -1445,7 +1511,14 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
             _render_texto_con_latex(datos.get("paso_intermedio"))
             _mostrar_apoyo_grafico_referencia(
                 tema=datos.get("tema_detectado"),
-                texto_referencia=datos.get("enunciado_latex"),
+                texto_referencia=" ".join(
+                    [
+                        str(datos.get("tema_detectado") or ""),
+                        str(datos.get("enunciado_latex") or ""),
+                        str(datos.get("feedback_estrategia") or ""),
+                        str(datos.get("paso_intermedio") or ""),
+                    ]
+                ),
                 titulo="Apoyo gráfico — valida tu planteamiento",
                 caption=(
                     "Visual de referencia desde el banco para este tipo de problema "
