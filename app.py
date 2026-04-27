@@ -291,6 +291,81 @@ def _bloque_lista_temas_oficial() -> str:
     return "\n".join(f"  - {t}" for t in temario.LISTA_TEMAS)
 
 
+def _normalizar_texto_match(s: Any) -> str:
+    t = str(s or "").lower()
+    t = t.replace("\\", " ")
+    t = re.sub(r"\$+", " ", t)
+    t = re.sub(r"\s+", " ", t)
+    return t.strip()
+
+
+def _tokens_match(s: Any) -> set[str]:
+    base = _normalizar_texto_match(s)
+    toks = re.findall(r"[a-z0-9]+", base)
+    stop = {
+        "calcule", "calcular", "resuelva", "evalua", "evaluar", "integral", "area",
+        "entre", "curvas", "ecuacion", "diferencial", "de", "la", "el", "los",
+        "las", "con", "para", "por", "del", "en", "y", "o",
+    }
+    out = {t for t in toks if len(t) >= 2 and t not in stop}
+    return out
+
+
+def _buscar_ejemplo_banco_con_grafico(tema: Optional[str], texto: Optional[str]) -> Optional[dict]:
+    """
+    Retorna un ejercicio del banco que tenga `grafico` para usar como apoyo visual
+    en modos fuera de Entrenamiento (Respuesta Guiada / Tutor Abierto).
+    """
+    tema_n = temario.normalizar_tema_curso(tema)
+    if not tema_n or not temario.tema_admite_grafico_plotly_entrenamiento(tema_n):
+        return None
+
+    candidatos = [
+        e for e in banco_preguntas.BANCO_FIXED
+        if str(e.get("tema")) == tema_n and isinstance(e.get("grafico"), dict)
+    ]
+    if not candidatos:
+        return None
+
+    q_tokens = _tokens_match(texto)
+    if not q_tokens:
+        return candidatos[0]
+
+    mejor = None
+    mejor_score = -1
+    for c in candidatos:
+        ref = " ".join([str(c.get("pregunta", "")), str(c.get("explicacion", ""))])
+        c_tokens = _tokens_match(ref)
+        score = len(q_tokens.intersection(c_tokens))
+        if score > mejor_score:
+            mejor_score = score
+            mejor = c
+    return mejor or candidatos[0]
+
+
+def _mostrar_apoyo_grafico_referencia(
+    *,
+    tema: Optional[str],
+    texto_referencia: Optional[str],
+    titulo: str = "Apoyo gráfico — referencia del banco",
+    caption: str = "",
+) -> None:
+    ej = _buscar_ejemplo_banco_con_grafico(tema, texto_referencia)
+    if not ej:
+        return
+    spec = ej.get("grafico")
+    try:
+        fig = graficos_entrenamiento.figura_desde_spec(spec)
+        if fig is None:
+            return
+        st.subheader(titulo)
+        if caption:
+            st.caption(caption)
+        st.plotly_chart(fig, use_container_width=True)
+    except Exception:
+        st.caption("_No se pudo generar la figura de referencia para este caso._")
+
+
 def clasificar_tema_desde_texto(texto_usuario: str) -> Optional[str]:
     """
     Pide a la IA que elija un tema de LISTA_TEMAS alineado a la consulta (estadísticas).
@@ -1367,7 +1442,16 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
             st.subheader("2️⃣ Paso 2: Desarrollo")
             st.write("Aplicando la técnica, deberías llegar a esta expresión intermedia:")
             
-            st.latex(_limpiar_para_st_latex(datos["paso_intermedio"]))
+            _render_texto_con_latex(datos.get("paso_intermedio"))
+            _mostrar_apoyo_grafico_referencia(
+                tema=datos.get("tema_detectado"),
+                texto_referencia=datos.get("enunciado_latex"),
+                titulo="Apoyo gráfico — valida tu planteamiento",
+                caption=(
+                    "Visual de referencia desde el banco para este tipo de problema "
+                    "(áreas/excedentes), análogo al apoyo usado en Entrenamiento."
+                ),
+            )
             
             c1, c2 = st.columns(2)
             if c1.button("👍 Llegué a eso"):
@@ -1385,7 +1469,7 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
             st.subheader("3️⃣ Solución Final")
             
             st.success("✅ Resultado final:")
-            st.latex(_limpiar_para_st_latex(datos["resultado_final"]))
+            _render_texto_con_latex(datos.get("resultado_final"))
             
             st.balloons()
             if st.button("🏁 Terminar ejercicio"):
@@ -1778,6 +1862,16 @@ elif ruta == "d) Tutor: Preguntas Abiertas":
                 historial_texto = "\n".join([f"{m['role']}: {m['content']}" for m in ultimos])
                 respuesta_tutor = generar_respuesta_tutor_abierto(prompt, historial_texto)
                 st.markdown(respuesta_tutor)
+                if _tema_stats and temario.tema_admite_grafico_plotly_entrenamiento(_tema_stats):
+                    _mostrar_apoyo_grafico_referencia(
+                        tema=_tema_stats,
+                        texto_referencia=prompt,
+                        titulo="Apoyo gráfico del tema consultado",
+                        caption=(
+                            "Figura de referencia del banco para reforzar la explicación "
+                            "en temas con soporte gráfico (áreas/excedentes)."
+                        ),
+                    )
 
         st.session_state.historial_tutor_abierto.append({"role": "assistant", "content": respuesta_tutor})
 
