@@ -6,7 +6,7 @@ from modules.temario import LISTA_TEMAS
 from modules import uso_stats
 
 # Nombre de la aplicación (pestaña del navegador, títulos principales)
-APP_DISPLAY_NAME = "Matemáticas III - Economías UCAB Versión 5.0"
+APP_DISPLAY_NAME = "Matemáticas III - Economías UCAB Versión 6.0"
 
 # Infografía de bienvenida (relativa a la raíz del proyecto, junto a app.py)
 _ASSETS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets"))
@@ -159,11 +159,18 @@ def mostrar_bienvenida():
     st.title(APP_DISPLAY_NAME)
 
     st.success(
-        "**Versión 6.0 — Render matemático robusto y apoyo gráfico ampliado:** "
-        "se unificó el manejo de **LaTeX + texto natural** para evitar fórmulas rotas y mejorar legibilidad en flujos con OCR. "
-        "Además del apoyo en Entrenamiento, ahora también verás **gráficos interactivos (Plotly)** en **Respuesta Guiada** "
-        "y en **Tutor de Preguntas Abiertas** para temas de áreas y excedentes."
+        "**Versión 6.0** — Plataforma actualizada con **mejor lectura matemática** y **apoyo gráfico unificado** "
+        "en todos los modos que lo usan."
     )
+
+    with st.expander("Novedades de hoy (actualización v6.0)", expanded=True):
+        st.markdown(
+            """
+- **LaTeX y texto natural:** mismo criterio de render en varios flujos; menos fórmulas rotas y mejor presentación cuando el enunciado viene pegado (OCR o texto continuo), sobre todo en **Respuesta Guiada** y **Corrección de manuscritos**.
+- **Apoyo gráfico ampliado:** figuras **Plotly** de referencia del banco también en **Respuesta Guiada** (desde el problema identificado y en el desarrollo) y en **Tutor de preguntas abiertas** cuando el tema admite gráfico (p. ej. áreas entre curvas y excedentes).
+- **Gráficos más claros:** ejes coordenados siempre visibles, margen vertical didáctico y **líneas verticales guía** para leer mejor intersecciones; el dibujo pasa por un **único render** en el módulo de gráficos para que se vea igual en **Entrenamiento**, consultas guiadas y tutor abierto.
+            """
+        )
 
     if os.path.isfile(INFOGRAFIA_BIENVENIDA):
         st.image(
