@@ -166,9 +166,9 @@ def mostrar_bienvenida():
     with st.expander("Novedades de hoy (actualización v6.0)", expanded=True):
         st.markdown(
             """
-- **LaTeX y texto natural:** mismo criterio de render en varios flujos; menos fórmulas rotas y mejor presentación cuando el enunciado viene pegado (OCR o texto continuo), sobre todo en **Respuesta Guiada** y **Corrección de manuscritos**.
-- **Apoyo gráfico ampliado:** figuras **Plotly** de referencia del banco también en **Respuesta Guiada** (desde el problema identificado y en el desarrollo) y en **Tutor de preguntas abiertas** cuando el tema admite gráfico (p. ej. áreas entre curvas y excedentes).
-- **Gráficos más claros:** ejes coordenados siempre visibles, margen vertical didáctico y **líneas verticales guía** para leer mejor intersecciones; el dibujo pasa por un **único render** en el módulo de gráficos para que se vea igual en **Entrenamiento**, consultas guiadas y tutor abierto.
+- **Fórmulas y redacción:** las explicaciones se leen con más naturalidad: las matemáticas y el texto van mejor armados, y si el enunciado llega “pegado” (por foto o porque escribiste todo seguido), se entiende mejor. Notarás la mejora sobre todo en **Respuesta guiada** y en **Corrección de manuscritos**.
+- **Más dibujos cuando ayudan:** además del entrenamiento, en **Respuesta guiada** y en el **Tutor de preguntas abiertas** puedes ver figuras de apoyo tomadas del material de la cátedra cuando el tema lo permite, por ejemplo **áreas entre curvas** y **excedentes** — desde que aparece el problema y también al avanzar en la guía.
+- **Gráficos más fáciles de leer:** los ejes se distinguen bien, dejamos un poco de aire arriba y abajo del dibujo, y unas líneas verticales suaves te ayudan a ubicar cruces entre curvas. Así la figura se ve parecida en **Entrenamiento**, en la consulta guiada y en el tutor abierto.
             """
         )
 
