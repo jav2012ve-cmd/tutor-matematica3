@@ -37,6 +37,35 @@ def _eval_on_grid(fn, xs: np.ndarray) -> np.ndarray:
     return np.asarray(ys, dtype=float)
 
 
+def _ubicar_etiquetas_y_sobre_eje(fig: go.Figure, x_min: float, x_max: float) -> None:
+    """
+    Mueve las etiquetas del eje Y para que aparezcan sobre el eje y (x=0).
+    """
+    span = x_max - x_min
+    if span <= 0:
+        return
+    pos = (0.0 - x_min) / span
+    pos = max(0.0, min(1.0, pos))
+
+    # Ocultamos etiquetas del eje y principal (borde izquierdo)
+    fig.update_yaxes(showticklabels=False)
+    # Eje y secundario superpuesto, ubicado en x=0 (en coords de papel)
+    fig.update_layout(
+        yaxis2=dict(
+            overlaying="y",
+            matches="y",
+            anchor="free",
+            position=pos,
+            side="left",
+            showgrid=False,
+            showline=False,
+            ticks="outside",
+            tickfont=dict(color="#4a4a4a"),
+            showticklabels=True,
+        )
+    )
+
+
 def figura_area_entre_curvas(
     bandas: List[Dict[str, Any]],
     titulo: str = "",
@@ -115,6 +144,12 @@ def figura_area_entre_curvas(
         fig.update_xaxes(range=[min(x_min_global, 0.0), max(x_max_global, 0.0)])
     fig.update_xaxes(zeroline=True, zerolinewidth=2, zerolinecolor="#4a4a4a")
     fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor="#4a4a4a")
+    if x_min_global is not None and x_max_global is not None:
+        _ubicar_etiquetas_y_sobre_eje(
+            fig,
+            min(x_min_global, 0.0),
+            max(x_max_global, 0.0),
+        )
     return fig
 
 
@@ -211,6 +246,11 @@ def figura_excedentes(
     fig.update_xaxes(range=[min(q_min, 0.0), max(q_max, 0.0)])
     fig.update_xaxes(zeroline=True, zerolinewidth=2, zerolinecolor="#4a4a4a")
     fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor="#4a4a4a")
+    _ubicar_etiquetas_y_sobre_eje(
+        fig,
+        min(q_min, 0.0),
+        max(q_max, 0.0),
+    )
     return fig
 
 
