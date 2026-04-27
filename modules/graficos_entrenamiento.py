@@ -113,7 +113,14 @@ def figura_area_entre_curvas(
         fig.update_yaxes(range=[y_min_global - 2.0, y_max_global + 2.0])
     if x_min_global is not None and x_max_global is not None:
         fig.update_xaxes(range=[min(x_min_global, 0.0), max(x_max_global, 0.0)])
-    fig.update_xaxes(zeroline=True, zerolinewidth=2, zerolinecolor="#4a4a4a")
+    fig.update_xaxes(
+        zeroline=True,
+        zerolinewidth=2,
+        zerolinecolor="#4a4a4a",
+        showgrid=True,
+        gridcolor="rgba(74, 74, 74, 0.25)",
+        gridwidth=1,
+    )
     fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor="#4a4a4a")
     return fig
 
@@ -209,7 +216,14 @@ def figura_excedentes(
     )
     fig.update_yaxes(range=[y_min - 2.0, y_max + 2.0])
     fig.update_xaxes(range=[min(q_min, 0.0), max(q_max, 0.0)])
-    fig.update_xaxes(zeroline=True, zerolinewidth=2, zerolinecolor="#4a4a4a")
+    fig.update_xaxes(
+        zeroline=True,
+        zerolinewidth=2,
+        zerolinecolor="#4a4a4a",
+        showgrid=True,
+        gridcolor="rgba(74, 74, 74, 0.25)",
+        gridwidth=1,
+    )
     fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor="#4a4a4a")
     return fig
 
