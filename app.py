@@ -388,15 +388,12 @@ def _mostrar_apoyo_grafico_referencia(
         st.caption("_No se encontró referencia gráfica compatible para este enunciado._")
         return
     spec = ej.get("grafico")
-    try:
-        fig = graficos_entrenamiento.figura_desde_spec(spec)
-        if fig is None:
-            return
-        st.subheader(titulo)
-        if caption:
-            st.caption(caption)
-        st.plotly_chart(fig, use_container_width=True)
-    except Exception:
+    ok = graficos_entrenamiento.mostrar_figura_apoyo(
+        spec,
+        titulo=titulo,
+        caption=caption,
+    )
+    if not ok:
         st.caption("_No se pudo generar la figura de referencia para este caso._")
 
 

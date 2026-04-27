@@ -261,6 +261,34 @@ def figura_desde_spec(spec: Optional[Dict[str, Any]]) -> Optional[go.Figure]:
     return None
 
 
+def mostrar_figura_apoyo(
+    spec: Optional[Dict[str, Any]],
+    *,
+    titulo: str = "Apoyo gráfico",
+    caption: str = "",
+) -> bool:
+    """
+    Render estándar del apoyo gráfico para TODAS las funcionalidades.
+    Retorna True si se mostró la figura, False en caso contrario.
+    """
+    import streamlit as st
+
+    if not spec:
+        return False
+    try:
+        fig = figura_desde_spec(spec)
+        if fig is None:
+            return False
+        st.subheader(titulo)
+        if caption:
+            st.caption(caption)
+        st.plotly_chart(fig, use_container_width=True)
+        return True
+    except Exception:
+        st.caption("_No se pudo generar la figura para este ítem._")
+        return False
+
+
 def mostrar_si_aplica(
     ejercicio: Dict[str, Any],
     *,
@@ -277,19 +305,18 @@ def mostrar_si_aplica(
     spec = ejercicio.get("grafico")
     if not spec:
         return
-    try:
-        fig = figura_desde_spec(spec)
-        if fig is None:
-            return
-        if en_paso_intermedio:
-            st.subheader("Apoyo gráfico — valida tu planteamiento")
-            st.caption(
+    if en_paso_intermedio:
+        mostrar_figura_apoyo(
+            spec,
+            titulo="Apoyo gráfico — valida tu planteamiento",
+            caption=(
                 "Compara la región sombreada con los límites y la función que integraste "
                 "tras elegir la estrategia (referencia del banco)."
-            )
-        else:
-            st.subheader("Apoyo gráfico")
-            st.caption("Misma región que el planteamiento del banco (referencia visual).")
-        st.plotly_chart(fig, use_container_width=True)
-    except Exception:
-        st.caption("_No se pudo generar la figura para este ítem._")
+            ),
+        )
+    else:
+        mostrar_figura_apoyo(
+            spec,
+            titulo="Apoyo gráfico",
+            caption="Misma región que el planteamiento del banco (referencia visual).",
+        )
