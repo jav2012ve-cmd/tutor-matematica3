@@ -44,12 +44,16 @@ def figura_area_entre_curvas(
     fig = go.Figure()
     y_min_global = None
     y_max_global = None
+    x_min_global = None
+    x_max_global = None
     for k, b in enumerate(bandas):
         ys = str(b["y_superior"])
         yi = str(b["y_inferior"])
         x0, x1 = float(b["x_min"]), float(b["x_max"])
         if x1 <= x0:
             continue
+        x_min_global = x0 if x_min_global is None else min(x_min_global, x0)
+        x_max_global = x1 if x_max_global is None else max(x_max_global, x1)
         npts = min(400, max(60, int((x1 - x0) * 50)))
         xs = np.linspace(x0, x1, npts)
         fn_s = _lambdify_expr(ys)
@@ -107,6 +111,10 @@ def figura_area_entre_curvas(
     )
     if y_min_global is not None and y_max_global is not None:
         fig.update_yaxes(range=[y_min_global - 2.0, y_max_global + 2.0])
+    if x_min_global is not None and x_max_global is not None:
+        fig.update_xaxes(range=[min(x_min_global, 0.0), max(x_max_global, 0.0)])
+    fig.update_xaxes(zeroline=True, zerolinewidth=2, zerolinecolor="#4a4a4a")
+    fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor="#4a4a4a")
     return fig
 
 
@@ -200,6 +208,9 @@ def figura_excedentes(
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     fig.update_yaxes(range=[y_min - 2.0, y_max + 2.0])
+    fig.update_xaxes(range=[min(q_min, 0.0), max(q_max, 0.0)])
+    fig.update_xaxes(zeroline=True, zerolinewidth=2, zerolinecolor="#4a4a4a")
+    fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor="#4a4a4a")
     return fig
 
 
