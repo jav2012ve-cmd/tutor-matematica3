@@ -42,6 +42,8 @@ def figura_area_entre_curvas(
     titulo: str = "",
 ) -> go.Figure:
     fig = go.Figure()
+    y_min_global = None
+    y_max_global = None
     for k, b in enumerate(bandas):
         ys = str(b["y_superior"])
         yi = str(b["y_inferior"])
@@ -54,6 +56,10 @@ def figura_area_entre_curvas(
         fn_i = _lambdify_expr(yi)
         sup = _eval_on_grid(fn_s, xs)
         infy = _eval_on_grid(fn_i, xs)
+        y_local_min = float(np.nanmin(np.concatenate([sup, infy])))
+        y_local_max = float(np.nanmax(np.concatenate([sup, infy])))
+        y_min_global = y_local_min if y_min_global is None else min(y_min_global, y_local_min)
+        y_max_global = y_local_max if y_max_global is None else max(y_max_global, y_local_max)
 
         lab_s = f"Arriba ({k + 1})" if len(bandas) > 1 else "Curva superior"
         lab_i = f"Abajo ({k + 1})" if len(bandas) > 1 else "Curva inferior"
@@ -99,6 +105,8 @@ def figura_area_entre_curvas(
         margin=dict(l=48, r=24, t=56, b=48),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
+    if y_min_global is not None and y_max_global is not None:
+        fig.update_yaxes(range=[y_min_global - 2.0, y_max_global + 2.0])
     return fig
 
 
@@ -118,6 +126,8 @@ def figura_excedentes(
     p_d = _eval_on_grid(f_d, qs)
     p_o = _eval_on_grid(f_o, qs)
     p_eq = float(_eval_on_grid(f_d, np.array([q_max]))[0])
+    y_min = float(np.nanmin(np.concatenate([p_d, p_o, np.array([p_eq])])))
+    y_max = float(np.nanmax(np.concatenate([p_d, p_o, np.array([p_eq])])))
 
     fig = go.Figure()
     fig.add_trace(
@@ -189,6 +199,7 @@ def figura_excedentes(
         margin=dict(l=48, r=24, t=56, b=48),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
+    fig.update_yaxes(range=[y_min - 2.0, y_max + 2.0])
     return fig
 
 
