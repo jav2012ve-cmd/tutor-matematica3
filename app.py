@@ -1180,7 +1180,8 @@ elif ruta == "a) Entrenamiento (Temario)":
                     )
                     tecnica_tema = tema_ejercicio.split(":", 1)[-1].strip() if ":" in tema_ejercicio else tema_ejercicio
                     st.success(f"🎯 Técnica del tema: **{tecnica_tema}**")
-                    st.info("👨‍🏫 **Arranque sugerido:** " + preparar_latex_para_streamlit(tutor['feedback_estrategia']))
+                    st.info("👨‍🏫 Arranque sugerido:")
+                    _render_texto_con_latex(tutor.get("feedback_estrategia"))
                     if st.button("Ir al Paso Intermedio ➡️", type="primary", key=f"btn_go_step2_{idx}"):
                         st.session_state.entrenamiento_step = 2
                         st.rerun()
@@ -1197,13 +1198,15 @@ elif ruta == "a) Entrenamiento (Temario)":
                                 st.session_state.entrenamiento_validado = True 
                             else:
                                 st.error("❌ Mmm, no es el mejor camino.")
-                                st.warning("Pista: " + preparar_latex_para_streamlit(tutor['feedback_estrategia']))
+                                st.warning("Pista:")
+                                _render_texto_con_latex(tutor.get("feedback_estrategia"))
                         else:
                             st.warning("Debes seleccionar una opción.")
 
                     if st.session_state.get("entrenamiento_validado", False):
                         st.success("✅ ¡Exacto! Esa es la ruta.")
-                        st.info("👨‍🏫 **Feedback:** " + preparar_latex_para_streamlit(tutor['feedback_estrategia']))
+                        st.info("👨‍🏫 Feedback:")
+                        _render_texto_con_latex(tutor.get("feedback_estrategia"))
                         
                         if st.button("Ir al Paso Intermedio ➡️", type="primary", key=f"btn_go_step2_{idx}"):
                             st.session_state.entrenamiento_step = 2
@@ -1349,7 +1352,7 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
                     st.rerun()
                 else:
                     st.error("❌ No es lo más eficiente.")
-                    st.warning(preparar_latex_para_streamlit(datos['feedback_estrategia']))
+                    _render_texto_con_latex(datos.get("feedback_estrategia"))
             
             if st.session_state.consulta_validada:
                 st.success("✅ ¡Correcto! Vamos a desarrollarlo.")
@@ -1371,7 +1374,10 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
                 st.session_state.consulta_step = 3
                 st.rerun()
             if c2.button("👎 Me perdí, explícame"):
-                st.info("💡 Pista: " + preparar_latex_para_streamlit(datos.get('feedback_estrategia', 'Revisa las operaciones algebraicas.')))
+                st.info("💡 Pista:")
+                _render_texto_con_latex(
+                    datos.get("feedback_estrategia", "Revisa las operaciones algebraicas.")
+                )
 
         # PASO 3: Solución Final
         if step == 3:
@@ -1828,7 +1834,7 @@ elif ruta == "e) Corrección de Manuscritos":
                 t = "$$" + s.replace("$", "").strip() + "$$"
             else:
                 t = preparar_latex_para_streamlit(enunciado)
-            st.markdown(t)
+            _render_texto_con_latex(t)
         else:
             st.caption("(No se pudo extraer enunciado)")
 
@@ -1846,25 +1852,28 @@ elif ruta == "e) Corrección de Manuscritos":
         resumen = datos.get("resumen_valoracion", "")
         if resumen:
             st.markdown("**Valoración:**")
-            st.markdown(preparar_latex_para_streamlit(resumen))
+            _render_texto_con_latex(resumen)
 
         errores = datos.get("errores_detectados") or []
         if errores:
             st.subheader("🔴 Errores detectados")
             for e in errores:
-                st.markdown("- " + preparar_latex_para_streamlit(e))
+                st.markdown("-")
+                _render_texto_con_latex(e)
 
         pasos_omitidos = datos.get("pasos_omitidos") or []
         if pasos_omitidos:
             st.subheader("📌 Pasos omitidos o importantes")
             for p in pasos_omitidos:
-                st.markdown("- " + preparar_latex_para_streamlit(p))
+                st.markdown("-")
+                _render_texto_con_latex(p)
 
         sugerencias = datos.get("sugerencias") or []
         if sugerencias:
             st.subheader("💡 Sugerencias de ajuste")
             for s in sugerencias:
-                st.markdown("- " + preparar_latex_para_streamlit(s))
+                st.markdown("-")
+                _render_texto_con_latex(s)
 
         st.divider()
         if st.button("🔄 Evaluar otro manuscrito", key="btn_nuevo_manuscrito"):
