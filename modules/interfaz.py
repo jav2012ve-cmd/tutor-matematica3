@@ -159,9 +159,10 @@ def mostrar_bienvenida():
     st.title(APP_DISPLAY_NAME)
 
     st.success(
-        "**Versión 5.0 — Apoyo gráfico en Entrenamiento:** al practicar **temas del temario que incluyen figura en el banco** "
-        "(p. ej. áreas entre curvas y otros temas habilitados), en el **paso intermedio** —después de acertar la estrategia— "
-        "verás un **gráfico interactivo (Plotly)** para **cotejar** límites y región con el planteamiento que obtuviste."
+        "**Versión 6.0 — Render matemático robusto y apoyo gráfico ampliado:** "
+        "se unificó el manejo de **LaTeX + texto natural** para evitar fórmulas rotas y mejorar legibilidad en flujos con OCR. "
+        "Además del apoyo en Entrenamiento, ahora también verás **gráficos interactivos (Plotly)** en **Respuesta Guiada** "
+        "y en **Tutor de Preguntas Abiertas** para temas de áreas y excedentes."
     )
 
     if os.path.isfile(INFOGRAFIA_BIENVENIDA):
@@ -183,9 +184,9 @@ def mostrar_bienvenida():
         <p style="color: #0066cc;"><strong>Modos de estudio:</strong></p>
         <ul style="margin-bottom: 10px; color: #0066cc;">
             <li><strong>a) Entrenamiento:</strong> Serie de ejercicios paso a paso (estrategia → hito → resultado). En temas seleccionados con apoyo en el banco, el hito incluye <strong>figura interactiva</strong> para validar tu planteamiento.</li>
-            <li><strong>b) Respuesta Guiada:</strong> Sube foto o texto de un ejercicio y el tutor te guía.</li>
+            <li><strong>b) Respuesta Guiada:</strong> Sube foto o texto de un ejercicio y el tutor te guía. Incluye apoyo gráfico de referencia en temas habilitados (áreas y excedentes).</li>
             <li><strong>c) Autoevaluación:</strong> Simulacro de parcial (Primer, Segundo o temas personalizados).</li>
-            <li><strong>d) Tutor Preguntas Abiertas:</strong> Chat sobre teoría y ejercicios de la cátedra.</li>
+            <li><strong>d) Tutor Preguntas Abiertas:</strong> Chat sobre teoría y ejercicios de la cátedra, con apoyo gráfico por tema cuando aplica.</li>
             <li><strong>e) Corrección de Manuscritos:</strong> Sube tu resolución escrita; la app identifica el enunciado, valora tu solución (correcto / parcial / incorrecto) y sugiere ajustes.</li>
             <li><strong>f) Administrador:</strong> Métricas globales, carga de PDFs (exámenes/guías), detección de temas y propuesta de quiz específico (acceso restringido).</li>
         </ul>
@@ -195,8 +196,9 @@ def mostrar_bienvenida():
     <p style="color: #0066cc;"><strong>🛠️ Recursos</strong></p>
     <ul style="color: #0066cc;">
         <li>Temario y banco alineados por tema; informe en PDF al terminar la autoevaluación.</li>
-        <li><strong>Gráficos en entrenamiento (temas preparados):</strong> visualización en el paso intermedio con Plotly.</li>
-        <li>Fórmulas (LaTeX) en preguntas, opciones y explicaciones. Ayuda en 📖 Ayuda / Modos (lateral).</li>
+        <li><strong>Gráficos interactivos ampliados (v6.0):</strong> disponibles en Entrenamiento, Respuesta Guiada y Tutor Abierto para temas con soporte del banco.</li>
+        <li><strong>Mejora visual de ejes (v6.0):</strong> ejes coordenados siempre visibles, rango vertical con margen didáctico y líneas verticales guía para ubicar mejor intersecciones.</li>
+        <li><strong>Render matemático robusto (v6.0):</strong> mejor lectura de enunciados con OCR y salida consistente de LaTeX en preguntas, opciones y explicaciones.</li>
     </ul>
     <hr style="margin-top: 20px; margin-bottom: 20px;">
     """, unsafe_allow_html=True)
