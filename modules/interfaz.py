@@ -175,7 +175,7 @@ def mostrar_bienvenida():
     if os.path.isfile(INFOGRAFIA_BIENVENIDA):
         st.image(
             INFOGRAFIA_BIENVENIDA,
-            use_container_width=True,
+            width="stretch",
             caption=(
                 "Ruta técnica (Gemini, Streamlit, Python, GitHub, Supabase, informe PDF) "
                 "y ruta didáctica (modos de estudio, entrada por imagen, LaTeX)."

@@ -1,0 +1,3 @@
+[server]
+# Límite del widget file_uploader (MB). Coherente con modules/imagen_carga.MAX_UPLOAD_BYTES
+maxUploadSize = 12

@@ -282,7 +282,7 @@ def mostrar_figura_apoyo(
         st.subheader(titulo)
         if caption:
             st.caption(caption)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
         return True
     except Exception:
         st.caption("_No se pudo generar la figura para este ítem._")

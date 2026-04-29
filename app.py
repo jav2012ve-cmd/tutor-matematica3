@@ -9,7 +9,6 @@ import unicodedata
 from typing import Any, List, Optional, Union
 
 import streamlit as st
-from PIL import Image
 from pypdf import PdfReader
 
 # Asegura que la carpeta `modules/` esté en `sys.path` aunque Streamlit Cloud
@@ -35,6 +34,7 @@ from modules import (
     uso_stats,
     registro_interacciones,
     graficos_entrenamiento,
+    imagen_carga,
 )
 
 # --- CONFIGURACIÓN CENTRALIZADA ---
@@ -1208,7 +1208,7 @@ elif ruta == "a) Entrenamiento (Temario)":
             placeholder="Ej. Ecuaciones Diferenciales Lineales..."
         )
 
-        if st.button(f"⚡ Iniciar Sesión ({NUM_EJERCICIOS_ENTRENAMIENTO} Ejercicios)", type="primary", use_container_width=True):
+        if st.button(f"⚡ Iniciar Sesión ({NUM_EJERCICIOS_ENTRENAMIENTO} Ejercicios)", type="primary", width="stretch"):
             if not temas_entrenamiento:
                 st.error("⚠️ Selecciona al menos un tema.")
             else:
@@ -1398,44 +1398,64 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
     if st.session_state.consulta_step == 0:
         col_img, col_txt = st.columns([1, 2])
         with col_img:
-            imagen_subida = st.file_uploader("📸 Foto del ejercicio", type=["png", "jpg", "jpeg"])
+            imagen_subida = st.file_uploader(
+                "📸 Foto del ejercicio",
+                type=["png", "jpg", "jpeg"],
+                help=imagen_carga.texto_limite_subida(),
+            )
         with col_txt:
             texto_subido = st.text_area("✍️ O escribe el enunciado aquí:", height=100)
 
-        if st.button("🚀 Resolver Paso a Paso", type="primary", use_container_width=True):
+        if imagen_subida:
+            _err_img_consulta = imagen_carga.mensaje_si_archivo_muy_grande(imagen_subida)
+            if _err_img_consulta:
+                st.error(_err_img_consulta)
+
+        if st.button("🚀 Resolver Paso a Paso", type="primary", width="stretch"):
             if not imagen_subida and not texto_subido:
                 st.warning("⚠️ Sube una imagen o escribe el texto para comenzar.")
             else:
-                exito_analisis = False
-                with st.spinner("🤖 Analizando el tipo de problema..."):
-                    try:
-                        # Solo abrir imagen si el usuario subió un archivo (flujo texto-only no usa imagen)
-                        img_pil = None
-                        if imagen_subida:
-                            img_pil = Image.open(imagen_subida)
-                        datos_problema = analizar_problema_usuario(texto_subido or None, img_pil)
-                        if datos_problema:
-                            st.session_state.consulta_data = datos_problema
-                            st.session_state.consulta_step = 1
-                            st.session_state.consulta_validada = False
-                            exito_analisis = True
-                            uso_stats.registrar_uso(
-                                "Respuesta Guiada",
-                                detalle={
-                                    "tema_detectado": (
-                                        (datos_problema.get("tema_detectado") or "")
-                                        .strip()
-                                        or None
-                                    ),
-                                },
+                _err_img = (
+                    imagen_carga.mensaje_si_archivo_muy_grande(imagen_subida)
+                    if imagen_subida
+                    else None
+                )
+                if imagen_subida and _err_img:
+                    st.error(_err_img)
+                else:
+                    exito_analisis = False
+                    with st.spinner("🤖 Analizando el tipo de problema..."):
+                        try:
+                            img_pil = None
+                            if imagen_subida:
+                                img_pil = imagen_carga.preparar_imagen_para_ia(imagen_subida)
+                            datos_problema = analizar_problema_usuario(
+                                texto_subido or None, img_pil
                             )
-                        else:
-                            st.error("No se pudo interpretar la respuesta del tutor. Intenta de nuevo con otra redacción o imagen más clara.")
-                    except Exception as e:
-                        st.error(f"Error técnico: {e}")
-                
-                if exito_analisis:
-                    st.rerun()
+                            if datos_problema:
+                                st.session_state.consulta_data = datos_problema
+                                st.session_state.consulta_step = 1
+                                st.session_state.consulta_validada = False
+                                exito_analisis = True
+                                uso_stats.registrar_uso(
+                                    "Respuesta Guiada",
+                                    detalle={
+                                        "tema_detectado": (
+                                            (datos_problema.get("tema_detectado") or "")
+                                            .strip()
+                                            or None
+                                        ),
+                                    },
+                                )
+                            else:
+                                st.error(
+                                    "No se pudo interpretar la respuesta del tutor. Intenta de nuevo con otra redacción o imagen más clara."
+                                )
+                        except Exception as e:
+                            st.error(f"Error técnico: {e}")
+
+                    if exito_analisis:
+                        st.rerun()
 
     # 2. INTERACCIÓN (Similar al Dojo pero para el problema del usuario)
     else:
@@ -1564,7 +1584,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.button("🏆 Generar Primer Parcial (Simulacro)", use_container_width=True):
+            if st.button("🏆 Generar Primer Parcial (Simulacro)", width="stretch"):
                 st.session_state.quiz_modalidad = "primer_parcial"
                 st.session_state.config_temas = temario.TEMAS_PARCIAL_1
                 st.session_state.config_cant = NUM_PREGUNTAS_QUIZ 
@@ -1572,7 +1592,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                 st.session_state.trigger_quiz = True
                 st.rerun()
         with col2:
-            if st.button("🏆 Generar Segundo Parcial (Simulacro)", use_container_width=True):
+            if st.button("🏆 Generar Segundo Parcial (Simulacro)", width="stretch"):
                 st.session_state.quiz_modalidad = "segundo_parcial"
                 st.session_state.config_temas = temario.TEMAS_PARCIAL_2
                 st.session_state.config_cant = NUM_PREGUNTAS_QUIZ
@@ -1589,7 +1609,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     n_modelos = len(ev.get("modelos") or [])
                     suf = f" · {n_modelos} modelo(s)" if n_modelos > 1 else ""
                     etiqueta = f"🧾 Generar {ev['tipo']}: {ev['nombre']}{suf}"
-                    if st.button(etiqueta, key=f"btn_eval_pub_{ev['id']}", use_container_width=True):
+                    if st.button(etiqueta, key=f"btn_eval_pub_{ev['id']}", width="stretch"):
                         st.session_state.quiz_modalidad = f"evaluacion_publicada_{ev['id']}"
                         st.session_state.config_temas = ev["temas"]
                         st.session_state.config_cant = ev["cantidad"]
@@ -1879,10 +1899,10 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     data=pdf_bytes,
                     file_name=f"informe_Mate3_UCAB_V5_{str(nota_final).replace('.', '_')}.pdf",
                     mime="application/pdf",
-                    use_container_width=True
+                    width="stretch"
                 )
             with col_nuevo:
-                if st.button("🔄 Comenzar Nuevo Examen", type="primary", use_container_width=True):
+                if st.button("🔄 Comenzar Nuevo Examen", type="primary", width="stretch"):
                     st.session_state.quiz_activo = False
                     st.session_state.indice_pregunta = 0
                     st.session_state.respuestas_usuario = []
@@ -1897,7 +1917,7 @@ elif ruta == "d) Tutor: Preguntas Abiertas":
             "Escribe tu pregunta",
             placeholder="Ej. Puedes pedir un resumen o una explicación corta de cualquier tema a partir de ejercicios del profesor.",
         )
-        enviar_pregunta = st.form_submit_button("Enviar pregunta", use_container_width=True)
+        enviar_pregunta = st.form_submit_button("Enviar pregunta", width="stretch")
 
     st.markdown("""
     Haz cualquier pregunta teórica. El tutor te responderá **vinculando la teoría con
@@ -1955,29 +1975,43 @@ elif ruta == "e) Corrección de Manuscritos":
     imagen_manuscrito = st.file_uploader(
         "📸 Sube la foto de tu manuscrito (enunciado + resolución)",
         type=["png", "jpg", "jpeg"],
-        key="upload_manuscrito"
+        key="upload_manuscrito",
+        help=imagen_carga.texto_limite_subida(),
     )
 
+    _err_manuscrito = (
+        imagen_carga.mensaje_si_archivo_muy_grande(imagen_manuscrito)
+        if imagen_manuscrito
+        else None
+    )
     if imagen_manuscrito:
-        st.image(imagen_manuscrito, caption="Tu manuscrito", use_container_width=True)
+        if _err_manuscrito:
+            st.error(_err_manuscrito)
+        else:
+            st.image(imagen_manuscrito, caption="Tu manuscrito", width="stretch")
 
-        if st.button("🔍 Evaluar manuscrito", type="primary", use_container_width=True):
-            with st.spinner("Analizando enunciado y valorando tu resolución..."):
-                try:
-                    img_pil = Image.open(imagen_manuscrito)
-                    resultado = evaluar_manuscrito(img_pil)
-                    if resultado:
-                        _tm = temario.normalizar_tema_curso(resultado.get("tema_catedra"))
-                        uso_stats.registrar_uso(
-                            "Corrección de Manuscritos",
-                            detalle={"tema_catedra": _tm},
-                        )
-                        st.session_state.manuscrito_correccion = resultado
-                        st.rerun()
-                    else:
-                        st.error("No se pudo interpretar la corrección. Intenta con una imagen más clara o con otro manuscrito.")
-                except Exception as e:
-                    st.error(f"Error al procesar la imagen: {e}")
+        if st.button("🔍 Evaluar manuscrito", type="primary", width="stretch"):
+            if _err_manuscrito:
+                st.error(_err_manuscrito)
+            else:
+                with st.spinner("Analizando enunciado y valorando tu resolución..."):
+                    try:
+                        img_pil = imagen_carga.preparar_imagen_para_ia(imagen_manuscrito)
+                        resultado = evaluar_manuscrito(img_pil)
+                        if resultado:
+                            _tm = temario.normalizar_tema_curso(resultado.get("tema_catedra"))
+                            uso_stats.registrar_uso(
+                                "Corrección de Manuscritos",
+                                detalle={"tema_catedra": _tm},
+                            )
+                            st.session_state.manuscrito_correccion = resultado
+                            st.rerun()
+                        else:
+                            st.error(
+                                "No se pudo interpretar la corrección. Intenta con una imagen más clara o con otro manuscrito."
+                            )
+                    except Exception as e:
+                        st.error(f"Error al procesar la imagen: {e}")
 
     if st.session_state.manuscrito_correccion:
         datos = st.session_state.manuscrito_correccion
@@ -2116,7 +2150,7 @@ elif ruta == "f) Administrador (Métricas)":
         accept_multiple_files=True,
         key="admin_upload_pdf_docs",
     )
-    if st.button("Procesar documentos", type="primary", use_container_width=True, key="admin_procesar_docs"):
+    if st.button("Procesar documentos", type="primary", width="stretch", key="admin_procesar_docs"):
         if not docs_pdf:
             st.warning("Selecciona al menos un PDF.")
         else:
@@ -2243,7 +2277,7 @@ elif ruta == "f) Administrador (Métricas)":
         [{"tema": t, "consultas": int(por_tema.get(t, 0) or 0)} for t in temario.LISTA_TEMAS],
         key=lambda r: (-r["consultas"], r["tema"]),
     )
-    st.dataframe(filas_temas[:top_n], use_container_width=True, hide_index=True)
+    st.dataframe(filas_temas[:top_n], width="stretch", hide_index=True)
 
     st.subheader("Histograma de uso por fechas")
     eventos_hist = uso_stats.obtener_eventos_recientes(limit=2000)
@@ -2338,7 +2372,7 @@ elif ruta == "f) Administrador (Métricas)":
                 }
             )
         st.caption(f"Mostrando {len(rows)} eventos")
-        st.dataframe(rows[:200], use_container_width=True, hide_index=True)
+        st.dataframe(rows[:200], width="stretch", hide_index=True)
 
 # Cintillo institucional al cierre de la página.
 interfaz.mostrar_cintillo_cierre()
