@@ -3,10 +3,10 @@ from datetime import datetime
 
 import streamlit as st
 from modules.temario import LISTA_TEMAS
-from modules import uso_stats
+from modules import uso_stats, imagen_carga
 
 # Nombre de la aplicación (pestaña del navegador, títulos principales)
-APP_DISPLAY_NAME = "Matemáticas III - Economías UCAB Versión 6.0"
+APP_DISPLAY_NAME = "Matemáticas III - Economías UCAB Versión 6.1"
 
 # Infografía de bienvenida (relativa a la raíz del proyecto, junto a app.py)
 _ASSETS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets"))
@@ -112,12 +112,18 @@ def mostrar_sidebar():
 
         st.divider()
         with st.expander("📖 Ayuda / Modos"):
+            _mb_ayuda = max(1, imagen_carga.MAX_UPLOAD_BYTES // (1024 * 1024))
+            st.caption(
+                f"Fotos en **Respuesta guiada** y **Manuscritos**: hasta {_mb_ayuda} MB por archivo; "
+                "la app optimiza la imagen antes de enviarla a la IA. "
+                "Al terminar, usa la retroalimentación anónima al pie de cada modo si algo falló o fue útil."
+            )
             st.markdown("""
             **a) Entrenamiento:** Serie de ejercicios paso a paso (estrategia → hito → resultado); en temas con datos en el banco, **apoyo gráfico** en el hito intermedio.  
-            **b) Respuesta Guiada:** Subes foto o texto de un ejercicio y el tutor te guía.  
+            **b) Respuesta Guiada:** Subes foto o texto de un ejercicio y el tutor te guía (foto hasta el tope indicado en la pantalla; se optimiza antes de la IA).  
             **c) Autoevaluación:** Simulacro de parcial (Primer, Segundo o temas personalizados).  
             **d) Tutor abierto:** Chat sobre teoría y ejercicios de la cátedra.  
-            **e) Corrección de Manuscritos:** Sube tu resolución escrita; la app identifica el enunciado, valora tu solución y sugiere ajustes.
+            **e) Corrección de Manuscritos:** Sube tu resolución escrita; la app identifica el enunciado, valora tu solución y sugiere ajustes (mismo tope de tamaño que en la foto guiada).
             **f) Administrador:** Métricas globales, carga de PDFs de exámenes/guías y sugerencias de quiz específico.
             """)
 
@@ -158,17 +164,23 @@ def mostrar_bienvenida():
     """Muestra la presentación inicial solo cuando aún no se ha seleccionado un modo."""
     st.title(APP_DISPLAY_NAME)
 
+    _mb_foto = max(1, imagen_carga.MAX_UPLOAD_BYTES // (1024 * 1024))
     st.success(
-        "**Versión 6.0** — Plataforma actualizada con **mejor lectura matemática** y **apoyo gráfico unificado** "
-        "en todos los modos que lo usan."
+        f"**Versión 6.1** — **Carga de fotos más segura y rápida:** en **Respuesta guiada** y **Corrección de manuscritos** "
+        f"el tamaño máximo por imagen es **{_mb_foto} MB** (también aplicado por el servidor); la imagen se **optimiza y redimensiona** "
+        "antes de enviarla a la IA para que el tutor no se bloquee con archivos enormes. "
+        "**Tu retroalimentación importa:** al final de cada modo verás un menú anónimo (opciones a–e); "
+        "cuéntanos si hubo fallos de LaTeX, respuestas incorrectas o problemas al leer tu manuscrito — "
+        "eso orienta mejoras prioritarias para la cátedra."
     )
 
-    with st.expander("Novedades de hoy (actualización v6.0)", expanded=True):
+    with st.expander("Novedades de hoy (actualización v6.1)", expanded=True):
         st.markdown(
-            """
-- **Fórmulas y redacción:** las explicaciones se leen con más naturalidad: las matemáticas y el texto van mejor armados, y si el enunciado llega “pegado” (por foto o porque escribiste todo seguido), se entiende mejor. Notarás la mejora sobre todo en **Respuesta guiada** y en **Corrección de manuscritos**.
-- **Más dibujos cuando ayudan:** además del entrenamiento, en **Respuesta guiada** y en el **Tutor de preguntas abiertas** puedes ver figuras de apoyo tomadas del material de la cátedra cuando el tema lo permite, por ejemplo **áreas entre curvas** y **excedentes** — desde que aparece el problema y también al avanzar en la guía.
-- **Gráficos más fáciles de leer:** los ejes se distinguen bien, dejamos un poco de aire arriba y abajo del dibujo, y unas líneas verticales suaves te ayudan a ubicar cruces entre curvas. Así la figura se ve parecida en **Entrenamiento**, en la consulta guiada y en el tutor abierto.
+            f"""
+- **Límite y optimización de imágenes (v6.1):** en **Respuesta guiada** (foto del ejercicio) y en **Corrección de manuscritos** solo se aceptan archivos de hasta **{_mb_foto} MB**. La app comprime y ajusta la resolución **antes** de llamar al modelo, para respuestas estables y un uso fluido del tutor.
+- **Retroalimentación de experiencia (v6.1):** en todos los modos hay un bloque **«Tu experiencia con esta funcionalidad»**. Es **anónimo**, rápido de usar y **muy valioso** para detectar problemas de fórmulas, de contenido o de lectura de manuscrito; te pedimos usarlo cuando algo vaya bien o mal.
+- **Fórmulas y redacción (v6.0+):** lectura más natural de matemáticas y texto; mejora notable en **Respuesta guiada** y **Corrección de manuscritos** cuando el enunciado llega por foto o muy compacto.
+- **Apoyo gráfico y ejes (v6.0+):** figuras de referencia en Entrenamiento, Respuesta guiada y Tutor abierto (temas del banco); ejes claros y guías visuales para intersecciones.
             """
         )
 
@@ -203,9 +215,10 @@ def mostrar_bienvenida():
     <p style="color: #0066cc;"><strong>🛠️ Recursos</strong></p>
     <ul style="color: #0066cc;">
         <li>Temario y banco alineados por tema; informe en PDF al terminar la autoevaluación.</li>
-        <li><strong>Gráficos interactivos ampliados (v6.0):</strong> disponibles en Entrenamiento, Respuesta Guiada y Tutor Abierto para temas con soporte del banco.</li>
-        <li><strong>Mejora visual de ejes (v6.0):</strong> ejes coordenados siempre visibles, rango vertical con margen didáctico y líneas verticales guía para ubicar mejor intersecciones.</li>
-        <li><strong>Render matemático robusto (v6.0):</strong> mejor lectura de enunciados con OCR y salida consistente de LaTeX en preguntas, opciones y explicaciones.</li>
+        <li><strong>Carga de fotos (v6.1):</strong> tope de <strong>""" + str(_mb_foto) + """ MB</strong> por imagen en <strong>Respuesta guiada</strong> y <strong>Corrección de manuscritos</strong>; optimización automática antes de la IA.</li>
+        <li><strong>Retroalimentación (v6.1):</strong> menú anónimo al pie de cada modo; ayuda a la cátedra a corregir LaTeX, contenidos y reconocimiento de manuscritos.</li>
+        <li><strong>Gráficos interactivos (v6.0+):</strong> Entrenamiento, Respuesta Guiada y Tutor Abierto en temas con soporte del banco.</li>
+        <li><strong>Ejes y lectura matemática (v6.0+):</strong> ejes claros, guías visuales y mejor salida LaTeX en preguntas y explicaciones.</li>
     </ul>
     <hr style="margin-top: 20px; margin-bottom: 20px;">
     """, unsafe_allow_html=True)

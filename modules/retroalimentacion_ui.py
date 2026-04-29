@@ -50,7 +50,9 @@ def render_seccion_retroalimentacion(
 
     with st.expander("📋 Tu experiencia con esta funcionalidad", expanded=False):
         st.caption(
-            "Opcional y anónimo. Ayuda a priorizar mejoras de LaTeX, contenidos y reconocimiento de imágenes."
+            "Anónimo y opcional, pero **muy importante** para la cátedra: cada registro ayuda a "
+            "priorizar correcciones de LaTeX, calidad de respuestas del tutor y lectura de manuscritos o fotos. "
+            "Si puedes, indícalo al terminar la sesión."
         )
         seleccion = st.radio(
             "Indica la opción que mejor describe tu caso:",
