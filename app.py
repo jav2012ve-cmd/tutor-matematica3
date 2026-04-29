@@ -35,6 +35,7 @@ from modules import (
     registro_interacciones,
     graficos_entrenamiento,
     imagen_carga,
+    retroalimentacion_ui,
 )
 
 # --- CONFIGURACIÓN CENTRALIZADA ---
@@ -1262,6 +1263,12 @@ elif ruta == "a) Entrenamiento (Temario)":
                 if cargar_exito:
                     st.rerun()
 
+        retroalimentacion_ui.render_seccion_retroalimentacion(
+            "Entrenamiento",
+            incluir_opcion_imagen_manuscrito=False,
+            key_suffix="config",
+        )
+
     # --- PANTALLA DE EJERCICIOS (El Dojo) ---
     else:
         idx = st.session_state.entrenamiento_idx
@@ -1380,12 +1387,23 @@ elif ruta == "a) Entrenamiento (Temario)":
                     st.session_state.entrenamiento_validado = False
                     st.rerun()
 
+            retroalimentacion_ui.render_seccion_retroalimentacion(
+                "Entrenamiento",
+                incluir_opcion_imagen_manuscrito=False,
+                key_suffix="dojo",
+            )
+
         else:
             st.success("🎉 ¡Entrenamiento completado!")
             if st.button("🔄 Volver al Inicio", key="btn_reset_entrenamiento"):
                 st.session_state.entrenamiento_activo = False
                 st.session_state.entrenamiento_idx = 0
                 st.rerun()
+            retroalimentacion_ui.render_seccion_retroalimentacion(
+                "Entrenamiento",
+                incluir_opcion_imagen_manuscrito=False,
+                key_suffix="completado",
+            )
 
 # =======================================================
 # LÓGICA B: RESPUESTA GUIADA (Consultas) - TUTOR PERSONALIZADO
@@ -1566,6 +1584,12 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
                 st.session_state.consulta_step = 0
                 st.session_state.consulta_data = None
                 st.rerun()
+
+    retroalimentacion_ui.render_seccion_retroalimentacion(
+        "Respuesta Guiada",
+        incluir_opcion_imagen_manuscrito=True,
+        key_suffix="guiada",
+    )
 
 # =======================================================
 # LÓGICA C: AUTOEVALUACIÓN (Quiz)
@@ -1753,6 +1777,12 @@ elif ruta == "c) Autoevaluación (Quiz)":
             if quiz_generado:
                 st.rerun()
 
+        retroalimentacion_ui.render_seccion_retroalimentacion(
+            "Quiz",
+            incluir_opcion_imagen_manuscrito=False,
+            key_suffix="config",
+        )
+
     # --- PANTALLA 2 (RESPONDER) y 3 (RESULTADOS) ---
     else:
         total = len(st.session_state.preguntas_quiz)
@@ -1843,6 +1873,12 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.session_state.indice_pregunta += 1
                     st.rerun()
 
+            retroalimentacion_ui.render_seccion_retroalimentacion(
+                "Quiz",
+                incluir_opcion_imagen_manuscrito=False,
+                key_suffix="responder",
+            )
+
         else:
             # PANTALLA 3: RESULTADOS
             suma_puntos = sum(r['puntos'] for r in st.session_state.respuestas_usuario)
@@ -1907,6 +1943,12 @@ elif ruta == "c) Autoevaluación (Quiz)":
                     st.session_state.indice_pregunta = 0
                     st.session_state.respuestas_usuario = []
                     st.rerun()
+
+            retroalimentacion_ui.render_seccion_retroalimentacion(
+                "Quiz",
+                incluir_opcion_imagen_manuscrito=False,
+                key_suffix="resultados",
+            )
 # =======================================================
 # LÓGICA D: TUTOR PREGUNTAS ABIERTAS (NUEVO)
 # =======================================================
@@ -1964,6 +2006,12 @@ elif ruta == "d) Tutor: Preguntas Abiertas":
                     )
 
         st.session_state.historial_tutor_abierto.append({"role": "assistant", "content": respuesta_tutor})
+
+    retroalimentacion_ui.render_seccion_retroalimentacion(
+        "Tutor Preguntas Abiertas",
+        incluir_opcion_imagen_manuscrito=False,
+        key_suffix="abiertas",
+    )
 
 # =======================================================
 # LÓGICA E: CORRECCIÓN DE MANUSCRITOS
@@ -2077,6 +2125,12 @@ elif ruta == "e) Corrección de Manuscritos":
         if st.button("🔄 Evaluar otro manuscrito", key="btn_nuevo_manuscrito"):
             st.session_state.manuscrito_correccion = None
             st.rerun()
+
+    retroalimentacion_ui.render_seccion_retroalimentacion(
+        "Corrección de Manuscritos",
+        incluir_opcion_imagen_manuscrito=True,
+        key_suffix="manuscrito",
+    )
 
 # =======================================================
 # LÓGICA F: ADMINISTRADOR (MÉTRICAS + ACTUALIZACIÓN DE CORE)
@@ -2373,6 +2427,23 @@ elif ruta == "f) Administrador (Métricas)":
             )
         st.caption(f"Mostrando {len(rows)} eventos")
         st.dataframe(rows[:200], width="stretch", hide_index=True)
+
+    st.subheader("Reportes de experiencia (tipo de error / satisfacción)")
+    st.caption(
+        "Origen: Supabase (tabla app_user_feedback_report; ejecutar supabase_user_feedback.sql) "
+        "o archivo local data/user_feedback_reports.jsonl."
+    )
+    reportes_fb = uso_stats.obtener_reportes_retroalimentacion(limit=300)
+    if not reportes_fb:
+        st.caption("Aún no hay reportes de experiencia registrados.")
+    else:
+        st.dataframe(reportes_fb[:250], width="stretch", hide_index=True)
+
+    retroalimentacion_ui.render_seccion_retroalimentacion(
+        "Administrador",
+        incluir_opcion_imagen_manuscrito=False,
+        key_suffix="panel",
+    )
 
 # Cintillo institucional al cierre de la página.
 interfaz.mostrar_cintillo_cierre()

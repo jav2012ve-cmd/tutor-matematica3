@@ -5,6 +5,10 @@ hay en cada uno. No identifica al usuario.
 Además, opcionalmente registra un evento detallado en Supabase (tabla
 app_usage_event) con JSON: temas, modalidad de quiz, tema detectado, etc.
 
+Las retroalimentaciones de experiencia (opciones a–e) van a la tabla
+``app_user_feedback_report`` vía RPC ``insert_user_feedback_report`` (ver
+``supabase_user_feedback.sql``), con respaldo local ``data/user_feedback_reports.jsonl``.
+
 Prioridad de almacenamiento:
 1. Supabase (PostgREST) si hay SUPABASE_URL + clave service_role.
 2. Archivo local data/uso_stats.json para contadores; data/usage_events.jsonl
@@ -37,8 +41,18 @@ _TABLE_NAME = "app_module_usage"
 _TABLE_TOPIC = "app_topic_usage"
 _RPC_INCREMENT = "increment_module_usage"
 _RPC_INSERT_EVENT = "insert_usage_event"
+_RPC_USER_FEEDBACK = "insert_user_feedback_report"
 _RPC_TOPICS_BATCH = "increment_topic_usage_batch"
 _TIMEOUT_SEC = 12
+
+# Misma semántica que public.app_user_feedback_report.tipo_reporte (SQL).
+_CODIGO_A_TIPO_REPORTE: dict[str, str] = {
+    "a": "ok_sin_incidencias",
+    "b": "latex_visual_sin_impacto_funcional",
+    "c": "latex_afecto_funcionalidad",
+    "d": "contenido_respuestas_incorrectas",
+    "e": "imagen_manuscrito_no_reconocido",
+}
 
 
 def _ruta_archivo() -> str:
@@ -53,6 +67,13 @@ def _ruta_eventos_jsonl() -> str:
     carpeta = os.path.join(base, "data")
     os.makedirs(carpeta, exist_ok=True)
     return os.path.join(carpeta, "usage_events.jsonl")
+
+
+def _ruta_user_feedback_jsonl() -> str:
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    carpeta = os.path.join(base, "data")
+    os.makedirs(carpeta, exist_ok=True)
+    return os.path.join(carpeta, "user_feedback_reports.jsonl")
 
 
 def _ruta_topic_archivo() -> str:
@@ -276,6 +297,52 @@ def _increment_topics_local(topics: list[str]) -> None:
         pass
 
 
+def _insert_user_feedback_supabase(
+    funcionalidad: str, codigo: str
+) -> tuple[bool, Optional[str]]:
+    url, key = _credenciales_supabase()
+    if not url or not key:
+        return False, None
+    base = url.rstrip("/")
+    endpoint = f"{base}/rest/v1/rpc/{_RPC_USER_FEEDBACK}"
+    try:
+        r = requests.post(
+            endpoint,
+            headers={**_headers_rest(key), "Prefer": "return=minimal"},
+            json={
+                "p_funcionalidad": (funcionalidad or "")[:120],
+                "p_codigo": (codigo or "").strip().lower()[:1],
+            },
+            timeout=_TIMEOUT_SEC,
+        )
+        if r.status_code in (200, 204):
+            return True, None
+        body = (r.text or "")[:400]
+        return False, f"HTTP {r.status_code}: {body}"
+    except requests.RequestException as e:
+        return False, str(e)
+
+
+def _append_user_feedback_local(funcionalidad: str, codigo: str) -> None:
+    tipo = _CODIGO_A_TIPO_REPORTE.get((codigo or "").strip().lower())
+    if not tipo:
+        return
+    try:
+        line = json.dumps(
+            {
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "funcionalidad": (funcionalidad or "")[:120],
+                "codigo_opcion": codigo.strip().lower()[:1],
+                "tipo_reporte": tipo,
+            },
+            ensure_ascii=False,
+        )
+        with open(_ruta_user_feedback_jsonl(), "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except OSError:
+        pass
+
+
 def _insert_event_supabase(modulo: str, payload: dict[str, Any]) -> tuple[bool, Optional[str]]:
     url, key = _credenciales_supabase()
     if not url or not key:
@@ -314,6 +381,32 @@ def _session_clear_supabase_warn() -> None:
         st.session_state.pop("_uso_stats_supabase_warn", None)
     except Exception:
         pass
+
+
+def registrar_retroalimentacion_experiencia(
+    funcionalidad: str,
+    opcion: str,
+    *,
+    incluir_opcion_e_permitida: bool = False,
+) -> None:
+    """
+    Registra la opción elegida por el usuario (a–e) sin incrementar contadores de módulo.
+
+    Supabase: tabla ``app_user_feedback_report`` (RPC ``insert_user_feedback_report``).
+    Local: ``data/user_feedback_reports.jsonl`` con ``tipo_reporte`` normalizado.
+    """
+    op = (opcion or "").strip().lower()
+    if op not in ("a", "b", "c", "d", "e"):
+        return
+    if op == "e" and not incluir_opcion_e_permitida:
+        return
+    func = (funcionalidad or "")[:120]
+    url, key = _credenciales_supabase()
+    ok_db = False
+    if url and key:
+        ok_db, _err = _insert_user_feedback_supabase(func, op)
+    if not ok_db:
+        _append_user_feedback_local(func, op)
 
 
 def registrar_uso(modulo: str, detalle: Optional[dict[str, Any]] = None) -> None:
@@ -441,6 +534,65 @@ def obtener_eventos_recientes(limit: int = 150) -> list[dict[str, Any]]:
                         "timestamp": rec.get("ts"),
                         "modo": rec.get("modo"),
                         "payload": rec.get("payload") or {},
+                    }
+                )
+            except (json.JSONDecodeError, TypeError):
+                continue
+    except OSError:
+        return []
+    return out
+
+
+_TABLE_USER_FEEDBACK = "app_user_feedback_report"
+
+
+def obtener_reportes_retroalimentacion(limit: int = 200) -> list[dict[str, Any]]:
+    """
+    Reportes tipados de experiencia (a–e): Supabase ``app_user_feedback_report``
+    o archivo local ``data/user_feedback_reports.jsonl``.
+    """
+    lim = max(1, min(int(limit or 200), 3000))
+    out: list[dict[str, Any]] = []
+
+    url, key = _credenciales_supabase()
+    if url and key:
+        try:
+            b = url.rstrip("/")
+            endpoint = (
+                f"{b}/rest/v1/{_TABLE_USER_FEEDBACK}"
+                f"?select=created_at,funcionalidad,codigo_opcion,tipo_reporte"
+                f"&order=created_at.desc&limit={lim}"
+            )
+            r = requests.get(endpoint, headers=_headers_rest(key), timeout=_TIMEOUT_SEC)
+            if r.status_code == 200:
+                for row in r.json() or []:
+                    out.append(
+                        {
+                            "timestamp": row.get("created_at"),
+                            "funcionalidad": row.get("funcionalidad"),
+                            "codigo_opcion": row.get("codigo_opcion"),
+                            "tipo_reporte": row.get("tipo_reporte"),
+                        }
+                    )
+                return out
+        except (requests.RequestException, ValueError, TypeError):
+            pass
+
+    path = _ruta_user_feedback_jsonl()
+    if not os.path.isfile(path):
+        return out
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        for line in reversed(lines[-lim:]):
+            try:
+                rec = json.loads(line.strip())
+                out.append(
+                    {
+                        "timestamp": rec.get("ts"),
+                        "funcionalidad": rec.get("funcionalidad"),
+                        "codigo_opcion": rec.get("codigo_opcion"),
+                        "tipo_reporte": rec.get("tipo_reporte"),
                     }
                 )
             except (json.JSONDecodeError, TypeError):

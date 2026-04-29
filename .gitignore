@@ -4,6 +4,7 @@
 # Estadísticas de uso (anonimas, no versionar)
 data/uso_stats.json
 data/usage_events.jsonl
+data/user_feedback_reports.jsonl
 data/topic_usage.json
 
 # Registro local de consultas al tutor (puede contener datos sensibles)
