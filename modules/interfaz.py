@@ -6,7 +6,7 @@ from modules.temario import LISTA_TEMAS
 from modules import uso_stats, imagen_carga
 
 # Nombre de la aplicación (pestaña del navegador, títulos principales)
-APP_DISPLAY_NAME = "Matemáticas III - Economías UCAB Versión 6.1"
+APP_DISPLAY_NAME = "Matemáticas III - Economía UCAB Versión 7.0"
 
 # Infografía de bienvenida (relativa a la raíz del proyecto, junto a app.py)
 _ASSETS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets"))
@@ -119,10 +119,10 @@ def mostrar_sidebar():
                 "Al terminar, usa la retroalimentación anónima al pie de cada modo si algo falló o fue útil."
             )
             st.markdown("""
-            **a) Entrenamiento:** Serie de ejercicios paso a paso (estrategia → hito → resultado); en temas con datos en el banco, **apoyo gráfico** en el hito intermedio.  
-            **b) Respuesta Guiada:** Subes foto o texto de un ejercicio y el tutor te guía (foto hasta el tope indicado en la pantalla; se optimiza antes de la IA).  
+            **a) Entrenamiento:** Serie de ejercicios paso a paso (estrategia → hito → resultado); en temas con datos en el banco, **apoyo gráfico** 2D/3D en el hito intermedio.  
+            **b) Respuesta Guiada:** Subes foto o texto de un ejercicio y el tutor te guía; apoyo gráfico inferido del enunciado (áreas, volúmenes, PDF).  
             **c) Autoevaluación:** Simulacro de parcial (Primer, Segundo o temas personalizados).  
-            **d) Tutor abierto:** Chat sobre teoría y ejercicios de la cátedra.  
+            **d) Tutor abierto:** Chat sobre teoría y ejercicios; gráficos automáticos para áreas, probabilidad/PDF e integrales dobles.  
             **e) Corrección de Manuscritos:** Sube tu resolución escrita; la app identifica el enunciado, valora tu solución y sugiere ajustes (mismo tope de tamaño que en la foto guiada).
             **f) Administrador:** Métricas globales, carga de PDFs de exámenes/guías y sugerencias de quiz específico.
             """)
@@ -166,21 +166,28 @@ def mostrar_bienvenida():
 
     _mb_foto = max(1, imagen_carga.MAX_UPLOAD_BYTES // (1024 * 1024))
     st.success(
-        f"**Versión 6.1** — **Carga de fotos más segura y rápida:** en **Respuesta guiada** y **Corrección de manuscritos** "
-        f"el tamaño máximo por imagen es **{_mb_foto} MB** (también aplicado por el servidor); la imagen se **optimiza y redimensiona** "
-        "antes de enviarla a la IA para que el tutor no se bloquee con archivos enormes. "
-        "**Tu retroalimentación importa:** al final de cada modo verás un menú anónimo (opciones a–e); "
-        "cuéntanos si hubo fallos de LaTeX, respuestas incorrectas o problemas al leer tu manuscrito — "
-        "eso orienta mejoras prioritarias para la cátedra."
+        f"**Versión 7.0** — **Apoyo gráfico ampliado:** motor unificado de figuras Plotly en **Tutor Preguntas Abiertas**, "
+        "**Respuesta guiada** y **Entrenamiento** para **áreas**, **probabilidad/PDF** e **integrales dobles** "
+        "(región 2D + superficie 3D con proyección destacada sobre R). "
+        "La inferencia lee **z**, **intervalos** y **curvas** del enunciado para mostrar la región correcta. "
+        f"Se mantienen las mejoras de la v6.1: fotos hasta **{_mb_foto} MB** con optimización previa y "
+        "**retroalimentación anónima** al pie de cada modo."
     )
 
-    with st.expander("Novedades de hoy (actualización v6.1)", expanded=True):
+    with st.expander("Novedades de hoy (actualización v7.0)", expanded=True):
         st.markdown(
             f"""
-- **Límite y optimización de imágenes (v6.1):** en **Respuesta guiada** (foto del ejercicio) y en **Corrección de manuscritos** solo se aceptan archivos de hasta **{_mb_foto} MB**. La app comprime y ajusta la resolución **antes** de llamar al modelo, para respuestas estables y un uso fluido del tutor.
-- **Retroalimentación de experiencia (v6.1):** en todos los modos hay un bloque **«Tu experiencia con esta funcionalidad»**. Es **anónimo**, rápido de usar y **muy valioso** para detectar problemas de fórmulas, de contenido o de lectura de manuscrito; te pedimos usarlo cuando algo vaya bien o mal.
-- **Fórmulas y redacción (v6.0+):** lectura más natural de matemáticas y texto; mejora notable en **Respuesta guiada** y **Corrección de manuscritos** cuando el enunciado llega por foto o muy compacto.
-- **Apoyo gráfico y ejes (v6.0+):** figuras de referencia en Entrenamiento, Respuesta guiada y Tutor abierto (temas del banco); ejes claros y guías visuales para intersecciones.
+- **Motor gráfico unificado (v7.0):** en **Tutor Preguntas Abiertas** y **Respuesta guiada** se generan figuras según el tema: **áreas entre curvas**, **densidad f(x)** con intervalo sombreado, **integrales dobles** con región en el plano **xy** y vista **3D** del volumen bajo **z = f(x,y)**.
+
+- **Vista 3D enriquecida (v7.0):** la superficie se muestra en un **dominio ampliado** (contexto tenue) y se **resalta la proyección sobre la región R**; plano base más grande que R con **zoom** por rueda del mouse.
+
+- **Inferencia desde el enunciado (v7.0):** reconoce expresiones como **z = x² − y² + 2**, regiones entre **y = x²** y **y = 2x**, rectángulos **−3 < x < 2**, **0 < y < 3** y PDFs típicos del curso — sin depender solo de coincidencias del banco.
+
+- **Entrenamiento 1.2.6 (v7.0):** más ejercicios con metadatos gráficos (paraboloides, regiones tipo II, volúmenes sobre rectángulos y entre curvas); tutor paso a paso con planteamientos integrales y LaTeX corregido.
+
+- **Límite y optimización de imágenes (v6.1):** en **Respuesta guiada** y **Corrección de manuscritos** archivos de hasta **{_mb_foto} MB**; compresión antes de la IA.
+
+- **Retroalimentación de experiencia (v6.1):** bloque anónimo **«Tu experiencia con esta funcionalidad»** en todos los modos.
             """
         )
 
@@ -202,10 +209,10 @@ def mostrar_bienvenida():
         <p style="color: #0066cc;">Este ecosistema está diseñado para fortalecer el dominio de <strong>Cálculo Integral</strong> y <strong>Ecuaciones Diferenciales</strong> en tu formación como economista.</p>
         <p style="color: #0066cc;"><strong>Modos de estudio:</strong></p>
         <ul style="margin-bottom: 10px; color: #0066cc;">
-            <li><strong>a) Entrenamiento:</strong> Serie de ejercicios paso a paso (estrategia → hito → resultado). En temas seleccionados con apoyo en el banco, el hito incluye <strong>figura interactiva</strong> para validar tu planteamiento.</li>
-            <li><strong>b) Respuesta Guiada:</strong> Sube foto o texto de un ejercicio y el tutor te guía. Incluye apoyo gráfico de referencia en temas habilitados (áreas y excedentes).</li>
+            <li><strong>a) Entrenamiento:</strong> Serie de ejercicios paso a paso (estrategia → hito → resultado). En temas con apoyo en el banco, el hito incluye <strong>figura interactiva</strong> 2D y, en integrales dobles, vista <strong>3D</strong> del volumen.</li>
+            <li><strong>b) Respuesta Guiada:</strong> Sube foto o texto de un ejercicio y el tutor te guía. Apoyo gráfico inferido del enunciado (áreas, excedentes, volúmenes, PDF).</li>
             <li><strong>c) Autoevaluación:</strong> Simulacro de parcial (Primer, Segundo o temas personalizados).</li>
-            <li><strong>d) Tutor Preguntas Abiertas:</strong> Chat sobre teoría y ejercicios de la cátedra, con apoyo gráfico por tema cuando aplica.</li>
+            <li><strong>d) Tutor Preguntas Abiertas:</strong> Chat sobre teoría y ejercicios de la cátedra, con gráficos automáticos para áreas, probabilidad e integrales dobles.</li>
             <li><strong>e) Corrección de Manuscritos:</strong> Sube tu resolución escrita; la app identifica el enunciado, valora tu solución (correcto / parcial / incorrecto) y sugiere ajustes.</li>
             <li><strong>f) Administrador:</strong> Métricas globales, carga de PDFs (exámenes/guías), detección de temas y propuesta de quiz específico (acceso restringido).</li>
         </ul>
@@ -215,9 +222,10 @@ def mostrar_bienvenida():
     <p style="color: #0066cc;"><strong>🛠️ Recursos</strong></p>
     <ul style="color: #0066cc;">
         <li>Temario y banco alineados por tema; informe en PDF al terminar la autoevaluación.</li>
+        <li><strong>Gráficos interactivos (v7.0):</strong> Plotly en Entrenamiento, Respuesta Guiada y Tutor Abierto — áreas, PDF, regiones 2D y superficies 3D con proyección sobre R.</li>
+        <li><strong>Integrales dobles (v7.0):</strong> inferencia de región y <strong>z = f(x,y)</strong> desde el texto; vista 3D con superficie en contexto y zoom.</li>
         <li><strong>Carga de fotos (v6.1):</strong> tope de <strong>""" + str(_mb_foto) + """ MB</strong> por imagen en <strong>Respuesta guiada</strong> y <strong>Corrección de manuscritos</strong>; optimización automática antes de la IA.</li>
         <li><strong>Retroalimentación (v6.1):</strong> menú anónimo al pie de cada modo; ayuda a la cátedra a corregir LaTeX, contenidos y reconocimiento de manuscritos.</li>
-        <li><strong>Gráficos interactivos (v6.0+):</strong> Entrenamiento, Respuesta Guiada y Tutor Abierto en temas con soporte del banco.</li>
         <li><strong>Ejes y lectura matemática (v6.0+):</strong> ejes claros, guías visuales y mejor salida LaTeX en preguntas y explicaciones.</li>
     </ul>
     <hr style="margin-top: 20px; margin-bottom: 20px;">
