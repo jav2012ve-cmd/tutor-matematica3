@@ -512,16 +512,65 @@ def _mascara_region_desde_spec(spec: Dict[str, Any], x: np.ndarray, y: np.ndarra
     raise ValueError("Especificación de región no reconocida para máscara 3D")
 
 
-def _limites_bbox_region(spec: Dict[str, Any]) -> tuple[float, float, float, float]:
+def _limites_region_real(spec: Dict[str, Any]) -> tuple[float, float, float, float]:
+    """Caja delimitadora ajustada a la región R (sin margen visual)."""
     xs, ys = _contorno_region_xy(spec)
-    pad_x = max(0.4, 0.08 * (float(np.max(xs)) - float(np.min(xs)) + 1e-6))
-    pad_y = max(0.4, 0.08 * (float(np.max(ys)) - float(np.min(ys)) + 1e-6))
-    return (
-        float(np.min(xs)) - pad_x,
-        float(np.max(xs)) + pad_x,
-        float(np.min(ys)) - pad_y,
-        float(np.max(ys)) + pad_y,
+    return float(np.min(xs)), float(np.max(xs)), float(np.min(ys)), float(np.max(ys))
+
+
+def _margen_plano_3d(x_min: float, x_max: float, y_min: float, y_max: float) -> float:
+    """Unidades extra por lado para el plano base visible en la vista 3D."""
+    span = max(x_max - x_min, y_max - y_min, 1e-6)
+    return max(1.0, 0.15 * span)
+
+
+def _limites_plano_base(
+    spec: Dict[str, Any],
+    *,
+    margen: Optional[float] = None,
+) -> tuple[float, float, float, float]:
+    """Extensión del plano xy: región R más margen simétrico en x e y."""
+    rx0, rx1, ry0, ry1 = _limites_region_real(spec)
+    m = margen if margen is not None else _margen_plano_3d(rx0, rx1, ry0, ry1)
+    return rx0 - m, rx1 + m, ry0 - m, ry1 + m
+
+
+def _limites_bbox_region(spec: Dict[str, Any]) -> tuple[float, float, float, float]:
+    return _limites_plano_base(spec)
+
+
+def _mesh_rectangulo_xy(
+    x0: float,
+    x1: float,
+    y0: float,
+    y1: float,
+    z0: float,
+    *,
+    color: str,
+    name: str,
+) -> go.Mesh3d:
+    return go.Mesh3d(
+        x=[x0, x1, x1, x0],
+        y=[y0, y0, y1, y1],
+        z=[z0, z0, z0, z0],
+        i=[0, 0],
+        j=[1, 2],
+        k=[2, 3],
+        color=color,
+        name=name,
+        hoverinfo="skip",
+        showscale=False,
     )
+
+
+def _es_figura_3d(fig: go.Figure) -> bool:
+    return any(isinstance(t, (go.Surface, go.Scatter3d, go.Mesh3d)) for t in fig.data)
+
+
+def _plotly_config_figura(fig: go.Figure) -> Dict[str, Any]:
+    if _es_figura_3d(fig):
+        return {"scrollZoom": True, "displayModeBar": True}
+    return {}
 
 
 def figura_integral_doble_3d(
@@ -536,10 +585,10 @@ def figura_integral_doble_3d(
     con la proyección de R sombreada en el plano base z = 0.
     """
     fn_z = _lambdify_xy(z_expr)
-    x_min, x_max, y_min, y_max = _limites_bbox_region(region_spec)
+    px0, px1, py0, py1 = _limites_plano_base(region_spec)
     nx = ny = max(24, min(resolucion, 48))
-    xs = np.linspace(x_min, x_max, nx)
-    ys = np.linspace(y_min, y_max, ny)
+    xs = np.linspace(px0, px1, nx)
+    ys = np.linspace(py0, py1, ny)
     X, Y = np.meshgrid(xs, ys)
     Z_full = _eval_on_grid_xy(fn_z, X, Y)
     mascara = _mascara_region_desde_spec(region_spec, X, Y)
@@ -550,11 +599,23 @@ def figura_integral_doble_3d(
     z_top = float(np.nanmax(z_vals)) if z_vals.size else 1.0
     if z_top <= z_base:
         z_top = z_base + 1.0
+    z_floor = min(0.0, z_base)
 
     bx, by = _contorno_region_xy(region_spec)
-    bz = np.zeros_like(bx)
+    bz = np.full_like(bx, z_floor)
 
     fig = go.Figure()
+    fig.add_trace(
+        _mesh_rectangulo_xy(
+            px0,
+            px1,
+            py0,
+            py1,
+            z_floor,
+            color="rgba(200, 210, 220, 0.35)",
+            name="Plano xy (referencia)",
+        )
+    )
     fig.add_trace(
         go.Surface(
             x=X,
@@ -587,7 +648,7 @@ def figura_integral_doble_3d(
             go.Mesh3d(
                 x=bx_u,
                 y=by_u,
-                z=np.zeros(nv),
+                z=np.full(nv, z_floor),
                 i=[0] * max(0, nv - 2),
                 j=list(range(1, max(1, nv - 1))),
                 k=list(range(2, max(2, nv))),
@@ -609,7 +670,9 @@ def figura_integral_doble_3d(
             zaxis_title="z",
             aspectmode="manual",
             aspectratio=dict(x=1, y=1, z=0.55),
-            zaxis=dict(range=[min(0.0, z_base) - 0.5, z_top + 0.5]),
+            xaxis=dict(range=[px0, px1]),
+            yaxis=dict(range=[py0, py1]),
+            zaxis=dict(range=[z_floor - 0.5, z_top + 0.5]),
         ),
     )
     return fig
@@ -747,8 +810,16 @@ def mostrar_figura_apoyo(
             st.caption(caption)
         for i, fig in enumerate(figuras):
             if len(figuras) > 1 and i == 1:
-                st.caption("_Vista 3D: superficie sobre la región de integración (plano base = R)._")
-            st.plotly_chart(fig, width="stretch", key=f"plotly_apoyo_{id(spec)}_{i}")
+                st.caption(
+                    "_Vista 3D: superficie sobre R (naranja) y plano base ampliado. "
+                    "Use la **rueda del mouse** o el zoom de la barra para acercar._"
+                )
+            st.plotly_chart(
+                fig,
+                width="stretch",
+                key=f"plotly_apoyo_{id(spec)}_{i}",
+                config=_plotly_config_figura(fig),
+            )
         return True
     except Exception:
         st.caption("_No se pudo generar la figura para este ítem._")
@@ -1427,8 +1498,16 @@ def mostrar_apoyo_tutor_abierto(
         base_key = chart_key or str(abs(hash(str(spec))) % 10**8)
         for i, fig in enumerate(figuras):
             if len(figuras) > 1 and i == 1:
-                st.caption("_Vista 3D: volumen bajo la superficie sobre la región sombreada._")
-            st.plotly_chart(fig, width="stretch", key=f"plotly_tutor_{base_key}_{i}")
+                st.caption(
+                    "_Vista 3D: volumen bajo la superficie sobre la región sombreada. "
+                    "Plano base ampliado; acerque con la **rueda del mouse**._"
+                )
+            st.plotly_chart(
+                fig,
+                width="stretch",
+                key=f"plotly_tutor_{base_key}_{i}",
+                config=_plotly_config_figura(fig),
+            )
         return True
     except Exception:
         st.caption("_No se pudo generar la figura para esta consulta._")
