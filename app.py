@@ -544,9 +544,23 @@ def _mostrar_apoyo_grafico_referencia(
     titulo: str = "Apoyo gráfico — referencia del banco",
     caption: str = "",
 ) -> None:
+    spec = graficos_entrenamiento.resolver_grafico_tutor_abierto(
+        texto_referencia,
+        tema=tema,
+        banco=banco_preguntas.BANCO_FIXED,
+        tokens_match_fn=_tokens_match,
+    )
+    if spec:
+        ok = graficos_entrenamiento.mostrar_figura_apoyo(
+            spec,
+            titulo=titulo,
+            caption=caption or graficos_entrenamiento._caption_tutor_abierto(spec),
+        )
+        if ok:
+            return
+
     ej = _buscar_ejemplo_banco_con_grafico(tema, texto_referencia)
     if not ej:
-        # Transparencia para depurar casos donde la IA no devuelve tema útil.
         st.caption("_No se encontró referencia gráfica compatible para este enunciado._")
         return
     spec = ej.get("grafico")

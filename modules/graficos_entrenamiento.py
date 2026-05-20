@@ -839,7 +839,7 @@ def _texto_es_integrales_dobles(texto: Optional[str]) -> bool:
 
 def _extraer_z_desde_texto(texto: str) -> Optional[str]:
     patrones = [
-        r"z\s*=\s*([^.;,\n]+?)(?=\s*(?:\.|,|;|\n|sobre|en el|en la|limitada|limitada por|$))",
+        r"z\s*=\s*([^.;,\n]+?)(?=\s*(?:\.|,|;|\n|sobre|en\b|en el|en la|limitada|limitada por|$))",
         r"superficie\s+([^.;,\n]+?)(?=\s*(?:\.|,|;|\n|sobre|$))",
         r"bajo\s+(?:la\s+)?(?:superficie|función|funcion)\s+([^.;,\n]+)",
     ]
@@ -850,6 +850,31 @@ def _extraer_z_desde_texto(texto: str) -> Optional[str]:
             raw = re.sub(r"^\$+|\$+$", "", raw)
             if len(raw) >= 3 and re.search(r"[xy\d]", raw, re.I):
                 return _expr_z_a_sympy(raw)
+    return None
+
+
+def _extraer_intervalo_variable(texto: str, var: str) -> Optional[tuple[float, float]]:
+    """Extrae a < var < b, incluyendo el typo frecuente 3-<x<2 → -3 < x < 2."""
+    v = re.escape(var)
+
+    m = re.search(rf"(\d+)\s*-\s*<\s*{v}\s*<\s*([-\d.]+)", texto, re.I)
+    if m:
+        return -float(m.group(1)), float(m.group(2))
+
+    m = re.search(rf"([-\d.]+)\s*<\s*{v}\s*<\s*([-\d.]+)", texto, re.I)
+    if m:
+        a, b = float(m.group(1)), float(m.group(2))
+        return min(a, b), max(a, b)
+
+    m = re.search(
+        rf"{v}\s*(?:\\in|∈)\s*\[\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\]",
+        texto,
+        re.I,
+    )
+    if m:
+        a, b = float(m.group(1)), float(m.group(2))
+        return min(a, b), max(a, b)
+
     return None
 
 
@@ -864,14 +889,72 @@ def _extraer_rectangulo_desde_texto(texto: str) -> Optional[Dict[str, float]]:
             texto,
             re.I,
         )
-    if not m:
-        return None
-    return {
-        "x_min": float(m.group(1)),
-        "x_max": float(m.group(2)),
-        "y_min": float(m.group(3)),
-        "y_max": float(m.group(4)),
-    }
+    if m:
+        return {
+            "x_min": float(m.group(1)),
+            "x_max": float(m.group(2)),
+            "y_min": float(m.group(3)),
+            "y_max": float(m.group(4)),
+        }
+
+    x_iv = _extraer_intervalo_variable(texto, "x")
+    y_iv = _extraer_intervalo_variable(texto, "y")
+    if x_iv and y_iv:
+        return {
+            "x_min": x_iv[0],
+            "x_max": x_iv[1],
+            "y_min": y_iv[0],
+            "y_max": y_iv[1],
+        }
+    return None
+
+
+def _expr_normalizada_cmp(expr: str) -> str:
+    s = str(expr or "").lower().replace("^", "**")
+    s = re.sub(r"\s+", "", s)
+    s = s.replace("**", "").replace("*", "")
+    return s
+
+
+def _score_grafico_banco(
+    item: Dict[str, Any],
+    texto: Optional[str],
+    tokens_match_fn,
+) -> int:
+    if not texto or not tokens_match_fn:
+        return 0
+    ref = " ".join([str(item.get("pregunta", "")), str(item.get("explicacion", ""))])
+    q_tokens = tokens_match_fn(texto)
+    score = len(q_tokens.intersection(tokens_match_fn(ref))) if q_tokens else 0
+
+    g = item.get("grafico") or {}
+    z_txt = _extraer_z_desde_texto(texto)
+    z_bank = g.get("z")
+    if z_txt and z_bank and _expr_normalizada_cmp(z_txt) == _expr_normalizada_cmp(z_bank):
+        score += 25
+
+    rect = _extraer_rectangulo_desde_texto(texto)
+    if rect and g.get("tipo") == "rectangulo":
+        tol = 0.05
+        if (
+            abs(float(g.get("x_min", 0)) - rect["x_min"]) <= tol
+            and abs(float(g.get("x_max", 0)) - rect["x_max"]) <= tol
+            and abs(float(g.get("y_min", 0)) - rect["y_min"]) <= tol
+            and abs(float(g.get("y_max", 0)) - rect["y_max"]) <= tol
+        ):
+            score += 25
+
+    return score
+
+
+def _inferido_integrales_dobles_especifico(
+    spec: Optional[Dict[str, Any]],
+    texto: Optional[str],
+) -> bool:
+    """True si el texto aportó z y rectángulo concretos (no un ejemplo genérico)."""
+    if not spec or not texto:
+        return False
+    return bool(_extraer_z_desde_texto(texto) and _extraer_rectangulo_desde_texto(texto))
 
 
 def inferir_grafico_integrales_dobles(texto: Optional[str]) -> Optional[Dict[str, Any]]:
@@ -886,7 +969,6 @@ def inferir_grafico_integrales_dobles(texto: Optional[str]) -> Optional[Dict[str
     rect = _extraer_rectangulo_desde_texto(texto)
 
     if not z_expr and not rect:
-        # Pregunta genérica sobre integrales dobles: ejemplo didáctico parabolide en [0,1]²
         if _texto_es_integrales_dobles(texto):
             return {
                 "tipo": "rectangulo",
@@ -900,27 +982,20 @@ def inferir_grafico_integrales_dobles(texto: Optional[str]) -> Optional[Dict[str
             }
         return None
 
-    if rect:
-        spec: Dict[str, Any] = {
-            "tipo": "rectangulo",
-            "x_min": rect["x_min"],
-            "x_max": rect["x_max"],
-            "y_min": rect["y_min"],
-            "y_max": rect["y_max"],
-            "titulo": (
-                f"Región R = [{rect['x_min']},{rect['x_max']}] × "
-                f"[{rect['y_min']},{rect['y_max']}]"
-            ),
-        }
-    else:
-        spec = {
-            "tipo": "rectangulo",
-            "x_min": 0.0,
-            "x_max": 1.0,
-            "y_min": 0.0,
-            "y_max": 1.0,
-            "titulo": "Región R = [0,1] × [0,1] (referencia)",
-        }
+    if not rect:
+        return None
+
+    spec: Dict[str, Any] = {
+        "tipo": "rectangulo",
+        "x_min": rect["x_min"],
+        "x_max": rect["x_max"],
+        "y_min": rect["y_min"],
+        "y_max": rect["y_max"],
+        "titulo": (
+            f"Región R = [{rect['x_min']},{rect['x_max']}] × "
+            f"[{rect['y_min']},{rect['y_max']}]"
+        ),
+    }
 
     if z_expr:
         spec["z"] = z_expr
@@ -1227,12 +1302,11 @@ def _buscar_grafico_en_banco(
     mejor = None
     mejor_score = -1
     for c in candidatos:
-        ref = " ".join([str(c.get("pregunta", "")), str(c.get("explicacion", ""))])
-        score = len(q_tokens.intersection(tokens_match_fn(ref))) if q_tokens else 0
+        score = _score_grafico_banco(c, texto, tokens_match_fn)
         if score > mejor_score:
             mejor_score = score
             mejor = c
-    if mejor is None:
+    if mejor is None or mejor_score <= 0:
         return None
     spec = dict(mejor["grafico"])
     spec.setdefault("titulo", "Referencia del banco")
@@ -1252,9 +1326,17 @@ def resolver_grafico_tutor_abierto(
     """
     tema_id = str(tema or "")
 
+    inferido_id = (
+        inferir_grafico_integrales_dobles(texto)
+        if _texto_es_integrales_dobles(texto)
+        else None
+    )
+    if inferido_id and _inferido_integrales_dobles_especifico(inferido_id, texto):
+        return inferido_id
+
     if "1.2.6" in tema_id or _texto_es_integrales_dobles(texto):
         spec = _buscar_grafico_en_banco(banco, ("1.2.6",), texto, tokens_match_fn)
-        return spec or inferir_grafico_integrales_dobles(texto)
+        return spec or inferido_id
 
     if "1.2.7" in tema_id or _texto_es_probabilidad(texto):
         spec = _buscar_grafico_en_banco(banco, ("1.2.7", "1.2.4"), texto, tokens_match_fn)
