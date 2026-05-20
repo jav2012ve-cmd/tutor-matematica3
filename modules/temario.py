@@ -134,7 +134,8 @@ def generar_prompt_quiz(temas_seleccionados, cantidad):
        - En entrenamiento (tutor paso a paso), las estrategias son planteamientos integrales con límites correctos o alterados, no nombres de teoremas.
        - Enunciados directos: indica el orden de integración cuando sea relevante ($dx\\,dz$ vs $dz\\,dx$).
        - Incluye superficies cuadráticas sencillas del tipo $z = x^2 + y^2 + c$ (paraboloides) sobre rectángulos
-         o regiones triangulares; la vista 3D usa la clave `"z": "x**2 + y**2 + 1"` en el metadato `grafico`.
+         o regiones triangulares; la vista 3D usa la clave `"z": "x**2 + y**2 + 1"` (o `"x**2 + y**2 + 2"`) en el metadato `grafico`.
+         Ejemplo modelo con gráfico: volumen bajo $z = x^2 + y^2 + 2$ sobre $R = [-3,2] \\times [0,3]$.
     """
     regla_integrales_directas = ""
     if any("1.1.1 Integrales Indefinidas Directas" in t for t in temas_seleccionados):

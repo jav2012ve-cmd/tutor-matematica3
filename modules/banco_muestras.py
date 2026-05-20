@@ -76,6 +76,9 @@ EJEMPLO 12c (Integrales dobles — región y límites):
 EJEMPLO 12d (Integrales dobles — parabolide):
 "Calcule el volumen del sólido bajo la superficie $z = x^2 + y^2 + 1$ y sobre el rectángulo $R = [0,1] \times [0,1]$ en el plano $xy$."
 
+EJEMPLO 12e (Integrales dobles — parabolide con apoyo gráfico):
+"Calcule el volumen bajo $z = x^2 + y^2 + 2$ sobre el rectángulo $R = [-3,2] \times [0,3]$ en el plano $xy$."
+
 EJEMPLO 13:
 "Resuelva la siguiente ecuación diferencial:
 $$ (5\ln y + 108xy + 36x^2 + 81y^2 + 5) dy + (12x^2 + 72xy + 54y^2) dx = 0 $$"

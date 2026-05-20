@@ -844,6 +844,36 @@ BANCO_FIXED = [
     },
     {
         "tema": "1.2.6 Integrales dobles",
+        "pregunta": (
+            r"Calcule el volumen bajo la superficie $z = x^2 + y^2 + 2$ sobre el rectángulo "
+            r"$R = [-3,2] \times [0,3]$ en el plano $xy$:"
+        ),
+        "grafico": {
+            "tipo": "rectangulo",
+            "x_min": -3.0,
+            "x_max": 2.0,
+            "y_min": 0.0,
+            "y_max": 3.0,
+            "z": "x**2 + y**2 + 2",
+            "titulo": "Región R = [-3,2] × [0,3]",
+            "titulo_3d": "Parabolide z = x² + y² + 2 sobre R",
+        },
+        "opciones": [
+            r"A) $110$",
+            r"B) $38$",
+            r"C) $80$",
+            r"D) $\int_{-3}^{2} \int_{0}^{3} (x^2 + y^2) \, dy \, dx$"
+        ],
+        "respuesta_correcta": r"A) $110$",
+        "explicacion": (
+            r"**Región:** $-3 \le x \le 2$, $0 \le y \le 3$. **Interna ($y$):** "
+            r"$\int_0^3 (x^2 + y^2 + 2)\,dy = 3x^2 + 9 + 6 = 3x^2 + 15$. "
+            r"**Externa ($x$):** $\int_{-3}^{2} (3x^2 + 15)\,dx = [x^3 + 15x]_{-3}^{2} = 38 - (-72) = 110$. "
+            r"El término $+2$ en $z$ aporta $2 \cdot 5 \cdot 3 = 30$ al volumen total."
+        ),
+    },
+    {
+        "tema": "1.2.6 Integrales dobles",
         "pregunta": r"Plantee (NO CALCULE) el volumen bajo $z = x^2 + y^2 + 1$ sobre $R = [0,2] \times [0,1]$:",
         "grafico": {
             "tipo": "rectangulo",
