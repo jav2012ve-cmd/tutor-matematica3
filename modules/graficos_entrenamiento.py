@@ -581,25 +581,24 @@ def figura_integral_doble_3d(
     resolucion: int = 36,
 ) -> go.Figure:
     """
-    Superficie z = f(x,y) recortada sobre la región R del plano xy,
-    con la proyección de R sombreada en el plano base z = 0.
+    Superficie z = f(x,y) sobre un plano base ampliado.
+    Muestra la función en un dominio mayor y destaca la porción sobre la región R.
     """
     fn_z = _lambdify_xy(z_expr)
     px0, px1, py0, py1 = _limites_plano_base(region_spec)
-    nx = ny = max(24, min(resolucion, 48))
+    nx = ny = max(32, min(resolucion, 56))
     xs = np.linspace(px0, px1, nx)
     ys = np.linspace(py0, py1, ny)
     X, Y = np.meshgrid(xs, ys)
     Z_full = _eval_on_grid_xy(fn_z, X, Y)
     mascara = _mascara_region_desde_spec(region_spec, X, Y)
-    Z = np.where(mascara, Z_full, np.nan)
+    Z_sobre_r = np.where(mascara, Z_full, np.nan)
 
-    z_vals = Z_full[mascara]
-    z_base = float(np.nanmin(z_vals)) if z_vals.size else 0.0
-    z_top = float(np.nanmax(z_vals)) if z_vals.size else 1.0
-    if z_top <= z_base:
-        z_top = z_base + 1.0
-    z_floor = min(0.0, z_base)
+    z_min = float(np.nanmin(Z_full))
+    z_max = float(np.nanmax(Z_full))
+    if z_max <= z_min:
+        z_max = z_min + 1.0
+    z_floor = min(0.0, z_min)
 
     bx, by = _contorno_region_xy(region_spec)
     bz = np.full_like(bx, z_floor)
@@ -620,13 +619,27 @@ def figura_integral_doble_3d(
         go.Surface(
             x=X,
             y=Y,
-            z=Z,
+            z=Z_full,
+            colorscale="Blues",
+            showscale=False,
+            opacity=0.3,
+            name=f"z = {z_expr} (contexto)",
+            hovertemplate="x=%{x:.2f}<br>y=%{y:.2f}<br>z=%{z:.2f}<extra></extra>",
+            legendgroup="surf_ctx",
+        )
+    )
+    fig.add_trace(
+        go.Surface(
+            x=X,
+            y=Y,
+            z=Z_sobre_r,
             colorscale="Blues",
             showscale=True,
-            colorbar=dict(title="z", len=0.55, y=0.78),
-            opacity=0.88,
-            name=f"z = {z_expr}",
+            colorbar=dict(title="z sobre R", len=0.55, y=0.78),
+            opacity=0.92,
+            name="Proyección sobre R",
             hovertemplate="x=%{x:.2f}<br>y=%{y:.2f}<br>z=%{z:.2f}<extra></extra>",
+            legendgroup="surf_r",
         )
     )
     fig.add_trace(
@@ -672,7 +685,7 @@ def figura_integral_doble_3d(
             aspectratio=dict(x=1, y=1, z=0.55),
             xaxis=dict(range=[px0, px1]),
             yaxis=dict(range=[py0, py1]),
-            zaxis=dict(range=[z_floor - 0.5, z_top + 0.5]),
+            zaxis=dict(range=[z_floor - 0.5, z_max + 0.5]),
         ),
     )
     return fig
@@ -811,8 +824,8 @@ def mostrar_figura_apoyo(
         for i, fig in enumerate(figuras):
             if len(figuras) > 1 and i == 1:
                 st.caption(
-                    "_Vista 3D: superficie sobre R (naranja) y plano base ampliado. "
-                    "Use la **rueda del mouse** o el zoom de la barra para acercar._"
+                    "_Vista 3D: superficie completa (tenue) y **proyección sobre R** resaltada (naranja en el plano). "
+                    "Acerque con la **rueda del mouse**._"
                 )
             st.plotly_chart(
                 fig,
@@ -1565,7 +1578,7 @@ def mostrar_apoyo_tutor_abierto(
         for i, fig in enumerate(figuras):
             if len(figuras) > 1 and i == 1:
                 st.caption(
-                    "_Vista 3D: volumen bajo la superficie sobre la región sombreada. "
+                    "_Vista 3D: función en contexto (tenue) y porción sobre **R** resaltada. "
                     "Plano base ampliado; acerque con la **rueda del mouse**._"
                 )
             st.plotly_chart(
