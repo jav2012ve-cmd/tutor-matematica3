@@ -1001,8 +1001,11 @@ def _score_grafico_banco(
     g = item.get("grafico") or {}
     z_txt = _extraer_z_desde_texto(texto)
     z_bank = g.get("z")
-    if z_txt and z_bank and _expr_normalizada_cmp(z_txt) == _expr_normalizada_cmp(z_bank):
-        score += 25
+    if z_txt and z_bank:
+        if _expr_normalizada_cmp(z_txt) == _expr_normalizada_cmp(z_bank):
+            score += 25
+        else:
+            score -= 30
 
     rect = _extraer_rectangulo_desde_texto(texto)
     if rect and g.get("tipo") == "rectangulo":
@@ -1015,6 +1018,15 @@ def _score_grafico_banco(
         ):
             score += 25
 
+    par = _extraer_dos_curvas_y(texto)
+    if par and g.get("tipo") == "area_entre_curvas":
+        c1n = _expr_normalizada_cmp(par[0])
+        c2n = _expr_normalizada_cmp(par[1])
+        gsup = _expr_normalizada_cmp(str(g.get("y_superior", "")))
+        ginf = _expr_normalizada_cmp(str(g.get("y_inferior", "")))
+        if {c1n, c2n} == {gsup, ginf}:
+            score += 30
+
     return score
 
 
@@ -1022,10 +1034,14 @@ def _inferido_integrales_dobles_especifico(
     spec: Optional[Dict[str, Any]],
     texto: Optional[str],
 ) -> bool:
-    """True si el texto aportó z y rectángulo concretos (no un ejemplo genérico)."""
+    """True si el texto aportó z y región concreta (rectángulo o dos curvas)."""
     if not spec or not texto:
         return False
-    return bool(_extraer_z_desde_texto(texto) and _extraer_rectangulo_desde_texto(texto))
+    if not _extraer_z_desde_texto(texto):
+        return False
+    if _extraer_rectangulo_desde_texto(texto):
+        return True
+    return _extraer_dos_curvas_y(texto) is not None
 
 
 def inferir_grafico_integrales_dobles(texto: Optional[str]) -> Optional[Dict[str, Any]]:
@@ -1038,8 +1054,21 @@ def inferir_grafico_integrales_dobles(texto: Optional[str]) -> Optional[Dict[str
 
     z_expr = _extraer_z_desde_texto(texto)
     rect = _extraer_rectangulo_desde_texto(texto)
+    par = _extraer_dos_curvas_y(texto)
+    intervalo = _extraer_intervalo_x(texto)
 
-    if not z_expr and not rect:
+    if par and z_expr:
+        spec_curvas = _spec_area_entre_curvas(
+            par[0],
+            par[1],
+            intervalo=intervalo,
+            z_expr=z_expr,
+            titulo="Región base entre curvas (referencia)",
+        )
+        if spec_curvas:
+            return spec_curvas
+
+    if not z_expr and not rect and not par:
         if _texto_es_integrales_dobles(texto):
             return {
                 "tipo": "rectangulo",
@@ -1076,6 +1105,8 @@ def inferir_grafico_integrales_dobles(texto: Optional[str]) -> Optional[Dict[str
 
 def _texto_es_areas(texto: Optional[str]) -> bool:
     if not texto:
+        return False
+    if _texto_es_integrales_dobles(texto) and _extraer_z_desde_texto(texto):
         return False
     t = str(texto).lower()
     sc = re.sub(r"\s+", "", t)
@@ -1140,6 +1171,18 @@ def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
         raw = _limpiar_expr_raw(chunk)
         if raw:
             exprs.append(raw)
+
+    if len(exprs) < 2:
+        m = re.search(
+            r"\by\s*=\s*(.+?)\s+y\s*(?:=\s*)?([^=,\n;?.]+)",
+            texto,
+            re.I,
+        )
+        if m:
+            e1 = _limpiar_expr_raw(m.group(1))
+            e2 = _limpiar_expr_raw(m.group(2))
+            if e1 and e2:
+                exprs = [e1, e2]
 
     if len(exprs) < 2:
         fx_matches = list(re.finditer(r"f\s*\(\s*x\s*\)\s*=\s*", texto, re.I))
@@ -1256,6 +1299,44 @@ def _extraer_intervalo_prob(texto: str) -> Optional[tuple[float, float]]:
     return None
 
 
+def _spec_area_entre_curvas(
+    c1: str,
+    c2: str,
+    *,
+    intervalo: Optional[tuple[float, float]] = None,
+    z_expr: Optional[str] = None,
+    titulo: str = "Área entre curvas (referencia)",
+) -> Optional[Dict[str, Any]]:
+    x_r = _interseccion_x_curvas(c1, c2) or intervalo
+    if not x_r:
+        return None
+    x0, x1 = x_r
+    xm = (x0 + x1) / 2.0
+    try:
+        f1 = _lambdify_expr(c1)
+        f2 = _lambdify_expr(c2)
+        if float(f1(xm)) >= float(f2(xm)):
+            sup, inf = c1, c2
+        else:
+            sup, inf = c2, c1
+    except Exception:
+        sup, inf = c1, c2
+    spec: Dict[str, Any] = {
+        "tipo": "area_entre_curvas",
+        "y_superior": sup,
+        "y_inferior": inf,
+        "x_min": float(x0),
+        "x_max": float(x1),
+        "titulo": titulo,
+    }
+    if z_expr:
+        spec["z"] = z_expr
+        spec["titulo_3d"] = (
+            f"Volumen bajo z = {z_expr.replace('**', '²').replace('*', '')} sobre R"
+        )
+    return spec
+
+
 def inferir_grafico_areas(texto: Optional[str]) -> Optional[Dict[str, Any]]:
     if not texto or not _texto_es_areas(texto):
         return None
@@ -1264,27 +1345,12 @@ def inferir_grafico_areas(texto: Optional[str]) -> Optional[Dict[str, Any]]:
     intervalo = _extraer_intervalo_x(texto)
 
     if par:
-        c1, c2 = par
-        x_r = _interseccion_x_curvas(c1, c2) or intervalo or (-3.0, 2.0)
-        x0, x1 = x_r
-        xm = (x0 + x1) / 2.0
-        try:
-            f1 = _lambdify_expr(c1)
-            f2 = _lambdify_expr(c2)
-            if float(f1(xm)) >= float(f2(xm)):
-                sup, inf = c1, c2
-            else:
-                sup, inf = c2, c1
-        except Exception:
-            sup, inf = c1, c2
-        return {
-            "tipo": "area_entre_curvas",
-            "y_superior": sup,
-            "y_inferior": inf,
-            "x_min": float(x0),
-            "x_max": float(x1),
-            "titulo": "Área entre curvas (referencia)",
-        }
+        return _spec_area_entre_curvas(
+            par[0],
+            par[1],
+            intervalo=intervalo,
+            titulo="Área entre curvas (referencia)",
+        )
 
     # Área bajo una curva f(x) en [a,b]
     f_pdf = _extraer_f_pdf(texto) or _extraer_z_desde_texto(texto)
