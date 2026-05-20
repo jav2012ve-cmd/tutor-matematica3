@@ -4,6 +4,7 @@ Los datos vienen del banco (clave `grafico`); no se evalúa texto libre del usua
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -11,9 +12,11 @@ import plotly.graph_objects as go
 import sympy as sp
 
 _x = sp.symbols("x")
+_y = sp.symbols("y")
 
 
-def _lambdify_expr(expr_str: str):
+def _lambdify_expr(expr_str: str, variable=None):
+    var = variable or _x
     s = expr_str.strip().replace("^", "**")
     local = {
         "exp": sp.exp,
@@ -27,7 +30,7 @@ def _lambdify_expr(expr_str: str):
         "tan": sp.tan,
     }
     e = sp.sympify(s, locals=local)
-    return sp.lambdify(_x, e, modules=["numpy"])
+    return sp.lambdify(var, e, modules=["numpy"])
 
 
 def _eval_on_grid(fn, xs: np.ndarray) -> np.ndarray:
@@ -228,10 +231,405 @@ def figura_excedentes(
     return fig
 
 
+def figura_pdf_densidad(
+    f_expr: str,
+    x_min: float,
+    x_max: float,
+    *,
+    x_shade_min: Optional[float] = None,
+    x_shade_max: Optional[float] = None,
+    titulo: str = "",
+) -> go.Figure:
+    """
+    Densidad f(x) ≥ 0 y sombreado opcional de P(a ≤ X ≤ b) como área bajo la curva.
+    """
+    if x_max <= x_min:
+        x_max = x_min + 1.0
+    npts = min(400, max(80, int((x_max - x_min) * 60)))
+    xs = np.linspace(x_min, x_max, npts)
+    fn = _lambdify_expr(f_expr)
+    ys = _eval_on_grid(fn, xs)
+    y_max = float(np.nanmax(ys))
+    y_min = min(0.0, float(np.nanmin(ys)))
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=xs,
+            y=ys,
+            mode="lines",
+            name="f(x) — densidad",
+            line=dict(width=2.5, color="#1f77b4"),
+        )
+    )
+
+    a = x_shade_min if x_shade_min is not None else x_min
+    b = x_shade_max if x_shade_max is not None else x_max
+    if b > a:
+        mask = (xs >= a) & (xs <= b)
+        xs_s = xs[mask]
+        ys_s = ys[mask]
+        if len(xs_s) >= 2:
+            x_poly = np.concatenate([xs_s, xs_s[::-1]])
+            y_poly = np.concatenate([ys_s, np.zeros_like(ys_s)[::-1]])
+            fig.add_trace(
+                go.Scatter(
+                    x=x_poly,
+                    y=y_poly,
+                    fill="toself",
+                    fillcolor="rgba(34, 139, 34, 0.32)",
+                    line=dict(width=0),
+                    name="Probabilidad (área)",
+                    hoverinfo="skip",
+                )
+            )
+
+    fig.update_layout(
+        title=titulo or "Función de densidad de probabilidad",
+        xaxis_title="x",
+        yaxis_title="f(x)",
+        height=440,
+        margin=dict(l=48, r=24, t=56, b=48),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    fig.update_yaxes(range=[y_min - 0.05 * max(y_max, 0.1), y_max * 1.15])
+    fig.update_xaxes(range=[min(x_min, 0.0), x_max + 0.05 * (x_max - x_min)])
+    fig.update_xaxes(
+        zeroline=True,
+        zerolinewidth=2,
+        zerolinecolor="#4a4a4a",
+        showgrid=True,
+        gridcolor="rgba(74, 74, 74, 0.25)",
+    )
+    fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor="#4a4a4a")
+    return fig
+
+
+def figura_region_xy_tipo2(
+    x_inferior: str,
+    x_superior: str,
+    y_min: float,
+    y_max: float,
+    titulo: str = "",
+) -> go.Figure:
+    """
+    Región en el plano xy para integración tipo II: x_inferior(y) ≤ x ≤ x_superior(y).
+    """
+    if y_max <= y_min:
+        y_max = y_min + 1.0
+    npts = min(400, max(60, int((y_max - y_min) * 50)))
+    ys = np.linspace(y_min, y_max, npts)
+    fn_i = _lambdify_expr(x_inferior, _y)
+    fn_s = _lambdify_expr(x_superior, _y)
+    x_inf = _eval_on_grid(fn_i, ys)
+    x_sup = _eval_on_grid(fn_s, ys)
+    x_min_g = float(np.nanmin(np.concatenate([x_inf, x_sup])))
+    x_max_g = float(np.nanmax(np.concatenate([x_inf, x_sup])))
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=x_sup,
+            y=ys,
+            mode="lines",
+            name="Curva derecha (x superior)",
+            line=dict(width=2, color="#1f77b4"),
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=x_inf,
+            y=ys,
+            mode="lines",
+            name="Curva izquierda (x inferior)",
+            line=dict(width=2, color="#d62728"),
+        )
+    )
+    x_poly = np.concatenate([x_sup, x_inf[::-1]])
+    y_poly = np.concatenate([ys, ys[::-1]])
+    fig.add_trace(
+        go.Scatter(
+            x=x_poly,
+            y=y_poly,
+            fill="toself",
+            fillcolor="rgba(100, 149, 237, 0.28)",
+            line=dict(width=0),
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+    fig.update_layout(
+        title=titulo or "Región de integración (tipo II)",
+        xaxis_title="x",
+        yaxis_title="y",
+        height=440,
+        margin=dict(l=48, r=24, t=56, b=48),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    fig.update_xaxes(range=[x_min_g - 1.0, x_max_g + 1.0])
+    fig.update_yaxes(range=[min(y_min, 0.0), max(y_max, 0.0)])
+    fig.update_xaxes(
+        zeroline=True,
+        zerolinewidth=2,
+        zerolinecolor="#4a4a4a",
+        showgrid=True,
+        gridcolor="rgba(74, 74, 74, 0.25)",
+        gridwidth=1,
+    )
+    fig.update_yaxes(zeroline=True, zerolinewidth=2, zerolinecolor="#4a4a4a")
+    return fig
+
+
+def _lambdify_xy(expr_str: str):
+    s = expr_str.strip().replace("^", "**")
+    local = {
+        "exp": sp.exp,
+        "E": sp.E,
+        "log": sp.log,
+        "ln": sp.log,
+        "sqrt": sp.sqrt,
+        "pi": sp.pi,
+        "sin": sp.sin,
+        "cos": sp.cos,
+        "tan": sp.tan,
+    }
+    e = sp.sympify(s, locals=local)
+    return sp.lambdify([_x, _y], e, modules=["numpy"])
+
+
+def _eval_on_grid_xy(fn, xs: np.ndarray, ys: np.ndarray) -> np.ndarray:
+    out = fn(xs, ys)
+    return np.asarray(out, dtype=float)
+
+
+def _mascara_region_rect(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    x_min: float,
+    x_max: float,
+    y_min: float,
+    y_max: float,
+) -> np.ndarray:
+    return (x >= x_min) & (x <= x_max) & (y >= y_min) & (y <= y_max)
+
+
+def _mascara_region_tipo1(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    y_superior_fn,
+    y_inferior_fn,
+    x_min: float,
+    x_max: float,
+) -> np.ndarray:
+    y_sup = _eval_on_grid(y_superior_fn, x)
+    y_inf = _eval_on_grid(y_inferior_fn, x)
+    return (x >= x_min) & (x <= x_max) & (y >= y_inf) & (y <= y_sup)
+
+
+def _mascara_region_tipo2(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    x_inferior_fn,
+    x_superior_fn,
+    y_min: float,
+    y_max: float,
+) -> np.ndarray:
+    x_inf = _eval_on_grid(x_inferior_fn, y)
+    x_sup = _eval_on_grid(x_superior_fn, y)
+    return (y >= y_min) & (y <= y_max) & (x >= x_inf) & (x <= x_sup)
+
+
+def _contorno_region_xy(spec: Dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+    """Polígono cerrado (x, y) que delimita la región en el plano xy."""
+    tipo = spec.get("tipo")
+    if tipo == "rectangulo" or all(k in spec for k in ("x_min", "x_max", "y_min", "y_max")):
+        x0, x1 = float(spec["x_min"]), float(spec["x_max"])
+        y0, y1 = float(spec["y_min"]), float(spec["y_max"])
+        xs = np.array([x0, x1, x1, x0, x0])
+        ys = np.array([y0, y0, y1, y1, y0])
+        return xs, ys
+    if tipo == "region_xy_tipo2" or all(k in spec for k in ("x_inferior", "x_superior", "y_min", "y_max")):
+        y0, y1 = float(spec["y_min"]), float(spec["y_max"])
+        n = min(120, max(40, int((y1 - y0) * 30)))
+        ys = np.linspace(y0, y1, n)
+        fn_i = _lambdify_expr(str(spec["x_inferior"]), _y)
+        fn_s = _lambdify_expr(str(spec["x_superior"]), _y)
+        x_inf = _eval_on_grid(fn_i, ys)
+        x_sup = _eval_on_grid(fn_s, ys)
+        xs = np.concatenate([x_sup, x_inf[::-1], [x_sup[0]]])
+        ys_out = np.concatenate([ys, ys[::-1], [ys[0]]])
+        return xs, ys_out
+    if tipo == "area_entre_curvas" or all(k in spec for k in ("y_superior", "y_inferior", "x_min", "x_max")):
+        x0, x1 = float(spec["x_min"]), float(spec["x_max"])
+        n = min(120, max(40, int((x1 - x0) * 30)))
+        xs = np.linspace(x0, x1, n)
+        fn_s = _lambdify_expr(str(spec["y_superior"]))
+        fn_i = _lambdify_expr(str(spec["y_inferior"]))
+        y_sup = _eval_on_grid(fn_s, xs)
+        y_inf = _eval_on_grid(fn_i, xs)
+        xs_out = np.concatenate([xs, xs[::-1], [xs[0]]])
+        ys_out = np.concatenate([y_sup, y_inf[::-1], [y_sup[0]]])
+        return xs_out, ys_out
+    raise ValueError("Especificación de región no reconocida para contorno 3D")
+
+
+def _mascara_region_desde_spec(spec: Dict[str, Any], x: np.ndarray, y: np.ndarray) -> np.ndarray:
+    tipo = spec.get("tipo")
+    if tipo == "rectangulo" or all(k in spec for k in ("x_min", "x_max", "y_min", "y_max")):
+        return _mascara_region_rect(
+            x,
+            y,
+            x_min=float(spec["x_min"]),
+            x_max=float(spec["x_max"]),
+            y_min=float(spec["y_min"]),
+            y_max=float(spec["y_max"]),
+        )
+    if tipo == "region_xy_tipo2" or all(k in spec for k in ("x_inferior", "x_superior", "y_min", "y_max")):
+        fn_i = _lambdify_expr(str(spec["x_inferior"]), _y)
+        fn_s = _lambdify_expr(str(spec["x_superior"]), _y)
+        return _mascara_region_tipo2(
+            x,
+            y,
+            x_inferior_fn=fn_i,
+            x_superior_fn=fn_s,
+            y_min=float(spec["y_min"]),
+            y_max=float(spec["y_max"]),
+        )
+    if tipo == "area_entre_curvas" or all(k in spec for k in ("y_superior", "y_inferior", "x_min", "x_max")):
+        fn_s = _lambdify_expr(str(spec["y_superior"]))
+        fn_i = _lambdify_expr(str(spec["y_inferior"]))
+        return _mascara_region_tipo1(
+            x,
+            y,
+            y_superior_fn=fn_s,
+            y_inferior_fn=fn_i,
+            x_min=float(spec["x_min"]),
+            x_max=float(spec["x_max"]),
+        )
+    raise ValueError("Especificación de región no reconocida para máscara 3D")
+
+
+def _limites_bbox_region(spec: Dict[str, Any]) -> tuple[float, float, float, float]:
+    xs, ys = _contorno_region_xy(spec)
+    pad_x = max(0.4, 0.08 * (float(np.max(xs)) - float(np.min(xs)) + 1e-6))
+    pad_y = max(0.4, 0.08 * (float(np.max(ys)) - float(np.min(ys)) + 1e-6))
+    return (
+        float(np.min(xs)) - pad_x,
+        float(np.max(xs)) + pad_x,
+        float(np.min(ys)) - pad_y,
+        float(np.max(ys)) + pad_y,
+    )
+
+
+def figura_integral_doble_3d(
+    z_expr: str,
+    region_spec: Dict[str, Any],
+    *,
+    titulo: str = "",
+    resolucion: int = 36,
+) -> go.Figure:
+    """
+    Superficie z = f(x,y) recortada sobre la región R del plano xy,
+    con la proyección de R sombreada en el plano base z = 0.
+    """
+    fn_z = _lambdify_xy(z_expr)
+    x_min, x_max, y_min, y_max = _limites_bbox_region(region_spec)
+    nx = ny = max(24, min(resolucion, 48))
+    xs = np.linspace(x_min, x_max, nx)
+    ys = np.linspace(y_min, y_max, ny)
+    X, Y = np.meshgrid(xs, ys)
+    Z_full = _eval_on_grid_xy(fn_z, X, Y)
+    mascara = _mascara_region_desde_spec(region_spec, X, Y)
+    Z = np.where(mascara, Z_full, np.nan)
+
+    z_vals = Z_full[mascara]
+    z_base = float(np.nanmin(z_vals)) if z_vals.size else 0.0
+    z_top = float(np.nanmax(z_vals)) if z_vals.size else 1.0
+    if z_top <= z_base:
+        z_top = z_base + 1.0
+
+    bx, by = _contorno_region_xy(region_spec)
+    bz = np.zeros_like(bx)
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Surface(
+            x=X,
+            y=Y,
+            z=Z,
+            colorscale="Blues",
+            showscale=True,
+            colorbar=dict(title="z", len=0.55, y=0.78),
+            opacity=0.88,
+            name=f"z = {z_expr}",
+            hovertemplate="x=%{x:.2f}<br>y=%{y:.2f}<br>z=%{z:.2f}<extra></extra>",
+        )
+    )
+    fig.add_trace(
+        go.Scatter3d(
+            x=bx,
+            y=by,
+            z=bz,
+            mode="lines",
+            line=dict(color="#d62728", width=5),
+            name="Contorno de R",
+            hoverinfo="skip",
+        )
+    )
+    bx_u = bx[:-1] if len(bx) > 1 and bx[0] == bx[-1] else bx
+    by_u = by[:-1] if len(by) > 1 and by[0] == by[-1] else by
+    nv = len(bx_u)
+    if nv >= 3:
+        fig.add_trace(
+            go.Mesh3d(
+                x=bx_u,
+                y=by_u,
+                z=np.zeros(nv),
+                i=[0] * max(0, nv - 2),
+                j=list(range(1, max(1, nv - 1))),
+                k=list(range(2, max(2, nv))),
+                color="rgba(255, 140, 0, 0.35)",
+                name="Región R (plano xy)",
+                hoverinfo="skip",
+                showscale=False,
+            )
+        )
+
+    fig.update_layout(
+        title=titulo or f"Volumen bajo z = {z_expr}",
+        height=520,
+        margin=dict(l=0, r=0, t=56, b=0),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        scene=dict(
+            xaxis_title="x",
+            yaxis_title="y",
+            zaxis_title="z",
+            aspectmode="manual",
+            aspectratio=dict(x=1, y=1, z=0.55),
+            zaxis=dict(range=[min(0.0, z_base) - 0.5, z_top + 0.5]),
+        ),
+    )
+    return fig
+
+
 def figura_desde_spec(spec: Optional[Dict[str, Any]]) -> Optional[go.Figure]:
     if not spec:
         return None
     tipo = spec.get("tipo")
+    if tipo == "integral_doble_3d":
+        z_expr = spec.get("z")
+        region = spec.get("region") or spec
+        if not z_expr:
+            return None
+        return figura_integral_doble_3d(
+            str(z_expr),
+            region,
+            titulo=spec.get("titulo") or "",
+            resolucion=int(spec.get("resolucion", 36)),
+        )
     if tipo == "excedentes":
         if not all(k in spec for k in ("demanda", "oferta", "q_max")):
             return None
@@ -242,6 +640,37 @@ def figura_desde_spec(spec: Optional[Dict[str, Any]]) -> Optional[go.Figure]:
             q_max=float(spec["q_max"]),
             titulo=spec.get("titulo") or "",
         )
+    if tipo == "pdf_densidad":
+        if not all(k in spec for k in ("f", "x_min", "x_max")):
+            return None
+        return figura_pdf_densidad(
+            f_expr=str(spec["f"]),
+            x_min=float(spec["x_min"]),
+            x_max=float(spec["x_max"]),
+            x_shade_min=spec.get("x_shade_min"),
+            x_shade_max=spec.get("x_shade_max"),
+            titulo=spec.get("titulo") or "",
+        )
+    if tipo == "region_xy_tipo2":
+        if not all(k in spec for k in ("x_inferior", "x_superior")):
+            return None
+        return figura_region_xy_tipo2(
+            x_inferior=str(spec["x_inferior"]),
+            x_superior=str(spec["x_superior"]),
+            y_min=float(spec.get("y_min", 0.0)),
+            y_max=float(spec.get("y_max", 1.0)),
+            titulo=spec.get("titulo") or "",
+        )
+    if tipo == "rectangulo":
+        if not all(k in spec for k in ("x_min", "x_max", "y_min", "y_max")):
+            return None
+        banda = {
+            "y_superior": str(float(spec["y_max"])),
+            "y_inferior": str(float(spec["y_min"])),
+            "x_min": spec["x_min"],
+            "x_max": spec["x_max"],
+        }
+        return figura_area_entre_curvas([banda], spec.get("titulo") or "")
     if tipo != "area_entre_curvas":
         return None
     titulo = spec.get("titulo") or ""
@@ -261,6 +690,40 @@ def figura_desde_spec(spec: Optional[Dict[str, Any]]) -> Optional[go.Figure]:
     return None
 
 
+def figuras_desde_spec(spec: Optional[Dict[str, Any]]) -> List[go.Figure]:
+    """
+    Devuelve una o más figuras: plano 2D (si aplica) y/o vista 3D cuando hay `z`.
+    """
+    if not spec:
+        return []
+    figuras: List[go.Figure] = []
+    z_expr = spec.get("z")
+    tipo = spec.get("tipo")
+
+    if tipo == "integral_doble_3d":
+        fig = figura_desde_spec(spec)
+        if fig is not None:
+            figuras.append(fig)
+        return figuras
+
+    fig_2d = figura_desde_spec(spec)
+    if fig_2d is not None:
+        figuras.append(fig_2d)
+
+    if z_expr and tipo in ("area_entre_curvas", "region_xy_tipo2", "rectangulo", None):
+        try:
+            fig_3d = figura_integral_doble_3d(
+                str(z_expr),
+                spec,
+                titulo=spec.get("titulo_3d") or f"Volumen bajo z = {z_expr}",
+                resolucion=int(spec.get("resolucion", 36)),
+            )
+            figuras.append(fig_3d)
+        except Exception:
+            pass
+    return figuras
+
+
 def mostrar_figura_apoyo(
     spec: Optional[Dict[str, Any]],
     *,
@@ -269,20 +732,23 @@ def mostrar_figura_apoyo(
 ) -> bool:
     """
     Render estándar del apoyo gráfico para TODAS las funcionalidades.
-    Retorna True si se mostró la figura, False en caso contrario.
+    Retorna True si se mostró al menos una figura, False en caso contrario.
     """
     import streamlit as st
 
     if not spec:
         return False
     try:
-        fig = figura_desde_spec(spec)
-        if fig is None:
+        figuras = figuras_desde_spec(spec)
+        if not figuras:
             return False
         st.subheader(titulo)
         if caption:
             st.caption(caption)
-        st.plotly_chart(fig, width="stretch")
+        for i, fig in enumerate(figuras):
+            if len(figuras) > 1 and i == 1:
+                st.caption("_Vista 3D: superficie sobre la región de integración (plano base = R)._")
+            st.plotly_chart(fig, width="stretch", key=f"plotly_apoyo_{id(spec)}_{i}")
         return True
     except Exception:
         st.caption("_No se pudo generar la figura para este ítem._")
@@ -306,13 +772,16 @@ def mostrar_si_aplica(
     if not spec:
         return
     if en_paso_intermedio:
+        cap = (
+            "Compara la región sombreada con los límites y la función que integraste "
+            "tras elegir la estrategia (referencia del banco)."
+        )
+        if spec.get("z"):
+            cap += " La vista 3D muestra la superficie z = f(x,y) sobre R."
         mostrar_figura_apoyo(
             spec,
             titulo="Apoyo gráfico — valida tu planteamiento",
-            caption=(
-                "Compara la región sombreada con los límites y la función que integraste "
-                "tras elegir la estrategia (referencia del banco)."
-            ),
+            caption=cap,
         )
     else:
         mostrar_figura_apoyo(
@@ -320,3 +789,583 @@ def mostrar_si_aplica(
             titulo="Apoyo gráfico",
             caption="Misma región que el planteamiento del banco (referencia visual).",
         )
+
+
+def _limpiar_expr_raw(raw: str) -> str:
+    s = raw.strip().strip("$")
+    s = re.sub(r"[?!.]+$", "", s).strip()
+    s = re.sub(r"\s+(?:es|sea|para|en|sobre)\b.*$", "", s, flags=re.I).strip()
+    return s
+
+
+def _expr_generica_a_sympy(raw: str) -> str:
+    """Convierte expresión legible (x^2+1, 6-x) a formato sympy."""
+    s = _limpiar_expr_raw(raw).replace("^", "**")
+    s = re.sub(r"\s+", "", s)
+    s = re.sub(r"(\d)([xy])", r"\1*\2", s)
+    s = re.sub(r"([xy])([xy])", r"\1*\2", s)
+    s = re.sub(r"\*\*\*", "**", s)
+    return s
+
+
+def _expr_z_a_sympy(z_raw: str) -> str:
+    return _expr_generica_a_sympy(z_raw)
+
+
+def _texto_es_integrales_dobles(texto: Optional[str]) -> bool:
+    if not texto:
+        return False
+    t = str(texto).lower()
+    sc = re.sub(r"\s+", "", t)
+    claves = (
+        "integraldoble",
+        "integralesdobles",
+        "iint",
+        "∬",
+        "volumenbajo",
+        "dxdy",
+        "dydx",
+        "dx dy",
+        "dy dx",
+        "regiondeintegracion",
+        "limitesdeintegracion",
+    )
+    if any(k in sc for k in claves):
+        return True
+    if re.search(r"\bz\s*=", t) and any(w in t for w in ("volumen", "superficie", "plano xy", "región", "region")):
+        return True
+    return bool(re.search(r"\\iint|\\int_\{[^}]+\}\s*\\int", t))
+
+
+def _extraer_z_desde_texto(texto: str) -> Optional[str]:
+    patrones = [
+        r"z\s*=\s*([^.;,\n]+?)(?=\s*(?:\.|,|;|\n|sobre|en el|en la|limitada|limitada por|$))",
+        r"superficie\s+([^.;,\n]+?)(?=\s*(?:\.|,|;|\n|sobre|$))",
+        r"bajo\s+(?:la\s+)?(?:superficie|función|funcion)\s+([^.;,\n]+)",
+    ]
+    for pat in patrones:
+        m = re.search(pat, texto, re.I | re.DOTALL)
+        if m:
+            raw = m.group(1).strip()
+            raw = re.sub(r"^\$+|\$+$", "", raw)
+            if len(raw) >= 3 and re.search(r"[xy\d]", raw, re.I):
+                return _expr_z_a_sympy(raw)
+    return None
+
+
+def _extraer_rectangulo_desde_texto(texto: str) -> Optional[Dict[str, float]]:
+    m = re.search(
+        r"\[\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\]\s*[×xX\*]\s*\[\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\]",
+        texto,
+    )
+    if not m:
+        m = re.search(
+            r"\[\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\]\s*por\s*\[\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\]",
+            texto,
+            re.I,
+        )
+    if not m:
+        return None
+    return {
+        "x_min": float(m.group(1)),
+        "x_max": float(m.group(2)),
+        "y_min": float(m.group(3)),
+        "y_max": float(m.group(4)),
+    }
+
+
+def inferir_grafico_integrales_dobles(texto: Optional[str]) -> Optional[Dict[str, Any]]:
+    """
+    Construye spec Plotly (2D y/o 3D) a partir del texto de una pregunta abierta
+    sobre integrales dobles.
+    """
+    if not texto or not _texto_es_integrales_dobles(texto):
+        return None
+
+    z_expr = _extraer_z_desde_texto(texto)
+    rect = _extraer_rectangulo_desde_texto(texto)
+
+    if not z_expr and not rect:
+        # Pregunta genérica sobre integrales dobles: ejemplo didáctico parabolide en [0,1]²
+        if _texto_es_integrales_dobles(texto):
+            return {
+                "tipo": "rectangulo",
+                "x_min": 0.0,
+                "x_max": 1.0,
+                "y_min": 0.0,
+                "y_max": 1.0,
+                "z": "x**2 + y**2 + 1",
+                "titulo": "Ejemplo: R = [0,1] × [0,1]",
+                "titulo_3d": "Ejemplo: z = x² + y² + 1 sobre R",
+            }
+        return None
+
+    if rect:
+        spec: Dict[str, Any] = {
+            "tipo": "rectangulo",
+            "x_min": rect["x_min"],
+            "x_max": rect["x_max"],
+            "y_min": rect["y_min"],
+            "y_max": rect["y_max"],
+            "titulo": (
+                f"Región R = [{rect['x_min']},{rect['x_max']}] × "
+                f"[{rect['y_min']},{rect['y_max']}]"
+            ),
+        }
+    else:
+        spec = {
+            "tipo": "rectangulo",
+            "x_min": 0.0,
+            "x_max": 1.0,
+            "y_min": 0.0,
+            "y_max": 1.0,
+            "titulo": "Región R = [0,1] × [0,1] (referencia)",
+        }
+
+    if z_expr:
+        spec["z"] = z_expr
+        spec["titulo_3d"] = f"Superficie z = {z_expr.replace('**', '²').replace('*', '')} sobre R"
+    return spec
+
+
+def _texto_es_areas(texto: Optional[str]) -> bool:
+    if not texto:
+        return False
+    t = str(texto).lower()
+    sc = re.sub(r"\s+", "", t)
+    claves = (
+        "areaentre",
+        "areasentre",
+        "areabajo",
+        "areabajodela",
+        "areadefinida",
+        "integradefinida",
+        "areacomprendida",
+        "arealimitada",
+        "areade",
+        "bajolacurva",
+        "entrecurvas",
+    )
+    if any(k in sc for k in claves):
+        return True
+    if ("área" in t or "area" in t) and any(w in t for w in ("curva", "curvas", "encerrada", "bajo")):
+        return True
+    return bool(re.search(r"y\s*=\s*[^=]+y\s*=", t))
+
+
+def _texto_es_probabilidad(texto: Optional[str]) -> bool:
+    if not texto:
+        return False
+    t = str(texto).lower()
+    sc = re.sub(r"\s+", "", t)
+    claves = (
+        "probabilidad",
+        "distribucion",
+        "distribución",
+        "densidad",
+        "pdf",
+        "cdf",
+        "funciondedensidad",
+        "variablealeatoria",
+        "suceso",
+        "p(x",
+        "p\\(",
+    )
+    if any(k in sc for k in claves):
+        return True
+    if re.search(r"\bf\s*\(\s*x\s*\)\s*=", t) and any(
+        w in t for w in ("pdf", "densidad", "probabilidad", "distribución", "distribucion")
+    ):
+        return True
+    return False
+
+
+def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
+    matches = list(re.finditer(r"\by\s*=\s*", texto, re.I))
+    exprs: List[str] = []
+    for i, m in enumerate(matches):
+        start = m.end()
+        if i + 1 < len(matches):
+            rest = texto[start: matches[i + 1].start()]
+            m_delim = re.search(r"\s+y\s*$", rest, re.I)
+            chunk = rest[: m_delim.start()] if m_delim else rest
+        else:
+            chunk = texto[start:]
+        raw = _limpiar_expr_raw(chunk)
+        if raw:
+            exprs.append(raw)
+
+    if len(exprs) < 2:
+        fx_matches = list(re.finditer(r"f\s*\(\s*x\s*\)\s*=\s*", texto, re.I))
+        exprs = []
+        for i, m in enumerate(fx_matches):
+            start = m.end()
+            end = fx_matches[i + 1].start() if i + 1 < len(fx_matches) else len(texto)
+            raw = _limpiar_expr_raw(texto[start:end])
+            if raw:
+                exprs.append(raw)
+
+    if len(exprs) >= 2:
+        return _expr_generica_a_sympy(exprs[0]), _expr_generica_a_sympy(exprs[1])
+    return None
+
+
+def _extraer_intervalo_x(texto: str) -> Optional[tuple[float, float]]:
+    m = re.search(
+        r"\[\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\]",
+        texto,
+    )
+    if m:
+        return float(m.group(1)), float(m.group(2))
+    m = re.search(
+        r"(?:entre|en|sobre)\s*\(?\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)?",
+        texto,
+        re.I,
+    )
+    if m:
+        return float(m.group(1)), float(m.group(2))
+    m = re.search(
+        r"(?:entre|de)\s+([-\d.]+)\s+y\s+([-\d.]+)",
+        texto,
+        re.I,
+    )
+    if m:
+        return float(m.group(1)), float(m.group(2))
+    return None
+
+
+def _interseccion_x_curvas(y_a: str, y_b: str) -> Optional[tuple[float, float]]:
+    try:
+        local = {"exp": sp.exp, "sqrt": sp.sqrt, "pi": sp.pi, "E": sp.E}
+        e1 = sp.sympify(y_a.replace("^", "**"), locals=local)
+        e2 = sp.sympify(y_b.replace("^", "**"), locals=local)
+        sols = sp.solve(sp.Eq(e1, e2), _x)
+        if not sols:
+            sols = sp.solve(e1 - e2, _x)
+        reales = sorted(float(s.evalf()) for s in sols if getattr(s, "is_real", True))
+        if len(reales) >= 2:
+            return reales[0], reales[-1]
+        if len(reales) == 1:
+            x0 = reales[0]
+            return x0 - 1.0, x0 + 1.0
+    except Exception:
+        pass
+    return None
+
+
+def _extraer_f_pdf(texto: str) -> Optional[str]:
+    patrones = [
+        r"f\s*\(\s*x\s*\)\s*=\s*(.+?)(?=\s*(?:en|sobre|para|sea|es\b|\.|,|;|\n|$))",
+        r"pdf\s*[:\s]+(.+?)(?=\s*(?:en|sobre|\.|,|;|\n|$))",
+        r"densidad\s*[:\s]+(.+?)(?=\s*(?:en|sobre|\.|,|;|\n|$))",
+    ]
+    for pat in patrones:
+        m = re.search(pat, texto, re.I)
+        if m:
+            raw = re.sub(r"^\$+|\$+$", "", m.group(1).strip())
+            if len(raw) >= 2:
+                expr = _expr_generica_a_sympy(raw)
+                # Sustituir k simbólico por valores típicos del curso si aparece solo
+                if re.search(r"\bk\b", expr, re.I):
+                    if "e**(-x/2)" in expr or "exp(-x/2)" in expr:
+                        expr = re.sub(r"\bk\s*\*?", "0.5*", expr, flags=re.I)
+                    elif "x**2" in expr and "(1-x)" in expr:
+                        expr = re.sub(r"\bk\s*\*?", "12*", expr, flags=re.I)
+                    else:
+                        expr = re.sub(r"\bk\s*\*?", "", expr, flags=re.I)
+                return expr
+    return None
+
+
+def _extraer_intervalo_prob(texto: str) -> Optional[tuple[float, float]]:
+    m = re.search(
+        r"P\s*\(\s*([-\d.]+)\s*<\s*[xX]\s*<\s*([-\d.]+)\s*\)",
+        texto,
+    )
+    if m:
+        return float(m.group(1)), float(m.group(2))
+    m = re.search(
+        r"P\s*\(\s*[xX]\s*(?:>=|≥|<=|≤|>|<)\s*([-\d.]+)",
+        texto,
+    )
+    if m:
+        val = float(m.group(1))
+        if ">=" in texto or "≥" in texto or ">" in texto:
+            return val, val + 3.0
+        return max(0.0, val - 3.0), val
+    m = re.search(
+        r"(?:probabilidad|prob(?:\.|\b)?)\s+(?:de|hay|en)?\s*(?:entre|de)\s+([-\d.]+)\s+y\s+([-\d.]+)",
+        texto,
+        re.I,
+    )
+    if m:
+        return float(m.group(1)), float(m.group(2))
+    m = re.search(
+        r"(?:entre|de)\s+([-\d.]+)\s+y\s+([-\d.]+)(?!\s*\])",
+        texto,
+        re.I,
+    )
+    if m:
+        return float(m.group(1)), float(m.group(2))
+    return None
+
+
+def inferir_grafico_areas(texto: Optional[str]) -> Optional[Dict[str, Any]]:
+    if not texto or not _texto_es_areas(texto):
+        return None
+
+    par = _extraer_dos_curvas_y(texto)
+    intervalo = _extraer_intervalo_x(texto)
+
+    if par:
+        c1, c2 = par
+        x_r = _interseccion_x_curvas(c1, c2) or intervalo or (-3.0, 2.0)
+        x0, x1 = x_r
+        xm = (x0 + x1) / 2.0
+        try:
+            f1 = _lambdify_expr(c1)
+            f2 = _lambdify_expr(c2)
+            if float(f1(xm)) >= float(f2(xm)):
+                sup, inf = c1, c2
+            else:
+                sup, inf = c2, c1
+        except Exception:
+            sup, inf = c1, c2
+        return {
+            "tipo": "area_entre_curvas",
+            "y_superior": sup,
+            "y_inferior": inf,
+            "x_min": float(x0),
+            "x_max": float(x1),
+            "titulo": "Área entre curvas (referencia)",
+        }
+
+    # Área bajo una curva f(x) en [a,b]
+    f_pdf = _extraer_f_pdf(texto) or _extraer_z_desde_texto(texto)
+    if f_pdf and intervalo:
+        a, b = intervalo
+        return {
+            "tipo": "area_entre_curvas",
+            "y_superior": f_pdf,
+            "y_inferior": "0",
+            "x_min": float(a),
+            "x_max": float(b),
+            "titulo": f"Área bajo f(x) en [{a}, {b}]",
+        }
+
+    # Ejemplo didáctico del curso
+    return {
+        "tipo": "area_entre_curvas",
+        "y_superior": "6 - x",
+        "y_inferior": "x**2",
+        "x_min": -3.0,
+        "x_max": 2.0,
+        "titulo": "Ejemplo: área entre y = x² y y = 6 − x",
+    }
+
+
+def inferir_grafico_probabilidad(texto: Optional[str]) -> Optional[Dict[str, Any]]:
+    if not texto or not _texto_es_probabilidad(texto):
+        return None
+
+    f_expr = _extraer_f_pdf(texto)
+    intervalo = _extraer_intervalo_x(texto)
+    prob = _extraer_intervalo_prob(texto)
+
+    if f_expr:
+        x_min, x_max = intervalo if intervalo else (0.0, 1.0)
+        if x_min < 0 and "e**(-" in f_expr:
+            x_min, x_max = 0.0, 6.0
+        spec: Dict[str, Any] = {
+            "tipo": "pdf_densidad",
+            "f": f_expr,
+            "x_min": float(x_min),
+            "x_max": float(x_max),
+            "titulo": "Densidad de probabilidad f(x)",
+        }
+        if prob:
+            spec["x_shade_min"] = float(prob[0])
+            spec["x_shade_max"] = float(prob[1])
+        return spec
+
+    # Ejemplos típicos del curso
+    if intervalo:
+        a, b = intervalo
+    else:
+        a, b = 0.0, 1.0
+    return {
+        "tipo": "pdf_densidad",
+        "f": "12*x**2*(1-x)",
+        "x_min": a,
+        "x_max": b,
+        "x_shade_min": a + 0.2 * (b - a),
+        "x_shade_max": b - 0.2 * (b - a),
+        "titulo": "Ejemplo: PDF f(x) = 12x²(1−x) en [0,1]",
+    }
+
+
+def _buscar_grafico_en_banco(
+    banco: Optional[List[Dict[str, Any]]],
+    temas_prefijos: tuple[str, ...],
+    texto: Optional[str],
+    tokens_match_fn=None,
+) -> Optional[Dict[str, Any]]:
+    if not banco:
+        return None
+    candidatos = [
+        e for e in banco
+        if any(str(e.get("tema", "")).startswith(p) or p in str(e.get("tema", "")) for p in temas_prefijos)
+        and isinstance(e.get("grafico"), dict)
+    ]
+    if not candidatos:
+        return None
+    if not texto or not tokens_match_fn:
+        spec = dict(candidatos[0]["grafico"])
+        spec.setdefault("titulo", "Referencia del banco")
+        return spec
+    q_tokens = tokens_match_fn(texto)
+    mejor = None
+    mejor_score = -1
+    for c in candidatos:
+        ref = " ".join([str(c.get("pregunta", "")), str(c.get("explicacion", ""))])
+        score = len(q_tokens.intersection(tokens_match_fn(ref))) if q_tokens else 0
+        if score > mejor_score:
+            mejor_score = score
+            mejor = c
+    if mejor is None:
+        return None
+    spec = dict(mejor["grafico"])
+    spec.setdefault("titulo", "Referencia del banco")
+    return spec
+
+
+def resolver_grafico_tutor_abierto(
+    texto: Optional[str],
+    *,
+    tema: Optional[str] = None,
+    banco: Optional[List[Dict[str, Any]]] = None,
+    tokens_match_fn=None,
+) -> Optional[Dict[str, Any]]:
+    """
+    Elige spec Plotly para Tutor Preguntas Abiertas:
+    integrales dobles, áreas, probabilidad/PDF o banco por tema.
+    """
+    tema_id = str(tema or "")
+
+    if "1.2.6" in tema_id or _texto_es_integrales_dobles(texto):
+        spec = _buscar_grafico_en_banco(banco, ("1.2.6",), texto, tokens_match_fn)
+        return spec or inferir_grafico_integrales_dobles(texto)
+
+    if "1.2.7" in tema_id or _texto_es_probabilidad(texto):
+        spec = _buscar_grafico_en_banco(banco, ("1.2.7", "1.2.4"), texto, tokens_match_fn)
+        return spec or inferir_grafico_probabilidad(texto)
+
+    if any(t in tema_id for t in ("1.2.2", "1.2.1")) or _texto_es_areas(texto):
+        spec = _buscar_grafico_en_banco(banco, ("1.2.2", "1.2.1"), texto, tokens_match_fn)
+        return spec or inferir_grafico_areas(texto)
+
+    if "1.2.3" in tema_id:
+        return _buscar_grafico_en_banco(banco, ("1.2.3",), texto, tokens_match_fn)
+
+    if tema_id and tokens_match_fn is not None:
+        from . import temario as _temario
+
+        if _temario.tema_admite_grafico_plotly_entrenamiento(tema_id):
+            return _buscar_grafico_en_banco(banco, (tema_id[:5],), texto, tokens_match_fn)
+
+    if _texto_es_probabilidad(texto):
+        return inferir_grafico_probabilidad(texto)
+    if _texto_es_areas(texto):
+        return inferir_grafico_areas(texto)
+    if _texto_es_integrales_dobles(texto):
+        return inferir_grafico_integrales_dobles(texto)
+    return None
+
+
+def _caption_tutor_abierto(spec: Dict[str, Any]) -> str:
+    tipo = spec.get("tipo", "")
+    if spec.get("z"):
+        return (
+            "Región R en el plano **xy** y superficie **z = f(x,y)** sobre R "
+            "(referencia visual para tu consulta)."
+        )
+    if tipo == "pdf_densidad":
+        if spec.get("x_shade_min") is not None:
+            return (
+                "Densidad **f(x)** y área sombreada = probabilidad del intervalo indicado "
+                "(referencia visual)."
+            )
+        return "Función de densidad de probabilidad **f(x)** (referencia visual)."
+    if tipo in ("area_entre_curvas", "rectangulo", "region_xy_tipo2"):
+        return "Región sombreada = área / región de integración (referencia visual)."
+    if tipo == "excedentes":
+        return "Demanda, oferta y excedentes (referencia visual)."
+    return "Figura de referencia para reforzar la explicación."
+
+
+def _titulo_tutor_abierto(spec: Dict[str, Any]) -> str:
+    tipo = spec.get("tipo", "")
+    if spec.get("z") or tipo == "integral_doble_3d":
+        return "📊 Apoyo gráfico — integrales dobles"
+    if tipo == "pdf_densidad":
+        return "📊 Apoyo gráfico — probabilidad y densidad"
+    if tipo in ("area_entre_curvas", "rectangulo", "region_xy_tipo2"):
+        return "📊 Apoyo gráfico — áreas y regiones"
+    if tipo == "excedentes":
+        return "📊 Apoyo gráfico — excedentes"
+    return "📊 Apoyo gráfico del tema consultado"
+
+
+def mostrar_apoyo_tutor_abierto(
+    texto: Optional[str],
+    *,
+    tema: Optional[str] = None,
+    banco: Optional[List[Dict[str, Any]]] = None,
+    tokens_match_fn=None,
+    chart_key: str = "",
+) -> bool:
+    """Muestra figuras Plotly en Preguntas Abiertas (áreas, probabilidad, integrales dobles, etc.)."""
+    import streamlit as st
+
+    spec = resolver_grafico_tutor_abierto(
+        texto,
+        tema=tema,
+        banco=banco,
+        tokens_match_fn=tokens_match_fn,
+    )
+    if not spec:
+        return False
+
+    try:
+        figuras = figuras_desde_spec(spec)
+        if not figuras:
+            return False
+        st.markdown(f"#### {_titulo_tutor_abierto(spec)}")
+        st.caption(_caption_tutor_abierto(spec))
+        base_key = chart_key or str(abs(hash(str(spec))) % 10**8)
+        for i, fig in enumerate(figuras):
+            if len(figuras) > 1 and i == 1:
+                st.caption("_Vista 3D: volumen bajo la superficie sobre la región sombreada._")
+            st.plotly_chart(fig, width="stretch", key=f"plotly_tutor_{base_key}_{i}")
+        return True
+    except Exception:
+        st.caption("_No se pudo generar la figura para esta consulta._")
+        return False
+
+
+def mostrar_apoyo_tutor_abierto_integrales_dobles(
+    texto: Optional[str],
+    *,
+    tema: Optional[str] = None,
+    banco: Optional[List[Dict[str, Any]]] = None,
+    tokens_match_fn=None,
+    chart_key: str = "",
+) -> bool:
+    """Compatibilidad: delega al motor unificado de Preguntas Abiertas."""
+    return mostrar_apoyo_tutor_abierto(
+        texto,
+        tema=tema,
+        banco=banco,
+        tokens_match_fn=tokens_match_fn,
+        chart_key=chart_key,
+    )

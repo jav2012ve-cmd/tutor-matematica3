@@ -135,14 +135,18 @@ def preparar_latex_para_streamlit(texto: Optional[str]) -> str:
         r'(\\int|\\frac|\\sqrt|\\alpha|\\beta|[\w\d\s\+\-\*\/\^\(\)]+?)(?=\s|$|\.|\,)'
     )
 
-    # Bloque integral completo (grupo), no token a token (DOTALL: \int en línea siguiente al texto)
+    # Bloque integral: integrales dobles (varios \\int) se envuelven enteras; simples, hasta el dx/dy final.
     if ("\\int" in t or "\\frac" in t) and "$" not in t:
-        t = re.sub(
-            r'(\\int.*?(?:dx|dy|dt|dz))',
-            r' $\1$ ',
-            t,
-            flags=re.DOTALL,
-        )
+        n_int = len(re.findall(r"\\int", t))
+        if n_int >= 2 or "\\iint" in t:
+            t = f"${t.strip()}$"
+        else:
+            t = re.sub(
+                r"(\\int.*?(?:dx|dy|dt|dz))",
+                r" $\1$ ",
+                t,
+                flags=re.DOTALL,
+            )
 
     # Opciones de quiz / fórmulas cortas con \frac, \ln, etc. sin delimitadores.
     # IMPORTANTE: evitar envolver frases mixtas (texto + fórmula), porque
@@ -190,6 +194,150 @@ def _limpiar_para_st_latex(texto: Any) -> str:
     if s.endswith("$"):
         s = s[:-1].strip()
     return s
+
+
+def _normalizar_latex_tutor_puro(texto: Any) -> str:
+    """
+    Repara LaTeX del tutor (paso_intermedio / resultado_final):
+    barras invertidas perdidas, saltos de línea y diferenciales sueltos (, dx).
+    """
+    if texto is None:
+        return ""
+    s = str(texto).replace("\n", " ").replace("\r", " ")
+    s = re.sub(r"\s+", " ", s).strip()
+    s = s.replace("\\\\", "\\")
+    # int_0^1 → \\int_0^1 cuando falta la barra invertida
+    s = re.sub(r"(?<!\\)\bint_\{", r"\\int_{", s)
+    s = re.sub(r"(?<!\\)\bint_", r"\\int_", s)
+    s = re.sub(r"(?<!\\)\biint_", r"\\iint_", s)
+    s = re.sub(r"(?<!\\)\bfrac\{", r"\\frac{", s)
+    s = re.sub(r"(?<!\\)\bdfrac\{", r"\\dfrac{", s)
+    s = re.sub(r"(?<!\\)\ble\b", r"\\le", s)
+    s = re.sub(r"(?<!\\)\bge\b", r"\\ge", s)
+    # Coma suelta antes de dx/dy → \\, dx (dos pasadas: dx y luego dy)
+    for _ in range(2):
+        s = re.sub(r",\s*(dx|dy|dt|dz)\b", r" \\, \1", s)
+    return s.strip()
+
+
+def _sanitizar_datos_tutor(data: dict) -> dict:
+    """Normaliza LaTeX en campos del tutor antes de guardarlos en sesión."""
+    for key in ("paso_intermedio", "resultado_final"):
+        if data.get(key):
+            data[key] = _normalizar_latex_tutor_puro(data[key])
+    estrategias = data.get("estrategias")
+    if isinstance(estrategias, list):
+        data["estrategias"] = [
+            _normalizar_latex_tutor_puro(e) if e else e for e in estrategias
+        ]
+    return data
+
+
+_LATEX_TUTOR_INVALIDOS = frozenset({
+    "undefined",
+    "null",
+    "none",
+    "n/a",
+    "nan",
+    "[object object]",
+})
+
+
+def _valor_latex_tutor_valido(texto: Any) -> bool:
+    if texto is None:
+        return False
+    s = str(texto).strip()
+    if len(s) < 2:
+        return False
+    if s.lower() in _LATEX_TUTOR_INVALIDOS:
+        return False
+    if s.count("{") != s.count("}"):
+        return False
+    return True
+
+
+def _latex_katex_renderizable(texto: Any) -> bool:
+    if not _valor_latex_tutor_valido(texto):
+        return False
+    s = _normalizar_latex_tutor_puro(_limpiar_para_st_latex(str(texto)))
+    if re.search(r"\\$", s):
+        return False
+    if re.search(r"(?<!\\)\bint_", s):
+        return False
+    return bool(
+        re.search(
+            r"\\(?:int|iint|frac|le|ge|leq|geq|sqrt|sum|cdot|left|right|dfrac|text)|"
+            r"\\le|\\ge|[=<>]|[\^_\{\}]|\d",
+            s,
+        )
+    )
+
+
+def _mostrar_latex_tutor(texto: Any) -> None:
+    """Una sola fórmula LaTeX del tutor (estrategias, etc.)."""
+    expr = _normalizar_latex_tutor_puro(_limpiar_para_st_latex(str(texto or "")))
+    if expr:
+        st.latex(expr)
+
+
+def _render_paso_tutor(texto: Any, *, fallback: Optional[Any] = None) -> None:
+    """
+    Muestra paso_intermedio / resultado_final sin que KaTeX renderice 'undefined'.
+    """
+    for raw in (texto, fallback):
+        if not _valor_latex_tutor_valido(raw):
+            continue
+        expr = _normalizar_latex_tutor_puro(_limpiar_para_st_latex(str(raw).strip()))
+        if not expr:
+            continue
+        if _latex_katex_renderizable(expr):
+            st.latex(expr)
+            return
+        if re.search(r"\\int|\\iint|\\frac|[\d\\]", expr):
+            st.latex(expr)
+            return
+        prep = preparar_latex_para_streamlit(expr)
+        if "$" in prep or "\\" in expr:
+            _render_texto_con_latex(mostrar_como_formula_si_corresponde(prep))
+            return
+        _render_texto_con_latex(prep)
+        return
+    st.warning(
+        "No se pudo mostrar esta expresión. Revisa tu desarrollo con la estrategia "
+        "seleccionada o continúa al siguiente paso."
+    )
+
+
+def _tutor_json_completo(data: Any) -> bool:
+    if not isinstance(data, dict):
+        return False
+    estrategias = data.get("estrategias")
+    if not isinstance(estrategias, list) or len(estrategias) < 2:
+        return False
+    try:
+        idx = int(data.get("indice_correcta", 0))
+        if idx < 0 or idx >= len(estrategias):
+            return False
+    except (TypeError, ValueError):
+        return False
+    feedback = str(data.get("feedback_estrategia") or "").strip()
+    if len(feedback) < 8:
+        return False
+    for campo in ("paso_intermedio", "resultado_final"):
+        normalizado = _normalizar_latex_tutor_puro(data.get(campo))
+        if not _latex_katex_renderizable(normalizado):
+            return False
+    return True
+
+
+def _extraer_formula_respuesta_banco(respuesta: Any) -> Optional[str]:
+    """Quita prefijo 'A) ' de respuesta_correcta del banco para usar como fallback."""
+    if not respuesta:
+        return None
+    s = str(respuesta).strip()
+    s = re.sub(r"^[A-D]\)\s*", "", s)
+    s = _normalizar_latex_tutor_puro(_limpiar_para_st_latex(s))
+    return s.strip() or None
 
 def _render_texto_con_latex(texto: Optional[str]) -> None:
     """
@@ -337,8 +485,21 @@ def _inferir_tema_grafico_desde_texto(texto: Optional[str]) -> Optional[str]:
         return "1.2.3 Excedentes del consumidor y productor"
     if ("area entre" in s) or ("área entre" in s) or ("areaentre" in sc):
         return "1.2.2 Áreas entre curvas"
+    if ("área bajo" in s) or ("area bajo" in s) or ("areabajo" in sc) or ("integradefinida" in sc):
+        return "1.2.1 Integral Definida"
     if ("curva" in s and "intersecci" in s) or ("curvas" in sc and "intersecci" in sc):
         return "1.2.2 Áreas entre curvas"
+    if any(k in sc for k in ("probabilidad", "densidad", "pdf", "cdf", "distribucion", "distribución")):
+        return "1.2.7 Funciones de Distribución de probabilidad"
+    if (
+        "integraldoble" in sc
+        or "integralesdobles" in sc
+        or "iint" in s
+        or "volumenbajo" in sc
+        or re.search(r"\bz\s*=", s)
+        and any(w in s for w in ("volumen", "superficie", "región", "region", "plano xy"))
+    ):
+        return "1.2.6 Integrales dobles"
     return None
 
 
@@ -449,6 +610,27 @@ def generar_tutor_paso_a_paso(pregunta_texto: str, tema: str) -> Optional[dict]:
     """Genera la tutoría para el modo Entrenamiento (Banco/IA)."""
     tema_txt = tema or ""
     regla_tema = ""
+    es_integrales_dobles = "1.2.6" in tema_txt or "Integrales dobles" in tema_txt
+    if es_integrales_dobles:
+        regla_tema = """
+    RESTRICCIÓN DE CONTENIDO (CRÍTICO para 1.2.6 Integrales dobles):
+    - PASO 1 — campo "estrategias": las 3 opciones DEBEN ser planteamientos LITERALES de integrales dobles
+      (LaTeX con \\\\int o \\\\iint, límites numéricos o en variable, y diferencial dx dy / dy dx).
+      * UNA estrategia correcta (límites y orden correctos para la región R del enunciado).
+      * DOS estrategias incorrectas pero plausibles: límites invertidos, orden de integración errado,
+        curva superior/inferior intercambiada, intervalo externo incorrecto, etc.
+    - PROHIBIDO en "estrategias" y "feedback_estrategia":
+      * Teorema de Fubini, Fubini, coordenadas polares, polares, jacobiano, cambio a polares.
+      * Frases genéricas sin integral escrita (ej. "Integrar primero en x", "Usar tipo I", "Cambiar el orden").
+    - Si pide CAMBIAR ORDEN: las estrategias contrastan integrales con distinto orden/límites; la correcta
+      es la reescritura válida; paso_intermedio = desigualdades de R; resultado_final = integral correcta.
+    - Si pide CALCULAR: paso_intermedio = resultado de la integral interna; resultado_final = valor numérico.
+    - Si pide PLANTEAR volumen bajo z = f(x,y): las estrategias son \\\\iint_R f(x,y)\\,dA con distintos límites.
+    - Si pide GRAFICAR región e indicar LÍMITES: paso_intermedio = desigualdades o intervalos de x e y;
+      resultado_final = integral doble con esos límites; las estrategias contrastan límites correctos vs alterados.
+    - En feedback_estrategia: explica la región R y por qué los límites de la opción correcta la describen
+      (sin citar Fubini ni coordenadas polares).
+    """
     if "1.1.1" in tema_txt or "Integrales Indefinidas" in tema_txt:
         regla_tema = """
     RESTRICCIÓN DE CONTENIDO (CRÍTICO para este tema):
@@ -534,6 +716,11 @@ def generar_tutor_paso_a_paso(pregunta_texto: str, tema: str) -> Optional[dict]:
     REGLAS LATEX para paso_intermedio y resultado_final:
     - Escribe la fórmula pura. NO incluyas signos "$$" dentro del JSON.
     - Usa DOBLE BARRA para comandos: \\\\frac, \\\\int.
+    - OBLIGATORIO: "paso_intermedio" y "resultado_final" NO pueden ser null, vacíos ni "undefined".
+    - Deben ser LaTeX compilable (integral, fracción, desigualdad o valor numérico).
+    - Ejemplo paso_intermedio (calcular): \\\\int_0^1 (2x + 2)\\\\, dx
+    - Ejemplo paso_intermedio (región): 0 \\\\le y \\\\le x \\\\le 4
+    - Ejemplo resultado_final: \\\\dfrac{{5}}{{3}}  o  2
 
     Estructura JSON:
     {{
@@ -544,6 +731,14 @@ def generar_tutor_paso_a_paso(pregunta_texto: str, tema: str) -> Optional[dict]:
         "resultado_final": "Ecuación LaTeX PURA (sin $$) del resultado"
     }}
     Orden aleatorio en estrategias.
+    """
+    if es_integrales_dobles:
+        prompt += """
+    AJUSTE PARA ENTRENAMIENTO EN INTEGRALES DOBLES (1.2.6):
+    - Sustituye "Estrategia Correcta/Incorrecta" por integrales dobles completas con límites.
+    - Ejemplo de estrategia válida: $\\int_{0}^{1}\\int_{0}^{2}(x+y)\\,dy\\,dx$
+    - Ejemplo de estrategia incorrecta plausible: $\\int_{0}^{2}\\int_{0}^{1}(x+y)\\,dx\\,dy$ (orden/límites no acordes a R).
+    - Nunca propongas coordenadas polares ni menciones el teorema de Fubini.
     """
     if estrategia_objetivo:
         prompt += """
@@ -579,22 +774,79 @@ def generar_tutor_paso_a_paso(pregunta_texto: str, tema: str) -> Optional[dict]:
             return False
         return not any(t in bloque for t in tecnicas_prohibidas)
 
-    for intento in range(2):
+    _PROHIBIDOS_INTEGRALES_DOBLES = (
+        "fubini",
+        "coordenadas polares",
+        "coordenada polar",
+        "polares",
+        " jacobiano",
+        " jacobiana",
+        "cambio a polar",
+        "en polares",
+    )
+
+    def _parece_planteamiento_integral(texto: str) -> bool:
+        t = str(texto)
+        tl = t.lower()
+        tiene_integral = "\\int" in t or "\\iint" in t or "∫" in t or "∬" in t
+        tiene_limites = "{" in t or "_{" in t or "_" in tl
+        return tiene_integral and tiene_limites and len(t.strip()) >= 12
+
+    def _cumple_restriccion_integrales_dobles(data: Any) -> bool:
+        if not es_integrales_dobles:
+            return True
+        if not isinstance(data, dict):
+            return False
+        estrategias = data.get("estrategias") or []
+        if not isinstance(estrategias, list) or len(estrategias) < 3:
+            return False
+        bloque = " ".join(
+            str(s).lower()
+            for s in estrategias
+            + [data.get("feedback_estrategia", "")]
+        )
+        if any(p in bloque for p in _PROHIBIDOS_INTEGRALES_DOBLES):
+            return False
+        if any("polar" in str(s).lower() for s in estrategias[:3]):
+            return False
+        return all(_parece_planteamiento_integral(s) for s in estrategias[:3])
+
+    for intento in range(3):
         prompt_actual = prompt
-        if intento == 1 and estrategia_objetivo:
+        if intento >= 1 and estrategia_objetivo:
             prompt_actual += f"""
     CORRECCIÓN OBLIGATORIA:
     Tu intento previo no respetó completamente la técnica "{estrategia_objetivo}".
     Rehaz el JSON asegurando que:
     1) la opción correcta sea explícitamente "{estrategia_objetivo}";
     2) paso_intermedio y resultado_final sigan ESA técnica y no otra.
+    3) paso_intermedio y resultado_final sean LaTeX válido NO vacío.
+    """
+        elif intento >= 1 and es_integrales_dobles:
+            prompt_actual += """
+    CORRECCIÓN OBLIGATORIA (integrales dobles):
+    Tu intento previo no cumplió las reglas. Rehaz el JSON:
+    1) Las 3 "estrategias" deben ser integrales dobles completas con límites (\\int o \\iint).
+    2) Dos deben tener límites u orden alterados respecto a la correcta.
+    3) PROHIBIDO: Fubini, coordenadas polares, frases genéricas sin integral escrita.
+    4) "paso_intermedio" y "resultado_final" OBLIGATORIOS: LaTeX con \\int, \\frac, \\le o valor numérico.
+    """
+        elif intento >= 1:
+            prompt_actual += """
+    CORRECCIÓN OBLIGATORIA:
+    Tu intento previo tenía campos inválidos. Rehaz el JSON completo.
+    "paso_intermedio" y "resultado_final" deben ser LaTeX puro, no vacío, no "undefined".
     """
         response = generar_contenido_seguro(prompt_actual)
         if not response:
             continue
         data = limpiar_json(response.text)
-        if _cumple_restriccion_edo(data):
-            return data
+        if (
+            _cumple_restriccion_edo(data)
+            and _cumple_restriccion_integrales_dobles(data)
+            and _tutor_json_completo(data)
+        ):
+            return _sanitizar_datos_tutor(data)
     return None
 
 def analizar_problema_usuario(
@@ -617,6 +869,10 @@ def analizar_problema_usuario(
     3. Si es CÁLCULO DE ÁREAS, VOLÚMENES, EXCEDENTES O APLICACIONES:
        - Tienes LIBERTAD TOTAL.
        - Las opciones deben ser PLANTEAMIENTOS o ENFOQUES (ej. "Integrar con respecto a Y", "Usar método de arandelas", "Igualar Oferta y Demanda").
+    4. Si es INTEGRAL DOBLE (\\iint, volumen bajo z = f(x,y), cambio de orden en el plano xy):
+       - Las opciones en "estrategias" DEBEN ser integrales dobles completas con límites (correctos o alterados).
+       - PROHIBIDO: Teorema de Fubini, coordenadas polares, jacobiano, o frases genéricas sin integral escrita.
+       - Dos distractores con límites invertidos, orden errado o curvas superior/inferior intercambiadas.
 
     REGLAS LATEX (CRÍTICO):
     1. Escribe la fórmula pura. NO incluyas signos "$$" dentro del JSON.
@@ -750,6 +1006,14 @@ def generar_respuesta_tutor_abierto(
        - Para ecuaciones grandes o centradas usa doble signo: $$ \\int_{{a}}^{{b}} f(x) dx $$
        
     4. VINCULACIÓN: Siempre que sea posible, menciona: "Esto sigue la lógica de nuestros ejercicios de parcial..." o "Es análogo a los problemas de oferta y demanda...".
+
+    5. INTEGRALES DOBLES: Si la consulta trata integrales dobles, volúmenes bajo z = f(x,y) o límites
+       en el plano xy, describe la región R y los límites con claridad. La app mostrará apoyo gráfico
+       2D/3D automáticamente; no digas que no puedes graficar.
+
+    6. ÁREAS Y PROBABILIDAD: Si la consulta trata área entre curvas, área bajo f(x) o PDF/CDF,
+       explica la región o el intervalo de probabilidad. La app mostrará la figura de referencia
+       (área sombreada o densidad f(x)); no digas que no puedes graficar.
 
     Historial de chat reciente:
     {historial_previo}
@@ -1278,6 +1542,9 @@ elif ruta == "a) Entrenamiento (Temario)":
             ejercicio = lista[idx]
             tema_ejercicio = str(ejercicio.get("tema", ""))
             es_tema_edo_entrenamiento = tema_ejercicio.startswith("2.")
+            es_tema_integrales_dobles = (
+                "1.2.6" in tema_ejercicio or "Integrales dobles" in tema_ejercicio
+            )
             
             st.progress((idx + 1) / NUM_EJERCICIOS_ENTRENAMIENTO, text=f"Ejercicio {idx + 1} de {NUM_EJERCICIOS_ENTRENAMIENTO}")
             st.markdown(f"**Tema:** `{ejercicio.get('tema', 'General')}`")
@@ -1318,9 +1585,32 @@ elif ruta == "a) Entrenamiento (Temario)":
                         st.rerun()
                 else:
                     st.markdown("#### 1️⃣ Paso 1: Selección de Estrategia")
-                    st.write("Antes de calcular, ¿cuál crees que es el camino correcto?")
-                    
-                    opcion_estrategia = st.radio("Selecciona el método:", tutor['estrategias'], index=None, key=f"radio_estrat_{idx}")
+                    if es_tema_integrales_dobles:
+                        st.write("¿Cuál planteamiento de integral doble (con límites) es correcto?")
+                        _labels_id = [chr(65 + i) for i in range(len(tutor["estrategias"]))]
+                        for i, estrategia in enumerate(tutor["estrategias"]):
+                            st.markdown(f"**{_labels_id[i]})**")
+                            _mostrar_latex_tutor(estrategia)
+                        _eleccion_letra = st.radio(
+                            "Selecciona:",
+                            _labels_id,
+                            index=None,
+                            key=f"radio_estrat_{idx}",
+                            horizontal=True,
+                        )
+                        opcion_estrategia = (
+                            tutor["estrategias"][_labels_id.index(_eleccion_letra)]
+                            if _eleccion_letra
+                            else None
+                        )
+                    else:
+                        st.write("Antes de calcular, ¿cuál crees que es el camino correcto?")
+                        opcion_estrategia = st.radio(
+                            "Selecciona el método:",
+                            tutor["estrategias"],
+                            index=None,
+                            key=f"radio_estrat_{idx}",
+                        )
                     
                     if st.button("Validar Estrategia", key=f"btn_val_{idx}"):
                         if opcion_estrategia:
@@ -1348,12 +1638,21 @@ elif ruta == "a) Entrenamiento (Temario)":
             if step == 2:
                 if es_tema_edo_entrenamiento:
                     st.success("✅ Inicio de implementación completado")
+                elif es_tema_integrales_dobles:
+                    st.success("✅ Planteamiento correcto:")
+                    _mostrar_latex_tutor(tutor["estrategias"][tutor["indice_correcta"]])
                 else:
                     st.success(f"✅ Estrategia: {tutor['estrategias'][tutor['indice_correcta']]}")
                 st.markdown("#### 2️⃣ Paso 2: Ejecución Intermedia")
                 st.write("Aplica la estrategia seleccionada. Deberías llegar a una expresión similar a esta:")
-                
-                st.latex(_limpiar_para_st_latex(tutor["paso_intermedio"]))
+
+                _fallback_paso = None
+                if es_tema_integrales_dobles:
+                    try:
+                        _fallback_paso = tutor["estrategias"][int(tutor["indice_correcta"])]
+                    except (KeyError, IndexError, TypeError, ValueError):
+                        pass
+                _render_paso_tutor(tutor.get("paso_intermedio"), fallback=_fallback_paso)
 
                 graficos_entrenamiento.mostrar_si_aplica(ejercicio, en_paso_intermedio=True)
                 
@@ -1375,7 +1674,10 @@ elif ruta == "a) Entrenamiento (Temario)":
                 st.write("El resultado definitivo es:")
                 
                 st.success("✅ Resultado final:")
-                st.latex(_limpiar_para_st_latex(tutor["resultado_final"]))
+                _render_paso_tutor(
+                    tutor.get("resultado_final"),
+                    fallback=_extraer_formula_respuesta_banco(ejercicio.get("respuesta_correcta")),
+                )
                 
                 with st.expander("Ver explicación completa"):
                     _render_texto_con_latex(ejercicio.get("explicacion", "Procedimiento estándar aplicado correctamente."))
@@ -1963,7 +2265,8 @@ elif ruta == "d) Tutor: Preguntas Abiertas":
 
     st.markdown("""
     Haz cualquier pregunta teórica. El tutor te responderá **vinculando la teoría con
-    los ejercicios y estilos de examen** de nuestra cátedra.
+    los ejercicios y estilos de examen** de nuestra cátedra. Según el tema, se muestra apoyo gráfico:
+    **áreas** entre curvas, **probabilidad/PDF** (densidad e intervalo sombreado) o **integrales dobles** (2D/3D).
     """)
 
     if len(st.session_state.historial_tutor_abierto) > AVISO_HISTORIAL_LARGO:
@@ -1994,16 +2297,14 @@ elif ruta == "d) Tutor: Preguntas Abiertas":
                 historial_texto = "\n".join([f"{m['role']}: {m['content']}" for m in ultimos])
                 respuesta_tutor = generar_respuesta_tutor_abierto(prompt, historial_texto)
                 st.markdown(respuesta_tutor)
-                if _tema_stats and temario.tema_admite_grafico_plotly_entrenamiento(_tema_stats):
-                    _mostrar_apoyo_grafico_referencia(
-                        tema=_tema_stats,
-                        texto_referencia=prompt,
-                        titulo="Apoyo gráfico del tema consultado",
-                        caption=(
-                            "Figura de referencia del banco para reforzar la explicación "
-                            "en temas con soporte gráfico (áreas/excedentes)."
-                        ),
-                    )
+                _tema_graf = _tema_stats or _inferir_tema_grafico_desde_texto(prompt)
+                graficos_entrenamiento.mostrar_apoyo_tutor_abierto(
+                    prompt,
+                    tema=_tema_graf,
+                    banco=banco_preguntas.BANCO_FIXED,
+                    tokens_match_fn=_tokens_match,
+                    chart_key=str(abs(hash(prompt)) % 10**8),
+                )
 
         st.session_state.historial_tutor_abierto.append({"role": "assistant", "content": respuesta_tutor})
 

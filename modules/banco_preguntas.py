@@ -588,6 +588,15 @@ BANCO_FIXED = [
     {
         "tema": "1.2.4 Integrales Impropias",
         "pregunta": r"Halle $k$ para que $f(x) = k x^2(1-x)$ sea PDF en $[0,1]$:",
+        "grafico": {
+            "tipo": "pdf_densidad",
+            "f": "12*x**2*(1-x)",
+            "x_min": 0.0,
+            "x_max": 1.0,
+            "x_shade_min": 0.2,
+            "x_shade_max": 0.8,
+            "titulo": "PDF f(x) = 12x²(1−x) en [0,1]",
+        },
         "opciones": [
             r"A) $k = 12$",
             r"B) $k = 6$",
@@ -600,6 +609,15 @@ BANCO_FIXED = [
     {
         "tema": "1.2.4 Integrales Impropias",
         "pregunta": r"Halle $k$ para que $f(x) = k e^{-x/2}$ sea PDF en $x>0$:",
+        "grafico": {
+            "tipo": "pdf_densidad",
+            "f": "0.5*exp(-x/2)",
+            "x_min": 0.0,
+            "x_max": 8.0,
+            "x_shade_min": 1.0,
+            "x_shade_max": 4.0,
+            "titulo": "PDF f(x) = ½e^(−x/2) en x > 0",
+        },
         "opciones": [
             r"A) $k = 0.5$",
             r"B) $k = 2$",
@@ -648,19 +666,22 @@ BANCO_FIXED = [
     # --- INTEGRALES DOBLES ---
     {
         "tema": "1.2.6 Integrales dobles",
-        "pregunta": r"Calcule $\int_{0}^{1}\int_{1}^{2} (3x^2 - 6z) dx dz$ (orden $dx, dz$):",
+        "pregunta": r"Calcule $\int_{0}^{2}\int_{0}^{1} (3x^2 - 6z) \, dz \, dx$ (orden $dz$ luego $dx$):",
         "opciones": [
-            r"A) $-2$",
-            r"B) $7$",
-            r"C) $0$",
-            r"D) $-5$"
+            r"A) $2$",
+            r"B) $4$",
+            r"C) $7$",
+            r"D) $-2$"
         ],
-        "respuesta_correcta": r"A) $-2$",
-        "explicacion": r"Integral interna $x^3-6zx|_1^2 = 7-6z$. Integral externa $7z-3z^2|_0^1 = 4$."
+        "respuesta_correcta": r"A) $2$",
+        "explicacion": (
+            r"**Interna ($z$):** $\int_0^1 (3x^2 - 6z)\,dz = 3x^2 - 3$. "
+            r"**Externa ($x$):** $\int_0^2 (3x^2 - 3)\,dx = [x^3 - 3x]_0^2 = 8 - 6 = 2$."
+        ),
     },
     {
         "tema": "1.2.6 Integrales dobles",
-        "pregunta": r"Calcule $\int_{0}^{1}\int_{1}^{2} (3x^2 - 6z) dx dz$:",
+        "pregunta": r"Calcule $\int_{0}^{1}\int_{1}^{2} (3x^2 - 6z) \, dx \, dz$:",
         "opciones": [
             r"A) $4$",
             r"B) $7$",
@@ -668,35 +689,78 @@ BANCO_FIXED = [
             r"D) $-2$"
         ],
         "respuesta_correcta": r"A) $4$",
-        "explicacion": r"Evaluación directa: Interna da $7-6z$. Externa da $4$."
+        "explicacion": (
+            r"**Interna ($x$):** $[x^3 - 6zx]_1^2 = 7 - 6z$. "
+            r"**Externa ($z$):** $\int_0^1 (7 - 6z)\,dz = [7z - 3z^2]_0^1 = 4$."
+        ),
     },
     {
         "tema": "1.2.6 Integrales dobles",
-        "pregunta": r"Plantee para región entre parábola $x = y^2 - 4y$ y recta $y = x - 6$:",
+        "pregunta": (
+            r"La región $R$ del plano $xy$ está limitada por la parábola $x = y^2 - 4y$ y la recta $y = x - 6$. "
+            r"**Grafique** la región de integración, indique los **límites** de $x$ e $y$ y escriba la integral doble "
+            r"$\iint_R f(x,y)\,dA$ integrando primero en $x$ y luego en $y$ (NO calcule el valor):"
+        ),
+        "grafico": {
+            "tipo": "region_xy_tipo2",
+            "x_inferior": "y**2 - 4*y",
+            "x_superior": "y + 6",
+            "y_min": -1.0,
+            "y_max": 6.0,
+            "titulo": "Región R: entre x = y² − 4y y y = x − 6",
+        },
         "opciones": [
-            r"A) $\int_{-1}^{6} \int_{y^2-4y}^{y+6} f(x,y) dx dy$",
-            r"B) $\int_{-1}^{6} \int_{y+6}^{y^2-4y} f(x,y) dx dy$",
-            r"C) $\int \dots dy dx$",
-            r"D) $\int \dots$"
+            r"A) $y \in [-1,6]$; $x \in [y^2-4y,\, y+6]$ $\Rightarrow$ $\int_{-1}^{6} \int_{y^2-4y}^{y+6} f(x,y) \, dx \, dy$",
+            r"B) $y \in [-1,6]$; $x \in [y+6,\, y^2-4y]$ $\Rightarrow$ $\int_{-1}^{6} \int_{y+6}^{y^2-4y} f(x,y) \, dx \, dy$",
+            r"C) $x \in [-1,6]$; $y \in [y^2-4y,\, y+6]$ $\Rightarrow$ $\int_{-1}^{6} \int_{y^2-4y}^{y+6} f(x,y) \, dy \, dx$",
+            r"D) $y \in [-6,1]$; $x \in [y^2-4y,\, y+6]$ $\Rightarrow$ $\int_{-6}^{1} \int_{y^2-4y}^{y+6} f(x,y) \, dx \, dy$"
         ],
-        "respuesta_correcta": r"A) $\int_{-1}^{6} \int_{y^2-4y}^{y+6} f(x,y) dx dy$",
-        "explicacion": r"Integración tipo II (dx primero). Límites de y $[-1, 6]$."
+        "respuesta_correcta": r"A) $y \in [-1,6]$; $x \in [y^2-4y,\, y+6]$ $\Rightarrow$ $\int_{-1}^{6} \int_{y^2-4y}^{y+6} f(x,y) \, dx \, dy$",
+        "explicacion": (
+            r"**Gráfica:** la parábola $x = y^2 - 4y$ abre hacia la derecha; la recta $y = x - 6$ equivale a $x = y + 6$. "
+            r"Entre las intersecciones $y = -1$ y $y = 6$, la recta queda a la **derecha** de la parábola. "
+            r"**Límites:** $y \in [-1,6]$; para cada $y$, $x$ va de $y^2-4y$ (izquierda) a $y+6$ (derecha). "
+            r"**Integral:** $\int_{-1}^{6} \int_{y^2-4y}^{y+6} f(x,y)\,dx\,dy$."
+        ),
     },
     {
         "tema": "1.2.6 Integrales dobles",
-        "pregunta": r"Cambie orden $\int_0^4 \int_0^x f(x,y) dy dx$:",
+        "pregunta": r"Cambie el orden de integración: $\int_0^4 \int_0^x f(x,y) \, dy \, dx$",
+        "grafico": {
+            "tipo": "area_entre_curvas",
+            "y_superior": "x",
+            "y_inferior": "0",
+            "x_min": 0.0,
+            "x_max": 4.0,
+            "z": "x + y",
+            "titulo": "Región triangular: 0 ≤ y ≤ x ≤ 4",
+            "titulo_3d": "Ejemplo: z = x + y sobre la región triangular",
+        },
         "opciones": [
-            r"A) $\int_0^4 \int_y^4 f(x,y) dx dy$",
-            r"B) $\int_0^4 \int_0^y \dots$",
-            r"C) $\int_0^x \dots$",
-            r"D) $\int_0^4 \int_4^y \dots$"
+            r"A) $\int_0^4 \int_y^4 f(x,y) \, dx \, dy$",
+            r"B) $\int_0^4 \int_0^y f(x,y) \, dx \, dy$",
+            r"C) $\int_0^4 \int_0^x f(x,y) \, dx \, dy$",
+            r"D) $\int_0^4 \int_4^y f(x,y) \, dx \, dy$"
         ],
-        "respuesta_correcta": r"A) $\int_0^4 \int_y^4 f(x,y) dx dy$",
-        "explicacion": r"Región triangular $0 \le y \le x \le 4$. En orden inverso $y \le x \le 4$."
+        "respuesta_correcta": r"A) $\int_0^4 \int_y^4 f(x,y) \, dx \, dy$",
+        "explicacion": (
+            r"La región es el triángulo con $0 \le y \le x \le 4$. "
+            r"Al invertir: $y \in [0,4]$ y, para cada $y$, $x \in [y,4]$."
+        ),
     },
     {
         "tema": "1.2.6 Integrales dobles",
-        "pregunta": r"Calcule $\int_0^1 \int_0^2 (x+y) dy dx$:",
+        "pregunta": r"Calcule $\int_0^1 \int_0^2 (x+y) \, dy \, dx$:",
+        "grafico": {
+            "tipo": "rectangulo",
+            "x_min": 0.0,
+            "x_max": 1.0,
+            "y_min": 0.0,
+            "y_max": 2.0,
+            "z": "x + y",
+            "titulo": "Región R = [0,1] × [0,2]",
+            "titulo_3d": "Superficie z = x + y sobre el rectángulo R",
+        },
         "opciones": [
             r"A) $3$",
             r"B) $1$",
@@ -708,19 +772,42 @@ BANCO_FIXED = [
     },
     {
         "tema": "1.2.6 Integrales dobles",
-        "pregunta": r"Volumen bajo $z=1+x-y$ sobre región limitada por $y=x^2$ y $y=8-2x$:",
+        "pregunta": r"Plantee el volumen bajo $z=1+x-y$ sobre la región del plano $xy$ limitada por $y=x^2$ y $y=8-2x$:",
+        "grafico": {
+            "tipo": "area_entre_curvas",
+            "y_superior": "8 - 2*x",
+            "y_inferior": "x**2",
+            "x_min": -4.0,
+            "x_max": 2.0,
+            "z": "1 + x - y",
+            "titulo": "Región base: entre y = x² y y = 8 − 2x",
+            "titulo_3d": "Volumen bajo z = 1 + x − y sobre R",
+        },
         "opciones": [
-            r"A) $\int_{-4}^{2} \int_{x^2}^{8-2x} (1+x-y) dy dx$",
-            r"B) $\int_{-4}^{2} \int_{8-2x}^{x^2} \dots$",
-            r"C) $\int \dots dx dy$",
-            r"D) $\int \dots$"
+            r"A) $\int_{-4}^{2} \int_{x^2}^{8-2x} (1+x-y) \, dy \, dx$",
+            r"B) $\int_{-4}^{2} \int_{8-2x}^{x^2} (1+x-y) \, dy \, dx$",
+            r"C) $\int_{-4}^{2} \int_{x^2}^{8-2x} (1+x-y) \, dx \, dy$",
+            r"D) $\int_{0}^{2} \int_{x^2}^{8-2x} (1+x-y) \, dy \, dx$"
         ],
-        "respuesta_correcta": r"A) $\int_{-4}^{2} \int_{x^2}^{8-2x} (1+x-y) dy dx$",
-        "explicacion": r"Cortes en $x=-4, 2$. Recta por encima de parábola."
+        "respuesta_correcta": r"A) $\int_{-4}^{2} \int_{x^2}^{8-2x} (1+x-y) \, dy \, dx$",
+        "explicacion": (
+            r"**Intersección:** $x^2 = 8 - 2x \Rightarrow x = -4,\; 2$. "
+            r"En $[-4,2]$ la recta $y = 8-2x$ está **arriba** de $y = x^2$. Volumen = $\iint_R (1+x-y)\,dA$."
+        ),
     },
     {
         "tema": "1.2.6 Integrales dobles",
         "pregunta": r"Calcule la integral doble $\iint_R 2xy \, dA$ sobre el rectángulo $R = [0,2] \times [0,1]$:",
+        "grafico": {
+            "tipo": "rectangulo",
+            "x_min": 0.0,
+            "x_max": 2.0,
+            "y_min": 0.0,
+            "y_max": 1.0,
+            "z": "2*x*y",
+            "titulo": "Región R = [0,2] × [0,1]",
+            "titulo_3d": "Superficie z = 2xy sobre el rectángulo R",
+        },
         "opciones": [
             r"A) 2",
             r"B) 4",
@@ -732,7 +819,91 @@ BANCO_FIXED = [
     },
     {
         "tema": "1.2.6 Integrales dobles",
+        "pregunta": r"Calcule el volumen bajo $z = x^2 + y^2 + 1$ sobre el rectángulo $R = [0,1] \times [0,1]$:",
+        "grafico": {
+            "tipo": "rectangulo",
+            "x_min": 0.0,
+            "x_max": 1.0,
+            "y_min": 0.0,
+            "y_max": 1.0,
+            "z": "x**2 + y**2 + 1",
+            "titulo": "Región R = [0,1] × [0,1]",
+            "titulo_3d": "Parabolide z = x² + y² + 1 sobre R",
+        },
+        "opciones": [
+            r"A) $\dfrac{5}{3}$",
+            r"B) $2$",
+            r"C) $\dfrac{4}{3}$",
+            r"D) $1$"
+        ],
+        "respuesta_correcta": r"A) $\dfrac{5}{3}$",
+        "explicacion": (
+            r"**Interna ($y$):** $\int_0^1 (x^2 + y^2 + 1)\,dy = x^2 + \dfrac{1}{3} + 1 = x^2 + \dfrac{4}{3}$. "
+            r"**Externa ($x$):** $\int_0^1 \left(x^2 + \dfrac{4}{3}\right)dx = \dfrac{1}{3} + \dfrac{4}{3} = \dfrac{5}{3}$."
+        ),
+    },
+    {
+        "tema": "1.2.6 Integrales dobles",
+        "pregunta": r"Plantee (NO CALCULE) el volumen bajo $z = x^2 + y^2 + 1$ sobre $R = [0,2] \times [0,1]$:",
+        "grafico": {
+            "tipo": "rectangulo",
+            "x_min": 0.0,
+            "x_max": 2.0,
+            "y_min": 0.0,
+            "y_max": 1.0,
+            "z": "x**2 + y**2 + 1",
+            "titulo": "Región R = [0,2] × [0,1]",
+            "titulo_3d": "Parabolide z = x² + y² + 1 sobre R",
+        },
+        "opciones": [
+            r"A) $\int_{0}^{2} \int_{0}^{1} (x^2 + y^2 + 1) \, dy \, dx$",
+            r"B) $\int_{0}^{2} \int_{0}^{1} (x^2 - y^2 + 1) \, dy \, dx$",
+            r"C) $\int_{0}^{1} \int_{0}^{2} (x^2 + y^2) \, dx \, dy$",
+            r"D) $\int_{0}^{2} \int_{0}^{1} (x^2 + y^2 + 1) \, dx \, dy$"
+        ],
+        "respuesta_correcta": r"A) $\int_{0}^{2} \int_{0}^{1} (x^2 + y^2 + 1) \, dy \, dx$",
+        "explicacion": (
+            r"Rectángulo $0 \le x \le 2$, $0 \le y \le 1$. Integrando primero en $y$: "
+            r"$\iint_R (x^2+y^2+1)\,dA = \int_0^2 \int_0^1 (x^2+y^2+1)\,dy\,dx$. "
+            r"La superficie es un **parabolide** circular trasladado (mínimo en $z=1$)."
+        ),
+    },
+    {
+        "tema": "1.2.6 Integrales dobles",
+        "pregunta": r"Calcule $\iint_R (x^2 + y^2 + 1)\,dA$ sobre el triángulo $R$: $0 \le x \le 1$, $0 \le y \le x$:",
+        "grafico": {
+            "tipo": "area_entre_curvas",
+            "y_superior": "x",
+            "y_inferior": "0",
+            "x_min": 0.0,
+            "x_max": 1.0,
+            "z": "x**2 + y**2 + 1",
+            "titulo": "Triángulo: 0 ≤ y ≤ x ≤ 1",
+            "titulo_3d": "Parabolide z = x² + y² + 1 sobre el triángulo",
+        },
+        "opciones": [
+            r"A) $\dfrac{5}{6}$",
+            r"B) $\dfrac{5}{3}$",
+            r"C) $1$",
+            r"D) $\dfrac{7}{6}$"
+        ],
+        "respuesta_correcta": r"A) $\dfrac{5}{6}$",
+        "explicacion": (
+            r"**Interna:** $\int_0^x (x^2+y^2+1)\,dy = x^3 + \dfrac{x^3}{3} + x = \dfrac{4x^3}{3} + x$. "
+            r"**Externa:** $\int_0^1 \left(\dfrac{4x^3}{3}+x\right)dx = \dfrac{1}{3} + \dfrac{1}{2} = \dfrac{5}{6}$."
+        ),
+    },
+    {
+        "tema": "1.2.6 Integrales dobles",
         "pregunta": r"Al cambiar el orden de integración en $\int_0^1 \int_x^1 f(x,y) \, dy \, dx$, la nueva integral es:",
+        "grafico": {
+            "tipo": "area_entre_curvas",
+            "y_superior": "1",
+            "y_inferior": "x",
+            "x_min": 0.0,
+            "x_max": 1.0,
+            "titulo": "Región: x ≤ y ≤ 1, 0 ≤ x ≤ 1",
+        },
         "opciones": [
             r"A) $\int_0^1 \int_0^y f(x,y) \, dx \, dy$",
             r"B) $\int_0^1 \int_0^x f(x,y) \, dx \, dy$",

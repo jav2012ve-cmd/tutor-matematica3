@@ -45,6 +45,8 @@ LISTA_TEMAS = TEMAS_PARCIAL_1 + TEMAS_PARCIAL_2
 # Incluye:
 # - 1.2.1: integrales definidas sencillas donde se correlaciona el resultado con el área bajo la curva
 #   (p. ej. f ≥ 0 en [a,b], interpretación geométrica explícita).
+# - 1.2.6: integrales dobles; región en el plano xy (2D) y, si el ítem trae `z` en `grafico`,
+#   vista 3D de la superficie z = f(x,y) sobre R.
 # - 1.2.7: PDF/CDF; área bajo la densidad ↔ probabilidad de sucesos (intervalos, colas, etc.).
 TEMAS_ENTRENAMIENTO_GRAFICO_PLOTLY_OPCIONAL = [
     "1.2.1 Integral Definida",
@@ -120,6 +122,20 @@ Sé riguroso pero cercano.
 # --- NUEVO: Prompt Estructurado para el Quiz ---
 # --- NUEVO: Prompt Estructurado con "Few-Shot Learning" ---
 def generar_prompt_quiz(temas_seleccionados, cantidad):
+    regla_integrales_dobles = ""
+    if any("1.2.6 Integrales dobles" in t for t in temas_seleccionados):
+        regla_integrales_dobles = """
+    7. Si el tema incluye "1.2.6 Integrales dobles":
+       - Mezcla: (a) evaluación numérica en rectángulos o regiones simples, (b) **graficar región** e indicar
+         **límites** de integración (sin calcular), (c) cambio de orden con región triangular bien descrita.
+       - En planteamientos, las 4 opciones deben ser integrales dobles completas (con límites y diferencial $dx\\,dy$ o $dy\\,dx$).
+         Distractores típicos: límites de $x$ o $y$ invertidos, orden de integración incorrecto, curva superior/inferior intercambiada.
+       - PROHIBIDO en preguntas y opciones: Teorema de Fubini, coordenadas polares, jacobiano.
+       - En entrenamiento (tutor paso a paso), las estrategias son planteamientos integrales con límites correctos o alterados, no nombres de teoremas.
+       - Enunciados directos: indica el orden de integración cuando sea relevante ($dx\\,dz$ vs $dz\\,dx$).
+       - Incluye superficies cuadráticas sencillas del tipo $z = x^2 + y^2 + c$ (paraboloides) sobre rectángulos
+         o regiones triangulares; la vista 3D usa la clave `"z": "x**2 + y**2 + 1"` en el metadato `grafico`.
+    """
     regla_integrales_directas = ""
     if any("1.1.1 Integrales Indefinidas Directas" in t for t in temas_seleccionados):
         regla_integrales_directas = """
@@ -149,6 +165,7 @@ def generar_prompt_quiz(temas_seleccionados, cantidad):
        No permitas que la mayoría de las respuestas sean A o B.
     5. Si el ejercicio es de tipo 'PLANTEAR' (como áreas, volúmenes, excedentes o integrales dobles), las 4 opciones de respuesta (A, B, C, D) deben ser expresiones matemáticas de integrales. Tres de ellas deben tener errores comunes de planteamiento (límites invertidos, signos erróneos, funciones restadas en orden incorrecto) y una debe ser el planteamiento correcto.
     {regla_integrales_directas}
+    {regla_integrales_dobles}
 
     REGLA DE ORO (CRÍTICO, anti-fragmentación y JSON limpio):
     - No fragmentes el LaTeX dentro de una misma fórmula: si vas a escribir una expresión matemática, encierra TODA la expresión en un solo par de símbolos $. No cierres y abras dólares dentro de la misma unidad matemática.

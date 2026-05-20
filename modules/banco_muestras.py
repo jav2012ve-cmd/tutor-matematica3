@@ -67,6 +67,15 @@ EJEMPLO 12:
 "Utilice la región $R$ definida por el cruce de las funciones para plantear las integrales (NO CALCULE) que permitan hallar:
 $$ \iint_{R} (x-y) dA $$"
 
+EJEMPLO 12b (Integrales dobles — cambio de orden):
+"Dada la integral $\int_0^3 \int_0^x f(x,y)\,dy\,dx$, describa la región en el plano $xy$ y escriba la integral equivalente con orden $dx\,dy$ (NO CALCULE)."
+
+EJEMPLO 12c (Integrales dobles — región y límites):
+"La región $R$ está limitada por $x = y^2 - 4y$ y $y = x - 6$. Grafique $R$ en el plano $xy$, indique los límites de integración y escriba $\iint_R f(x,y)\,dA$ integrando primero en $x$ (NO calcule)."
+
+EJEMPLO 12d (Integrales dobles — parabolide):
+"Calcule el volumen del sólido bajo la superficie $z = x^2 + y^2 + 1$ y sobre el rectángulo $R = [0,1] \times [0,1]$ en el plano $xy$."
+
 EJEMPLO 13:
 "Resuelva la siguiente ecuación diferencial:
 $$ (5\ln y + 108xy + 36x^2 + 81y^2 + 5) dy + (12x^2 + 72xy + 54y^2) dx = 0 $$"
