@@ -1,0 +1,14 @@
+---
+description: Subir cambios a GitHub al completar trabajo en el repo
+alwaysApply: true
+---
+
+# Push a GitHub
+
+Al terminar cambios de código en este proyecto:
+
+1. Haz **commit** de los archivos relevantes (no incluir PDFs, imágenes sueltas ni logs salvo que el usuario lo pida).
+2. Haz **push** a `origin/main` (o la rama de trabajo actual) sin esperar a que el usuario lo recuerde.
+3. Confirma al usuario el commit (`hash` + mensaje) y que la rama quedó sincronizada con GitHub.
+
+No hagas push de secretos (`.env`, credenciales). Si no hay cambios que commitear, indícalo; no crees commits vacíos.
