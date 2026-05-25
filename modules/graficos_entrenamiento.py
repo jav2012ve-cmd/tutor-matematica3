@@ -1099,21 +1099,22 @@ def mostrar_si_aplica(
 
 
 def _limpiar_expr_raw(raw: str) -> str:
-    s = raw.strip().strip("$")
-    s = re.sub(r"[?!.]+$", "", s).strip()
+    s = raw.strip().strip("$;, ")
+    s = re.sub(r"[?!.;,]+$", "", s).strip()
     s = re.sub(
-        r"\s+(?:es|sea|para|en|sobre|que|gira|girando|girar|al|rededor|del|de|eje)\b.*$",
+        r"\s+(?:es|sea|para|en|sobre|que|cuando|gira|girando|girar|al|rededor|del|de|eje)\b.*$",
         "",
         s,
         flags=re.I,
     ).strip()
+    s = re.sub(r"[;,\s]+$", "", s).strip()
     return s
 
 
 def _fragmento_region_antes_giro(texto: str) -> str:
     """Recorta el enunciado antes de la cláusula de giro (evita confundir el eje y=c con curva)."""
     m = re.search(
-        r"\b(?:que\s+)?(?:gira|girando|girar|rotando|rota|rotar|"
+        r"\b(?:cuando\s+)?(?:que\s+)?(?:gira|girando|girar|rotando|rota|rotar|"
         r"en\s+torno\s+a|al\s+rededor\s+(?:de(?:l)?\s+)?(?:eje\s+)?|torno\s+a)\b",
         texto,
         re.I,
@@ -1122,10 +1123,15 @@ def _fragmento_region_antes_giro(texto: str) -> str:
 
 
 def _expr_generica_a_sympy(raw: str) -> str:
-    """Convierte expresión legible (x^2+1, 6-x) a formato sympy."""
+    """Convierte expresión legible (x^2+1, x*x, 6-x) a formato sympy."""
     s = _limpiar_expr_raw(raw).replace("^", "**")
     s = re.sub(r"\s+", "", s)
     s = re.sub(r"(\d)([xy])", r"\1*\2", s)
+    s = re.sub(
+        r"([xy])\*([xy])",
+        lambda m: f"{m.group(1)}**2" if m.group(1) == m.group(2) else f"{m.group(1)}*{m.group(2)}",
+        s,
+    )
     s = re.sub(r"([xy])([xy])", r"\1*\2", s)
     s = re.sub(r"\*\*\*", "**", s)
     return s
@@ -1414,10 +1420,11 @@ def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
 
     patrones = (
         r"(?:limitad[ao]s?\s+por|entre|regi[oó]n)\s+(?:por\s+)?"
-        r"\by\s*=\s*(.+?)\s+y\s*=\s*(.+?)(?=\s*(?:que|gir|\.|,|;|$))",
+        r"\by\s*=\s*(.+?)\s+y\s*=\s*(.+?)(?=\s*(?:cuando|que|gir|\.|,|;|$))",
+        r"\by\s*=\s*(.+?)\s*;\s*y\s*=\s*(.+?)(?=\s*(?:cuando|que|gir|\.|,|$))",
         r"\by\s*=\s*(.+?)\s+y\s*=\s*([-\d.]+)\b",
-        r"\by\s*=\s*(.+?)\s*,\s*y\s*=\s*(.+?)(?=\s*(?:girando|gira|en\b|[.;]|$))",
-        r"\by\s*=\s*(.+?)\s+y\s*=\s*(.+?)(?=\s*(?:que|gir|\.|,|;|$))",
+        r"\by\s*=\s*(.+?)\s*,\s*y\s*=\s*(.+?)(?=\s*(?:cuando|girando|gira|en\b|[.;]|$))",
+        r"\by\s*=\s*(.+?)\s+y\s*=\s*(.+?)(?=\s*(?:cuando|que|gir|\.|,|;|$))",
     )
     for pat in patrones:
         m = re.search(pat, region, re.I)
@@ -1702,7 +1709,11 @@ def _texto_es_volumen_revolucion(texto: Optional[str]) -> bool:
 
 def _extraer_eje_revolucion(texto: str) -> Optional[tuple[str, float]]:
     patrones_y = [
-        r"(?:girando|gira|rot(?:a|ar)?(?:\s+torno)?(?:\s+a)?|eje(?:\s+de\s+giro)?)\s*(?:en|sobre|la\s+recta)?\s*\$?\s*y\s*=\s*([-\d.]+)",
+        r"alrededor\s+(?:de(?:l)?\s+(?:eje\s+)?)?\$?\s*y\s*=\s*([-\d.]+)",
+        r"cuando\s+gira\s+alrededor\s+(?:de(?:l)?\s+(?:eje\s+)?)?\$?\s*y\s*=\s*([-\d.]+)",
+        r"(?:girando|gira|rot(?:a|ar)?(?:\s+torno)?(?:\s+a)?|eje(?:\s+de\s+giro)?)"
+        r"\s*(?:alrededor\s+(?:de(?:l)?\s+(?:eje\s+)?)?|en|sobre|la\s+recta)?"
+        r"\s*\$?\s*y\s*=\s*([-\d.]+)",
         r"(?:en\s+)?torno\s+a\s*\$?\s*y\s*=\s*([-\d.]+)",
         r"recta\s+(?:horizontal\s+)?y\s*=\s*([-\d.]+)",
     ]
@@ -1711,7 +1722,11 @@ def _extraer_eje_revolucion(texto: str) -> Optional[tuple[str, float]]:
         if m:
             return "y", float(m.group(1))
     patrones_x = [
-        r"(?:girando|gira|rot(?:a|ar)?(?:\s+torno)?(?:\s+a)?|eje(?:\s+de\s+giro)?)\s*(?:en|sobre|la\s+recta)?\s*\$?\s*x\s*=\s*([-\d.]+)",
+        r"alrededor\s+(?:de(?:l)?\s+(?:eje\s+)?)?\$?\s*x\s*=\s*([-\d.]+)",
+        r"cuando\s+gira\s+alrededor\s+(?:de(?:l)?\s+(?:eje\s+)?)?\$?\s*x\s*=\s*([-\d.]+)",
+        r"(?:girando|gira|rot(?:a|ar)?(?:\s+torno)?(?:\s+a)?|eje(?:\s+de\s+giro)?)"
+        r"\s*(?:alrededor\s+(?:de(?:l)?\s+(?:eje\s+)?)?|en|sobre|la\s+recta)?"
+        r"\s*\$?\s*x\s*=\s*([-\d.]+)",
         r"(?:en\s+)?torno\s+a\s*\$?\s*x\s*=\s*([-\d.]+)",
         r"recta\s+(?:vertical\s+)?x\s*=\s*([-\d.]+)",
     ]

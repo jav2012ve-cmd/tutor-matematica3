@@ -1026,6 +1026,29 @@ BANCO_FIXED = [
         "respuesta_correcta": r"A) $\pi \int_{0}^{1} [ (4-x^2-2)^2 - (3-2)^2 ] dx$",
         "explicacion": r"Radio mayor $(4-x^2)-2$. Radio menor $3-2=1$."
     },
+    {
+        "tema": "1.2.5 Volúmenes Sólidos de Revolución",
+        "pregunta": r"Sólido región $y=x^2$, $y=9$ girando alrededor de $y=-2$:",
+        "opciones": [
+            r"A) $\pi \int_{-3}^{3} [ (9-(-2))^2 - (x^2-(-2))^2 ] dx$",
+            r"B) $\pi \int_{-3}^{3} (x^2+2)^2 dx$",
+            r"C) $\pi \int_{-3}^{3} 11^2 dx$",
+            r"D) $\pi \int_{0}^{3} (9+2)^2 dx$"
+        ],
+        "respuesta_correcta": r"A) $\pi \int_{-3}^{3} [ (9-(-2))^2 - (x^2-(-2))^2 ] dx$",
+        "explicacion": r"Arandelas: radio exterior $R=9-(-2)=11$, radio interior $r=x^2-(-2)=x^2+2$.",
+        "grafico": {
+            "tipo": "solido_revolucion",
+            "eje_tipo": "y",
+            "eje_val": -2.0,
+            "y_superior": "9",
+            "y_inferior": "x**2",
+            "x_min": -3.0,
+            "x_max": 3.0,
+            "titulo_2d": "Región entre y = x² y y = 9 (giro en y = −2)",
+            "titulo_3d": "Sólido al girar en torno a y = −2",
+        },
+    },
     # --- ECUACIONES DIFERENCIALES: SEPARABLES ---
     {
         "tema": "2.1.1 ED 1er Orden: Separación de Variables",
