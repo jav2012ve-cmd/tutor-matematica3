@@ -700,11 +700,13 @@ def _superficie_revolucion_eje_y(
     """Genera malla (X, Y, Z) al girar y = f(x) alrededor de la recta horizontal y = y0."""
     fn = _lambdify_expr(y_expr)
     y_curve = _eval_on_grid(fn, xs)
-    r = y_curve[np.newaxis, :] - y0
+    r = y_curve - y0
     th = thetas[:, np.newaxis]
-    x3 = np.broadcast_to(xs, r.shape)
-    y3 = y0 + r * np.cos(th)
-    z3 = r * np.sin(th)
+    r_grid = r[np.newaxis, :]
+    n_th, n_x = len(thetas), len(xs)
+    x3 = np.broadcast_to(xs[np.newaxis, :], (n_th, n_x))
+    y3 = y0 + r_grid * np.cos(th)
+    z3 = r_grid * np.sin(th)
     return x3, y3, z3
 
 
@@ -717,11 +719,13 @@ def _superficie_revolucion_eje_x(
     """Genera malla al girar x = g(y) alrededor de la recta vertical x = x0."""
     fn = _lambdify_expr(x_expr, _y)
     x_curve = _eval_on_grid(fn, ys)
-    r = x_curve[np.newaxis, :] - x0
+    r = x_curve - x0
     th = thetas[:, np.newaxis]
-    y3 = np.broadcast_to(ys, r.shape)
-    x3 = x0 + r * np.cos(th)
-    z3 = r * np.sin(th)
+    r_grid = r[np.newaxis, :]
+    n_th, n_y = len(thetas), len(ys)
+    y3 = np.broadcast_to(ys[np.newaxis, :], (n_th, n_y))
+    x3 = x0 + r_grid * np.cos(th)
+    z3 = r_grid * np.sin(th)
     return x3, y3, z3
 
 
