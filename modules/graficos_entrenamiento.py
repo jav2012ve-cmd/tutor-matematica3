@@ -1697,6 +1697,7 @@ def _texto_es_volumen_revolucion(texto: Optional[str]) -> bool:
 def _extraer_eje_revolucion(texto: str) -> Optional[tuple[str, float]]:
     patrones_y = [
         r"(?:girando|gira|rot(?:a|ar)?(?:\s+torno)?(?:\s+a)?|eje(?:\s+de\s+giro)?)\s*(?:en|sobre|la\s+recta)?\s*\$?\s*y\s*=\s*([-\d.]+)",
+        r"(?:en\s+)?torno\s+a\s*\$?\s*y\s*=\s*([-\d.]+)",
         r"recta\s+(?:horizontal\s+)?y\s*=\s*([-\d.]+)",
     ]
     for pat in patrones_y:
@@ -1705,6 +1706,7 @@ def _extraer_eje_revolucion(texto: str) -> Optional[tuple[str, float]]:
             return "y", float(m.group(1))
     patrones_x = [
         r"(?:girando|gira|rot(?:a|ar)?(?:\s+torno)?(?:\s+a)?|eje(?:\s+de\s+giro)?)\s*(?:en|sobre|la\s+recta)?\s*\$?\s*x\s*=\s*([-\d.]+)",
+        r"(?:en\s+)?torno\s+a\s*\$?\s*x\s*=\s*([-\d.]+)",
         r"recta\s+(?:vertical\s+)?x\s*=\s*([-\d.]+)",
     ]
     for pat in patrones_x:
