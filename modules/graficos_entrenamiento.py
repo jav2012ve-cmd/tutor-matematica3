@@ -691,10 +691,199 @@ def figura_integral_doble_3d(
     return fig
 
 
+def _superficie_revolucion_eje_y(
+    xs: np.ndarray,
+    y_expr: str,
+    y0: float,
+    thetas: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Genera malla (X, Y, Z) al girar y = f(x) alrededor de la recta horizontal y = y0."""
+    fn = _lambdify_expr(y_expr)
+    y_curve = _eval_on_grid(fn, xs)
+    r = y_curve[np.newaxis, :] - y0
+    th = thetas[:, np.newaxis]
+    x3 = np.broadcast_to(xs, r.shape)
+    y3 = y0 + r * np.cos(th)
+    z3 = r * np.sin(th)
+    return x3, y3, z3
+
+
+def _superficie_revolucion_eje_x(
+    ys: np.ndarray,
+    x_expr: str,
+    x0: float,
+    thetas: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Genera malla al girar x = g(y) alrededor de la recta vertical x = x0."""
+    fn = _lambdify_expr(x_expr, _y)
+    x_curve = _eval_on_grid(fn, ys)
+    r = x_curve[np.newaxis, :] - x0
+    th = thetas[:, np.newaxis]
+    y3 = np.broadcast_to(ys, r.shape)
+    x3 = x0 + r * np.cos(th)
+    z3 = r * np.sin(th)
+    return x3, y3, z3
+
+
+def figura_solido_revolucion_2d(spec: Dict[str, Any]) -> go.Figure:
+    """Región generadora en el plano xy y recta de giro."""
+    eje_tipo = str(spec.get("eje_tipo", "y"))
+    eje_val = float(spec["eje_val"])
+    titulo = spec.get("titulo_2d") or spec.get("titulo") or "Región generadora y eje de giro"
+
+    if eje_tipo == "x":
+        fig = figura_region_xy_tipo2(
+            x_inferior=str(spec["x_inferior"]),
+            x_superior=str(spec["x_superior"]),
+            y_min=float(spec["y_min"]),
+            y_max=float(spec["y_max"]),
+            titulo=titulo,
+        )
+        fig.add_vline(
+            x=eje_val,
+            line_dash="dash",
+            line_color="#d62728",
+            line_width=2,
+            annotation_text=f"Eje x = {eje_val}",
+            annotation_position="top",
+        )
+        return fig
+
+    banda = {
+        "y_superior": str(spec["y_superior"]),
+        "y_inferior": str(spec["y_inferior"]),
+        "x_min": float(spec["x_min"]),
+        "x_max": float(spec["x_max"]),
+    }
+    fig = figura_area_entre_curvas([banda], titulo)
+    fig.add_hline(
+        y=eje_val,
+        line_dash="dash",
+        line_color="#d62728",
+        line_width=2,
+        annotation_text=f"Eje y = {eje_val}",
+        annotation_position="right",
+    )
+    return fig
+
+
+def figura_solido_revolucion_3d(
+    spec: Dict[str, Any],
+    *,
+    titulo: str = "",
+    resolucion: int = 40,
+) -> go.Figure:
+    """Sólido de revolución 3D (arandelas/discos) a partir de la región en el plano xy."""
+    eje_tipo = str(spec.get("eje_tipo", "y"))
+    eje_val = float(spec["eje_val"])
+    n_x = max(28, min(resolucion, 50))
+    n_th = max(36, min(resolucion + 8, 60))
+    thetas = np.linspace(0.0, 2.0 * np.pi, n_th)
+
+    fig = go.Figure()
+
+    if eje_tipo == "x":
+        y0, y1 = float(spec["y_min"]), float(spec["y_max"])
+        ys = np.linspace(y0, y1, n_x)
+        x_sup = str(spec["x_superior"])
+        x_inf = str(spec["x_inferior"])
+        xs_u, ys_u, zs_u = _superficie_revolucion_eje_x(ys, x_sup, eje_val, thetas)
+        xs_i, ys_i, zs_i = _superficie_revolucion_eje_x(ys, x_inf, eje_val, thetas)
+        x_line = [eje_val, eje_val]
+        y_line = [y0, y1]
+        z_line = [0.0, 0.0]
+        x_rng = (
+            float(np.nanmin(np.concatenate([xs_u.ravel(), xs_i.ravel()]))),
+            float(np.nanmax(np.concatenate([xs_u.ravel(), xs_i.ravel()]))),
+        )
+        y_rng = (y0 - 0.5, y1 + 0.5)
+        inf_expr = x_inf
+    else:
+        x0, x1 = float(spec["x_min"]), float(spec["x_max"])
+        xs = np.linspace(x0, x1, n_x)
+        y_sup = str(spec["y_superior"])
+        y_inf = str(spec["y_inferior"])
+        xs_u, ys_u, zs_u = _superficie_revolucion_eje_y(xs, y_sup, eje_val, thetas)
+        xs_i, ys_i, zs_i = _superficie_revolucion_eje_y(xs, y_inf, eje_val, thetas)
+        x_line = [x0, x1]
+        y_line = [eje_val, eje_val]
+        z_line = [0.0, 0.0]
+        x_rng = (x0 - 0.5, x1 + 0.5)
+        radii = np.concatenate([ys_u - eje_val, ys_i - eje_val, zs_u, zs_i])
+        r_max = float(np.nanmax(np.abs(radii))) if radii.size else 1.0
+        y_rng = (eje_val - r_max - 0.5, eje_val + r_max + 0.5)
+        inf_expr = y_inf
+
+    mostrar_interior = _expr_normalizada_cmp(inf_expr) != _expr_normalizada_cmp(str(eje_val))
+
+    fig.add_trace(
+        go.Surface(
+            x=xs_u,
+            y=ys_u,
+            z=zs_u,
+            colorscale="Blues",
+            showscale=False,
+            opacity=0.88,
+            name="Superficie exterior",
+            hovertemplate="x=%{x:.2f}<br>y=%{y:.2f}<br>z=%{z:.2f}<extra></extra>",
+        )
+    )
+    if mostrar_interior:
+        fig.add_trace(
+            go.Surface(
+                x=xs_i,
+                y=ys_i,
+                z=zs_i,
+                colorscale="Oranges",
+                showscale=False,
+                opacity=0.55,
+                name="Superficie interior",
+                hovertemplate="x=%{x:.2f}<br>y=%{y:.2f}<br>z=%{z:.2f}<extra></extra>",
+            )
+        )
+
+    fig.add_trace(
+        go.Scatter3d(
+            x=x_line,
+            y=y_line,
+            z=z_line,
+            mode="lines",
+            line=dict(color="#d62728", width=6),
+            name="Eje de giro",
+            hoverinfo="skip",
+        )
+    )
+
+    z_max = float(np.nanmax(np.abs(np.concatenate([zs_u.ravel(), zs_i.ravel()]))))
+    z_max = max(z_max, 0.5)
+
+    fig.update_layout(
+        title=titulo or spec.get("titulo_3d") or "Sólido de revolución",
+        height=540,
+        margin=dict(l=0, r=0, t=56, b=0),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        scene=dict(
+            xaxis_title="x",
+            yaxis_title="y",
+            zaxis_title="z",
+            aspectmode="cube",
+            xaxis=dict(range=list(x_rng)),
+            yaxis=dict(range=list(y_rng)),
+            zaxis=dict(range=[-z_max - 0.3, z_max + 0.3]),
+        ),
+    )
+    return fig
+
+
 def figura_desde_spec(spec: Optional[Dict[str, Any]]) -> Optional[go.Figure]:
     if not spec:
         return None
     tipo = spec.get("tipo")
+    if tipo == "solido_revolucion":
+        try:
+            return figura_solido_revolucion_2d(spec)
+        except Exception:
+            return None
     if tipo == "integral_doble_3d":
         z_expr = spec.get("z")
         region = spec.get("region") or spec
@@ -776,6 +965,18 @@ def figuras_desde_spec(spec: Optional[Dict[str, Any]]) -> List[go.Figure]:
     z_expr = spec.get("z")
     tipo = spec.get("tipo")
 
+    if tipo == "solido_revolucion":
+        try:
+            fig_2d = figura_solido_revolucion_2d(spec)
+            fig_3d = figura_solido_revolucion_3d(
+                spec,
+                titulo=spec.get("titulo_3d") or "Sólido de revolución",
+                resolucion=int(spec.get("resolucion", 40)),
+            )
+            return [fig_2d, fig_3d]
+        except Exception:
+            return []
+
     if tipo == "integral_doble_3d":
         fig = figura_desde_spec(spec)
         if fig is not None:
@@ -800,6 +1001,26 @@ def figuras_desde_spec(spec: Optional[Dict[str, Any]]) -> List[go.Figure]:
     return figuras
 
 
+def _caption_figura_extra(spec: Dict[str, Any], indice: int, total: int) -> Optional[str]:
+    if total <= 1:
+        return None
+    tipo = spec.get("tipo", "")
+    if tipo == "solido_revolucion":
+        if indice == 0:
+            return "_Plano **xy**: región generadora y **eje de giro** (recta roja)._"
+        if indice == 1:
+            return (
+                "_Sólido **3D**: superficie exterior (azul) e interior (naranja) si hay hueco. "
+                "Gire con el **mouse** o acerque con la **rueda**._"
+            )
+    if tipo != "solido_revolucion" and indice == 1:
+        return (
+            "_Vista 3D: función en contexto (tenue) y porción sobre **R** resaltada. "
+            "Plano base ampliado; acerque con la **rueda del mouse**._"
+        )
+    return None
+
+
 def mostrar_figura_apoyo(
     spec: Optional[Dict[str, Any]],
     *,
@@ -822,11 +1043,9 @@ def mostrar_figura_apoyo(
         if caption:
             st.caption(caption)
         for i, fig in enumerate(figuras):
-            if len(figuras) > 1 and i == 1:
-                st.caption(
-                    "_Vista 3D: superficie completa (tenue) y **proyección sobre R** resaltada (naranja en el plano). "
-                    "Acerque con la **rueda del mouse**._"
-                )
+            extra = _caption_figura_extra(spec, i, len(figuras))
+            if extra:
+                st.caption(extra)
             st.plotly_chart(
                 fig,
                 width="stretch",
@@ -1171,6 +1390,16 @@ def _texto_es_probabilidad(texto: Optional[str]) -> bool:
 
 
 def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
+    m = re.search(
+        r"\by\s*=\s*(.+?)\s*,\s*y\s*=\s*(.+?)(?=\s*(?:girando|gira|en\b|[.;]|$))",
+        texto,
+        re.I,
+    )
+    if m:
+        e1, e2 = _limpiar_expr_raw(m.group(1)), _limpiar_expr_raw(m.group(2))
+        if e1 and e2:
+            return _expr_generica_a_sympy(e1), _expr_generica_a_sympy(e2)
+
     matches = list(re.finditer(r"\by\s*=\s*", texto, re.I))
     exprs: List[str] = []
     for i, m in enumerate(matches):
@@ -1184,6 +1413,18 @@ def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
         raw = _limpiar_expr_raw(chunk)
         if raw:
             exprs.append(raw)
+
+    if len(exprs) < 2:
+        m = re.search(
+            r"\by\s*=\s*(.+?)\s*,\s*y\s*=\s*(.+?)(?=\s*(?:girando|gira|[.;]|$))",
+            texto,
+            re.I,
+        )
+        if m:
+            e1 = _limpiar_expr_raw(m.group(1))
+            e2 = _limpiar_expr_raw(m.group(2))
+            if e1 and e2:
+                exprs = [e1, e2]
 
     if len(exprs) < 2:
         m = re.search(
@@ -1429,6 +1670,220 @@ def inferir_grafico_probabilidad(texto: Optional[str]) -> Optional[Dict[str, Any
     }
 
 
+def _texto_es_volumen_revolucion(texto: Optional[str]) -> bool:
+    if not texto:
+        return False
+    t = str(texto).lower()
+    sc = re.sub(r"\s+", "", t)
+    if re.search(r"\bz\s*=", t) and not any(
+        k in sc for k in ("girando", "gira", "revoluc", "rotacion", "rotación", "eje")
+    ):
+        return False
+    claves = (
+        "solidoderevolucion",
+        "volumenderevolucion",
+        "ejedegiro",
+        "ejedegiro",
+    )
+    if any(k in sc for k in claves):
+        return True
+    if any(k in t for k in ("girando", "gira", "revoluc", "rotación", "rotacion")):
+        return "volumen" in t or "sólido" in t or "solido" in t or "región" in t or "region" in t
+    if "volumen" in t and any(k in t for k in ("eje", "recta", "torno")):
+        return True
+    return False
+
+
+def _extraer_eje_revolucion(texto: str) -> Optional[tuple[str, float]]:
+    patrones_y = [
+        r"(?:girando|gira|rot(?:a|ar)?(?:\s+torno)?(?:\s+a)?|eje(?:\s+de\s+giro)?)\s*(?:en|sobre|la\s+recta)?\s*\$?\s*y\s*=\s*([-\d.]+)",
+        r"recta\s+(?:horizontal\s+)?y\s*=\s*([-\d.]+)",
+    ]
+    for pat in patrones_y:
+        m = re.search(pat, texto, re.I)
+        if m:
+            return "y", float(m.group(1))
+    patrones_x = [
+        r"(?:girando|gira|rot(?:a|ar)?(?:\s+torno)?(?:\s+a)?|eje(?:\s+de\s+giro)?)\s*(?:en|sobre|la\s+recta)?\s*\$?\s*x\s*=\s*([-\d.]+)",
+        r"recta\s+(?:vertical\s+)?x\s*=\s*([-\d.]+)",
+    ]
+    for pat in patrones_x:
+        m = re.search(pat, texto, re.I)
+        if m:
+            return "x", float(m.group(1))
+    return None
+
+
+def _extraer_limites_x_texto(texto: str) -> Optional[tuple[float, float]]:
+    patrones = [
+        r"entre\s*\$?\s*x\s*=\s*([-\d.]+)\s*(?:,\s*|y\s+)\$?\s*([-\d.]+)",
+        r"entre\s*\$?\s*x\s*=\s*([-\d.]+)\s*,\s*([-\d.]+)",
+        r"x\s*=\s*([-\d.]+)\s*,\s*([-\d.]+)",
+        r"x\s*=\s*([-\d.]+)\s+y\s+([-\d.]+)",
+    ]
+    for pat in patrones:
+        m = re.search(pat, texto, re.I)
+        if m:
+            a, b = float(m.group(1)), float(m.group(2))
+            return min(a, b), max(a, b)
+    return None
+
+
+def _extraer_limites_y_texto(texto: str) -> Optional[tuple[float, float]]:
+    m = re.search(
+        r"(?:entre|de)\s*\$?\s*y\s*=\s*([-\d.]+)\s*(?:,\s*|y\s+)\$?\s*([-\d.]+)",
+        texto,
+        re.I,
+    )
+    if m:
+        a, b = float(m.group(1)), float(m.group(2))
+        return min(a, b), max(a, b)
+    return None
+
+
+def _extraer_fx_desde_texto(texto: str) -> Optional[str]:
+    patrones = [
+        r"f\s*\(\s*x\s*\)\s*=\s*(.+?)(?=\s*(?:entre|girando|gira|en\b|\.|,|;|$))",
+        r"(?:volumen|region|región)\s+(?:de|del|de la)\s*\$?\s*([^$=]+?=\s*)?(.+?)(?=\s*(?:entre|girando|gira|\.|,|$))",
+    ]
+    m = re.search(r"f\s*\(\s*x\s*\)\s*=\s*(.+?)(?=\s*(?:entre|girando|gira|en\b|\.|,|;|$))", texto, re.I)
+    if m:
+        raw = _limpiar_expr_raw(m.group(1))
+        if raw:
+            return _expr_generica_a_sympy(raw)
+    m = re.search(r"(?:^|[,\s])y\s*=\s*(.+?)(?=\s*(?:entre|girando|gira|,|$))", texto, re.I)
+    if m and "y=" not in m.group(1).lower()[:3]:
+        raw = _limpiar_expr_raw(m.group(1))
+        if raw and re.search(r"[x\d]", raw, re.I):
+            return _expr_generica_a_sympy(raw)
+    return None
+
+
+def _extraer_dos_curvas_x(texto: str) -> Optional[tuple[str, str]]:
+    matches = list(re.finditer(r"\bx\s*=\s*", texto, re.I))
+    exprs: List[str] = []
+    for i, m in enumerate(matches):
+        start = m.end()
+        if i + 1 < len(matches):
+            rest = texto[start: matches[i + 1].start()]
+            m_delim = re.search(r"\s+x\s*$", rest, re.I)
+            chunk = rest[: m_delim.start()] if m_delim else rest
+        else:
+            chunk = texto[start:]
+        raw = _limpiar_expr_raw(chunk)
+        if raw:
+            exprs.append(raw)
+    if len(exprs) < 2:
+        m = re.search(
+            r"\bx\s*=\s*(.+?)\s+x\s*(?:=\s*)?([^=,\n;?.]+)",
+            texto,
+            re.I,
+        )
+        if m:
+            e1, e2 = _limpiar_expr_raw(m.group(1)), _limpiar_expr_raw(m.group(2))
+            if e1 and e2:
+                exprs = [e1, e2]
+    if len(exprs) >= 2:
+        return _expr_generica_a_sympy(exprs[0]), _expr_generica_a_sympy(exprs[1])
+    return None
+
+
+def inferir_grafico_solido_revolucion(texto: Optional[str]) -> Optional[Dict[str, Any]]:
+    if not texto or not _texto_es_volumen_revolucion(texto):
+        return None
+
+    eje = _extraer_eje_revolucion(texto)
+    if not eje:
+        return None
+    eje_tipo, eje_val = eje
+
+    if eje_tipo == "x":
+        par = _extraer_dos_curvas_x(texto)
+        intervalo = _extraer_limites_y_texto(texto) or (-2.0, 2.0)
+        if not par:
+            return None
+        c1, c2 = par
+        y0, y1 = intervalo
+        ym = (y0 + y1) / 2.0
+        try:
+            f1 = _lambdify_expr(c1, _y)
+            f2 = _lambdify_expr(c2, _y)
+            if float(f1(ym)) >= float(f2(ym)):
+                sup, inf = c1, c2
+            else:
+                sup, inf = c2, c1
+        except Exception:
+            sup, inf = c1, c2
+        return {
+            "tipo": "solido_revolucion",
+            "eje_tipo": "x",
+            "eje_val": float(eje_val),
+            "x_superior": sup,
+            "x_inferior": inf,
+            "y_min": float(y0),
+            "y_max": float(y1),
+            "titulo_2d": f"Región generadora (giro en x = {eje_val})",
+            "titulo_3d": f"Sólido al girar R en torno a x = {eje_val}",
+        }
+
+    par = _extraer_dos_curvas_y(texto)
+    intervalo = _extraer_limites_x_texto(texto)
+    fx = _extraer_fx_desde_texto(texto)
+
+    if par:
+        c1, c2 = par
+        x_r = _interseccion_x_curvas(c1, c2) or intervalo
+        if not x_r:
+            return None
+        x0, x1 = x_r
+        xm = (x0 + x1) / 2.0
+        try:
+            f1 = _lambdify_expr(c1)
+            f2 = _lambdify_expr(c2)
+            if float(f1(xm)) >= float(f2(xm)):
+                sup, inf = c1, c2
+            else:
+                sup, inf = c2, c1
+        except Exception:
+            sup, inf = c1, c2
+        return {
+            "tipo": "solido_revolucion",
+            "eje_tipo": "y",
+            "eje_val": float(eje_val),
+            "y_superior": sup,
+            "y_inferior": inf,
+            "x_min": float(x0),
+            "x_max": float(x1),
+            "titulo_2d": f"Región generadora (giro en y = {eje_val})",
+            "titulo_3d": f"Sólido al girar R en torno a y = {eje_val}",
+        }
+
+    if fx and intervalo:
+        x0, x1 = intervalo
+        y_sup, y_inf = fx, str(eje_val)
+        if float(_lambdify_expr(fx)( (x0 + x1) / 2)) < eje_val:
+            y_sup, y_inf = str(eje_val), fx
+        return {
+            "tipo": "solido_revolucion",
+            "eje_tipo": "y",
+            "eje_val": float(eje_val),
+            "y_superior": y_sup,
+            "y_inferior": y_inf,
+            "x_min": float(x0),
+            "x_max": float(x1),
+            "titulo_2d": f"Región bajo y = f(x) (giro en y = {eje_val})",
+            "titulo_3d": f"Sólido al girar f(x) en torno a y = {eje_val}",
+        }
+
+    return None
+
+
+def _inferido_revolucion_especifico(spec: Optional[Dict[str, Any]], texto: Optional[str]) -> bool:
+    if not spec or not texto:
+        return False
+    return _extraer_eje_revolucion(texto) is not None and spec.get("tipo") == "solido_revolucion"
+
+
 def _buscar_grafico_en_banco(
     banco: Optional[List[Dict[str, Any]]],
     temas_prefijos: tuple[str, ...],
@@ -1476,6 +1931,14 @@ def resolver_grafico_tutor_abierto(
     """
     tema_id = str(tema or "")
 
+    inferido_rev = (
+        inferir_grafico_solido_revolucion(texto)
+        if _texto_es_volumen_revolucion(texto)
+        else None
+    )
+    if inferido_rev and _inferido_revolucion_especifico(inferido_rev, texto):
+        return inferido_rev
+
     inferido_id = (
         inferir_grafico_integrales_dobles(texto)
         if _texto_es_integrales_dobles(texto)
@@ -1483,6 +1946,10 @@ def resolver_grafico_tutor_abierto(
     )
     if inferido_id and _inferido_integrales_dobles_especifico(inferido_id, texto):
         return inferido_id
+
+    if "1.2.5" in tema_id or _texto_es_volumen_revolucion(texto):
+        spec = _buscar_grafico_en_banco(banco, ("1.2.5",), texto, tokens_match_fn)
+        return spec or inferido_rev
 
     if "1.2.6" in tema_id or _texto_es_integrales_dobles(texto):
         spec = _buscar_grafico_en_banco(banco, ("1.2.6",), texto, tokens_match_fn)
@@ -1511,11 +1978,18 @@ def resolver_grafico_tutor_abierto(
         return inferir_grafico_areas(texto)
     if _texto_es_integrales_dobles(texto):
         return inferir_grafico_integrales_dobles(texto)
+    if _texto_es_volumen_revolucion(texto):
+        return inferir_grafico_solido_revolucion(texto)
     return None
 
 
 def _caption_tutor_abierto(spec: Dict[str, Any]) -> str:
     tipo = spec.get("tipo", "")
+    if tipo == "solido_revolucion":
+        return (
+            "Región generadora en el plano **xy** (con el **eje de giro**) y sólido **3D** "
+            "formado al rotar la región. Gire la vista con el mouse."
+        )
     if spec.get("z"):
         return (
             "Región R en el plano **xy** y superficie **z = f(x,y)** sobre R "
@@ -1537,6 +2011,8 @@ def _caption_tutor_abierto(spec: Dict[str, Any]) -> str:
 
 def _titulo_tutor_abierto(spec: Dict[str, Any]) -> str:
     tipo = spec.get("tipo", "")
+    if tipo == "solido_revolucion":
+        return "📊 Apoyo gráfico — sólidos de revolución"
     if spec.get("z") or tipo == "integral_doble_3d":
         return "📊 Apoyo gráfico — integrales dobles"
     if tipo == "pdf_densidad":
@@ -1576,11 +2052,9 @@ def mostrar_apoyo_tutor_abierto(
         st.caption(_caption_tutor_abierto(spec))
         base_key = chart_key or str(abs(hash(str(spec))) % 10**8)
         for i, fig in enumerate(figuras):
-            if len(figuras) > 1 and i == 1:
-                st.caption(
-                    "_Vista 3D: función en contexto (tenue) y porción sobre **R** resaltada. "
-                    "Plano base ampliado; acerque con la **rueda del mouse**._"
-                )
+            extra = _caption_figura_extra(spec, i, len(figuras))
+            if extra:
+                st.caption(extra)
             st.plotly_chart(
                 fig,
                 width="stretch",

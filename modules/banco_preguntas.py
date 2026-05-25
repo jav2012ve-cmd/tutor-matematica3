@@ -954,7 +954,18 @@ BANCO_FIXED = [
             r"D) $\pi \int ((1+x^2)^2-1) dx$"
         ],
         "respuesta_correcta": r"A) $\pi \int_{-1}^{5} (2+x^2)^2 dx$",
-        "explicacion": r"Radio $R = (1+x^2) - (-1) = 2+x^2$. No hay hueco (disco)."
+        "explicacion": r"Radio $R = (1+x^2) - (-1) = 2+x^2$. No hay hueco (disco).",
+        "grafico": {
+            "tipo": "solido_revolucion",
+            "eje_tipo": "y",
+            "eje_val": -1.0,
+            "y_superior": "1+x**2",
+            "y_inferior": "-1",
+            "x_min": -1.0,
+            "x_max": 5.0,
+            "titulo_2d": "Región bajo f(x) = 1 + x² (giro en y = −1)",
+            "titulo_3d": "Sólido al girar en torno a y = −1",
+        },
     },
     {
         "tema": "1.2.5 Volúmenes Sólidos de Revolución",
@@ -966,7 +977,18 @@ BANCO_FIXED = [
             r"D) $2\pi \dots$"
         ],
         "respuesta_correcta": r"A) $\pi \int_0^4 [ 4^2 - (4-(x^2-4x))^2 ] dx$",
-        "explicacion": r"Arandelas. Radio exterior constante 4 (hasta el eje x). Radio interior hasta la curva."
+        "explicacion": r"Arandelas. Radio exterior constante 4 (hasta el eje x). Radio interior hasta la curva.",
+        "grafico": {
+            "tipo": "solido_revolucion",
+            "eje_tipo": "y",
+            "eje_val": 4.0,
+            "y_superior": "0",
+            "y_inferior": "x**2 - 4*x",
+            "x_min": 0.0,
+            "x_max": 4.0,
+            "titulo_2d": "Región entre y = x² − 4x y y = 0 (giro en y = 4)",
+            "titulo_3d": "Sólido al girar en torno a y = 4",
+        },
     },
     {
         "tema": "1.2.5 Volúmenes Sólidos de Revolución",

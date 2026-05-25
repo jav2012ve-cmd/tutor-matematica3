@@ -496,10 +496,16 @@ def _inferir_tema_grafico_desde_texto(texto: Optional[str]) -> Optional[str]:
         or "integralesdobles" in sc
         or "iint" in s
         or "volumenbajo" in sc
-        or re.search(r"\bz\s*=", s)
-        and any(w in s for w in ("volumen", "superficie", "región", "region", "plano xy"))
+        or (
+            re.search(r"\bz\s*=", s)
+            and any(w in s for w in ("volumen", "superficie", "plano xy", "región", "region"))
+        )
     ):
         return "1.2.6 Integrales dobles"
+    if any(k in sc for k in ("revolucion", "revolución", "girando", "gira")) and "volumen" in s:
+        return "1.2.5 Volúmenes Sólidos de Revolución"
+    if "volumen" in s and any(k in s for k in ("girando", "gira", "eje", "revoluc")):
+        return "1.2.5 Volúmenes Sólidos de Revolución"
     return None
 
 
@@ -1028,6 +1034,10 @@ def generar_respuesta_tutor_abierto(
     6. ÁREAS Y PROBABILIDAD: Si la consulta trata área entre curvas, área bajo f(x) o PDF/CDF,
        explica la región o el intervalo de probabilidad. La app mostrará la figura de referencia
        (área sombreada o densidad f(x)); no digas que no puedes graficar.
+
+    7. SÓLIDOS DE REVOLUCIÓN: Si la consulta trata volumen al girar una región del plano xy en torno
+       a una recta (y = c, x = c, etc.), describe la región generadora, el eje y los radios. La app
+       mostrará la región en 2D y una simulación 3D del sólido; no digas que no puedes graficar.
 
     Historial de chat reciente:
     {historial_previo}
@@ -2280,7 +2290,7 @@ elif ruta == "d) Tutor: Preguntas Abiertas":
     st.markdown("""
     Haz cualquier pregunta teórica. El tutor te responderá **vinculando la teoría con
     los ejercicios y estilos de examen** de nuestra cátedra. Según el tema, se muestra apoyo gráfico:
-    **áreas** entre curvas, **probabilidad/PDF** (densidad e intervalo sombreado) o **integrales dobles** (2D/3D).
+    **áreas** entre curvas, **probabilidad/PDF**, **integrales dobles** (2D/3D) o **sólidos de revolución** (simulación 3D).
     """)
 
     if len(st.session_state.historial_tutor_abierto) > AVISO_HISTORIAL_LARGO:
