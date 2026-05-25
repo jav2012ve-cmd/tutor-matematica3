@@ -1097,8 +1097,24 @@ def mostrar_si_aplica(
 def _limpiar_expr_raw(raw: str) -> str:
     s = raw.strip().strip("$")
     s = re.sub(r"[?!.]+$", "", s).strip()
-    s = re.sub(r"\s+(?:es|sea|para|en|sobre)\b.*$", "", s, flags=re.I).strip()
+    s = re.sub(
+        r"\s+(?:es|sea|para|en|sobre|que|gira|girando|girar|al|rededor|del|de|eje)\b.*$",
+        "",
+        s,
+        flags=re.I,
+    ).strip()
     return s
+
+
+def _fragmento_region_antes_giro(texto: str) -> str:
+    """Recorta el enunciado antes de la cláusula de giro (evita confundir el eje y=c con curva)."""
+    m = re.search(
+        r"\b(?:que\s+)?(?:gira|girando|girar|rotando|rota|rotar|"
+        r"en\s+torno\s+a|al\s+rededor\s+(?:de(?:l)?\s+)?(?:eje\s+)?|torno\s+a)\b",
+        texto,
+        re.I,
+    )
+    return texto[: m.start()] if m else texto
 
 
 def _expr_generica_a_sympy(raw: str) -> str:
@@ -1390,64 +1406,42 @@ def _texto_es_probabilidad(texto: Optional[str]) -> bool:
 
 
 def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
-    m = re.search(
+    region = _fragmento_region_antes_giro(texto)
+
+    patrones = (
+        r"(?:limitad[ao]s?\s+por|entre|regi[oó]n)\s+(?:por\s+)?"
+        r"\by\s*=\s*(.+?)\s+y\s*=\s*(.+?)(?=\s*(?:que|gir|\.|,|;|$))",
+        r"\by\s*=\s*(.+?)\s+y\s*=\s*([-\d.]+)\b",
         r"\by\s*=\s*(.+?)\s*,\s*y\s*=\s*(.+?)(?=\s*(?:girando|gira|en\b|[.;]|$))",
-        texto,
-        re.I,
+        r"\by\s*=\s*(.+?)\s+y\s*=\s*(.+?)(?=\s*(?:que|gir|\.|,|;|$))",
     )
-    if m:
-        e1, e2 = _limpiar_expr_raw(m.group(1)), _limpiar_expr_raw(m.group(2))
-        if e1 and e2:
-            return _expr_generica_a_sympy(e1), _expr_generica_a_sympy(e2)
-
-    matches = list(re.finditer(r"\by\s*=\s*", texto, re.I))
-    exprs: List[str] = []
-    for i, m in enumerate(matches):
-        start = m.end()
-        if i + 1 < len(matches):
-            rest = texto[start: matches[i + 1].start()]
-            m_delim = re.search(r"\s+y\s*$", rest, re.I)
-            chunk = rest[: m_delim.start()] if m_delim else rest
-        else:
-            chunk = texto[start:]
-        raw = _limpiar_expr_raw(chunk)
-        if raw:
-            exprs.append(raw)
-
-    if len(exprs) < 2:
-        m = re.search(
-            r"\by\s*=\s*(.+?)\s*,\s*y\s*=\s*(.+?)(?=\s*(?:girando|gira|[.;]|$))",
-            texto,
-            re.I,
-        )
+    for pat in patrones:
+        m = re.search(pat, region, re.I)
         if m:
-            e1 = _limpiar_expr_raw(m.group(1))
-            e2 = _limpiar_expr_raw(m.group(2))
+            e1, e2 = _limpiar_expr_raw(m.group(1)), _limpiar_expr_raw(m.group(2))
             if e1 and e2:
-                exprs = [e1, e2]
+                return _expr_generica_a_sympy(e1), _expr_generica_a_sympy(e2)
 
-    if len(exprs) < 2:
-        m = re.search(
-            r"\by\s*=\s*(.+?)\s+y\s*(?:=\s*)?([^=,\n;?.]+)",
-            texto,
-            re.I,
-        )
-        if m:
-            e1 = _limpiar_expr_raw(m.group(1))
-            e2 = _limpiar_expr_raw(m.group(2))
-            if e1 and e2:
-                exprs = [e1, e2]
-
-    if len(exprs) < 2:
-        fx_matches = list(re.finditer(r"f\s*\(\s*x\s*\)\s*=\s*", texto, re.I))
-        exprs = []
-        for i, m in enumerate(fx_matches):
-            start = m.end()
-            end = fx_matches[i + 1].start() if i + 1 < len(fx_matches) else len(texto)
-            raw = _limpiar_expr_raw(texto[start:end])
+    matches = list(re.finditer(r"\by\s*=\s*", region, re.I))
+    if len(matches) >= 2:
+        exprs: List[str] = []
+        for i in range(2):
+            start = matches[i].end()
+            end = matches[i + 1].start()
+            raw = _limpiar_expr_raw(region[start:end])
             if raw:
                 exprs.append(raw)
+        if len(exprs) >= 2:
+            return _expr_generica_a_sympy(exprs[0]), _expr_generica_a_sympy(exprs[1])
 
+    fx_matches = list(re.finditer(r"f\s*\(\s*x\s*\)\s*=\s*", region, re.I))
+    exprs = []
+    for i, m in enumerate(fx_matches):
+        start = m.end()
+        end = fx_matches[i + 1].start() if i + 1 < len(fx_matches) else len(region)
+        raw = _limpiar_expr_raw(region[start:end])
+        if raw:
+            exprs.append(raw)
     if len(exprs) >= 2:
         return _expr_generica_a_sympy(exprs[0]), _expr_generica_a_sympy(exprs[1])
     return None
@@ -1688,7 +1682,15 @@ def _texto_es_volumen_revolucion(texto: Optional[str]) -> bool:
     if any(k in sc for k in claves):
         return True
     if any(k in t for k in ("girando", "gira", "revoluc", "rotación", "rotacion")):
-        return "volumen" in t or "sólido" in t or "solido" in t or "región" in t or "region" in t
+        return (
+            "volumen" in t
+            or "sólido" in t
+            or "solido" in t
+            or "región" in t
+            or "region" in t
+            or "representacion3d" in sc
+            or "representación3d" in sc
+        )
     if "volumen" in t and any(k in t for k in ("eje", "recta", "torno")):
         return True
     return False
@@ -1762,31 +1764,32 @@ def _extraer_fx_desde_texto(texto: str) -> Optional[str]:
 
 
 def _extraer_dos_curvas_x(texto: str) -> Optional[tuple[str, str]]:
-    matches = list(re.finditer(r"\bx\s*=\s*", texto, re.I))
-    exprs: List[str] = []
-    for i, m in enumerate(matches):
-        start = m.end()
-        if i + 1 < len(matches):
-            rest = texto[start: matches[i + 1].start()]
-            m_delim = re.search(r"\s+x\s*$", rest, re.I)
-            chunk = rest[: m_delim.start()] if m_delim else rest
-        else:
-            chunk = texto[start:]
-        raw = _limpiar_expr_raw(chunk)
-        if raw:
-            exprs.append(raw)
-    if len(exprs) < 2:
-        m = re.search(
-            r"\bx\s*=\s*(.+?)\s+x\s*(?:=\s*)?([^=,\n;?.]+)",
-            texto,
-            re.I,
-        )
+    region = _fragmento_region_antes_giro(texto)
+
+    patrones = (
+        r"(?:limitad[ao]s?\s+por|entre|regi[oó]n)\s+(?:por\s+)?"
+        r"\bx\s*=\s*(.+?)\s+x\s*=\s*(.+?)(?=\s*(?:que|gir|\.|,|;|$))",
+        r"\bx\s*=\s*(.+?)\s+x\s*=\s*([-\d.]+)\b",
+        r"\bx\s*=\s*(.+?)\s+x\s*=\s*(.+?)(?=\s*(?:que|gir|\.|,|;|$))",
+    )
+    for pat in patrones:
+        m = re.search(pat, region, re.I)
         if m:
             e1, e2 = _limpiar_expr_raw(m.group(1)), _limpiar_expr_raw(m.group(2))
             if e1 and e2:
-                exprs = [e1, e2]
-    if len(exprs) >= 2:
-        return _expr_generica_a_sympy(exprs[0]), _expr_generica_a_sympy(exprs[1])
+                return _expr_generica_a_sympy(e1), _expr_generica_a_sympy(e2)
+
+    matches = list(re.finditer(r"\bx\s*=\s*", region, re.I))
+    if len(matches) >= 2:
+        exprs: List[str] = []
+        for i in range(2):
+            start = matches[i].end()
+            end = matches[i + 1].start()
+            raw = _limpiar_expr_raw(region[start:end])
+            if raw:
+                exprs.append(raw)
+        if len(exprs) >= 2:
+            return _expr_generica_a_sympy(exprs[0]), _expr_generica_a_sympy(exprs[1])
     return None
 
 
@@ -1951,7 +1954,7 @@ def resolver_grafico_tutor_abierto(
 
     if "1.2.5" in tema_id or _texto_es_volumen_revolucion(texto):
         spec = _buscar_grafico_en_banco(banco, ("1.2.5",), texto, tokens_match_fn)
-        return spec or inferido_rev
+        return inferido_rev or spec
 
     if "1.2.6" in tema_id or _texto_es_integrales_dobles(texto):
         spec = _buscar_grafico_en_banco(banco, ("1.2.6",), texto, tokens_match_fn)
