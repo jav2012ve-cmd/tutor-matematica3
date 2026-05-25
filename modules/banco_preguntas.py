@@ -797,6 +797,35 @@ BANCO_FIXED = [
     },
     {
         "tema": "1.2.6 Integrales dobles",
+        "pregunta": (
+            r"Volumen bajo $z = 1 + x^2 + y^2$ sobre la región del plano $xy$ "
+            r"formada por $y = 4 - x^2$ y $y = -4 + x^2$:"
+        ),
+        "grafico": {
+            "tipo": "area_entre_curvas",
+            "y_superior": "4 - x**2",
+            "y_inferior": "-4 + x**2",
+            "x_min": -2.0,
+            "x_max": 2.0,
+            "z": "1 + x**2 + y**2",
+            "titulo": "Región simétrica entre y = 4 − x² y y = −4 + x²",
+            "titulo_3d": "Volumen bajo z = 1 + x² + y² sobre R",
+        },
+        "opciones": [
+            r"A) $\int_{-2}^{2} \int_{-4+x^2}^{4-x^2} (1+x^2+y^2) \, dy \, dx$",
+            r"B) $\int_{-2}^{2} \int_{4-x^2}^{-4+x^2} (1+x^2+y^2) \, dy \, dx$",
+            r"C) $\int_{-4}^{4} \int_{-4+x^2}^{4-x^2} (1+x^2+y^2) \, dy \, dx$",
+            r"D) $\int_{-2}^{2} \int_{0}^{4-x^2} (1+x^2+y^2) \, dy \, dx$"
+        ],
+        "respuesta_correcta": r"A) $\int_{-2}^{2} \int_{-4+x^2}^{4-x^2} (1+x^2+y^2) \, dy \, dx$",
+        "explicacion": (
+            r"**Intersección:** $4-x^2 = -4+x^2 \Rightarrow x = \pm 2$. "
+            r"En $[-2,2]$ la parábola $y = 4-x^2$ queda **arriba** de $y = -4+x^2$. "
+            r"Volumen = $\iint_R (1+x^2+y^2)\,dA$."
+        ),
+    },
+    {
+        "tema": "1.2.6 Integrales dobles",
         "pregunta": r"Calcule la integral doble $\iint_R 2xy \, dA$ sobre el rectángulo $R = [0,2] \times [0,1]$:",
         "grafico": {
             "tipo": "rectangulo",

@@ -1297,9 +1297,14 @@ def _inferido_integrales_dobles_especifico(
         return False
     if not _extraer_z_desde_texto(texto):
         return False
+    if not spec.get("z"):
+        return False
     if _extraer_rectangulo_desde_texto(texto):
         return True
-    return _extraer_dos_curvas_y(texto) is not None
+    par = _extraer_dos_curvas_y(texto)
+    if not par:
+        return False
+    return _interseccion_x_curvas(par[0], par[1]) is not None
 
 
 def inferir_grafico_integrales_dobles(texto: Optional[str]) -> Optional[Dict[str, Any]]:
@@ -1415,21 +1420,36 @@ def _texto_es_probabilidad(texto: Optional[str]) -> bool:
     return False
 
 
+def _trim_chunk_curva_y(chunk: str) -> str:
+    """Quita delimitadores residuales al extraer y = ... entre dos curvas."""
+    s = chunk.strip()
+    s = re.sub(r"\s+y\s*$", "", s, flags=re.I)
+    return s
+
+
+def _prefijo_region_curvas_y() -> str:
+    return (
+        r"(?:(?:limitad[ao]s?|formad[ao])\s+por|entre|"
+        r"regi[oó]n(?:\s+formad[ao])?\s+por)"
+    )
+
+
 def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
     region = _fragmento_region_antes_giro(texto)
+    pref = _prefijo_region_curvas_y()
 
     patrones = (
-        r"(?:limitad[ao]s?\s+por|entre|regi[oó]n)\s+(?:por\s+)?"
-        r"\by\s*=\s*(.+?)\s+y\s*=\s*(.+?)(?=\s*(?:cuando|que|gir|\.|,|;|$))",
+        pref + r"\s+\by\s*=\s*(.+?)\s+y\s*=\s*(.+?)(?=\s*(?:cuando|que|gir|\.|,|;|$))",
         r"\by\s*=\s*(.+?)\s*;\s*y\s*=\s*(.+?)(?=\s*(?:cuando|que|gir|\.|,|$))",
-        r"\by\s*=\s*(.+?)\s+y\s*=\s*([-\d.]+)\b",
-        r"\by\s*=\s*(.+?)\s*,\s*y\s*=\s*(.+?)(?=\s*(?:cuando|girando|gira|en\b|[.;]|$))",
         r"\by\s*=\s*(.+?)\s+y\s*=\s*(.+?)(?=\s*(?:cuando|que|gir|\.|,|;|$))",
+        r"\by\s*=\s*(.+?)\s*,\s*y\s*=\s*(.+?)(?=\s*(?:cuando|girando|gira|en\b|[.;]|$))",
+        r"\by\s*=\s*(.+?)\s+y\s*=\s*([-\d.]+)(?![+-]\*[xy]|[+-]\s*[xy])",
     )
     for pat in patrones:
         m = re.search(pat, region, re.I)
         if m:
-            e1, e2 = _limpiar_expr_raw(m.group(1)), _limpiar_expr_raw(m.group(2))
+            e1 = _limpiar_expr_raw(_trim_chunk_curva_y(m.group(1)))
+            e2 = _limpiar_expr_raw(_trim_chunk_curva_y(m.group(2)))
             if e1 and e2:
                 return _expr_generica_a_sympy(e1), _expr_generica_a_sympy(e2)
 
@@ -1439,7 +1459,7 @@ def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
         for i in range(2):
             start = matches[i].end()
             end = matches[i + 1].start()
-            raw = _limpiar_expr_raw(region[start:end])
+            raw = _limpiar_expr_raw(_trim_chunk_curva_y(region[start:end]))
             if raw:
                 exprs.append(raw)
         if len(exprs) >= 2:
@@ -1977,7 +1997,7 @@ def resolver_grafico_tutor_abierto(
 
     if "1.2.6" in tema_id or _texto_es_integrales_dobles(texto):
         spec = _buscar_grafico_en_banco(banco, ("1.2.6",), texto, tokens_match_fn)
-        return spec or inferido_id
+        return inferido_id or spec
 
     if "1.2.7" in tema_id or _texto_es_probabilidad(texto):
         spec = _buscar_grafico_en_banco(banco, ("1.2.7", "1.2.4"), texto, tokens_match_fn)
