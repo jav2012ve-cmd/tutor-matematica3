@@ -141,9 +141,6 @@ def mostrar_sidebar():
                 st.caption("_Aún no hay registros de uso._")
 
         with st.expander("📈 Cobertura por tema (temario)"):
-            st.caption(
-                "_Una fila por tema en Supabase (`app_topic_usage`); equivale a llevar columnas dinámicas sin alterar el esquema al cambiar el temario._"
-            )
             por_tema = uso_stats.obtener_estadisticas_temas()
             filas = sorted(
                 [{"tema": t, "n": por_tema.get(t, 0)} for t in LISTA_TEMAS],
