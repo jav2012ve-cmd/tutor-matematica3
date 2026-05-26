@@ -56,6 +56,34 @@ def configurar_pagina():
         layout="wide"
     )
 
+def _render_estadisticas_sidebar() -> None:
+    """Contadores de uso y cobertura por tema (sin notas técnicas de backend)."""
+    with st.expander("📊 Uso de la app"):
+        warn = st.session_state.get("_uso_stats_supabase_warn")
+        if warn:
+            st.warning(warn)
+        stats = uso_stats.obtener_estadisticas()
+        if any(stats.get(m, 0) > 0 for m in uso_stats.MODULOS):
+            for mod in uso_stats.MODULOS:
+                n = stats.get(mod, 0)
+                st.caption(f"**{mod}:** {n} consultas")
+            st.caption("_Anónimo, sin identificar usuarios._")
+        else:
+            st.caption("_Aún no hay registros de uso._")
+
+    with st.expander("📈 Cobertura por tema (temario)"):
+        por_tema = uso_stats.obtener_estadisticas_temas()
+        filas = sorted(
+            [{"tema": t, "n": por_tema.get(t, 0)} for t in LISTA_TEMAS],
+            key=lambda x: (-x["n"], x["tema"]),
+        )
+        con_uso = sum(1 for r in filas if r["n"] > 0)
+        st.caption(f"Temas con al menos un registro: **{con_uso}** / {len(LISTA_TEMAS)}")
+        for r in filas:
+            pref = "●" if r["n"] > 0 else "○"
+            st.caption(f"{pref} **{r['n']}** — {r['tema']}")
+
+
 def mostrar_sidebar():
     with st.sidebar:
         st.image("https://upload.wikimedia.org/wikipedia/commons/f/f0/Logo_UCAB_H.png", width=200)
@@ -127,30 +155,7 @@ def mostrar_sidebar():
             **f) Administrador:** Métricas globales, carga de PDFs de exámenes/guías y sugerencias de quiz específico.
             """)
 
-        with st.expander("📊 Uso de la app"):
-            warn = st.session_state.get("_uso_stats_supabase_warn")
-            if warn:
-                st.warning(warn)
-            stats = uso_stats.obtener_estadisticas()
-            if any(stats.get(m, 0) > 0 for m in uso_stats.MODULOS):
-                for mod in uso_stats.MODULOS:
-                    n = stats.get(mod, 0)
-                    st.caption(f"**{mod}:** {n} consultas")
-                st.caption("_Anónimo, sin identificar usuarios._")
-            else:
-                st.caption("_Aún no hay registros de uso._")
-
-        with st.expander("📈 Cobertura por tema (temario)"):
-            por_tema = uso_stats.obtener_estadisticas_temas()
-            filas = sorted(
-                [{"tema": t, "n": por_tema.get(t, 0)} for t in LISTA_TEMAS],
-                key=lambda x: (-x["n"], x["tema"]),
-            )
-            con_uso = sum(1 for r in filas if r["n"] > 0)
-            st.caption(f"Temas con al menos un registro: **{con_uso}** / {len(LISTA_TEMAS)}")
-            for r in filas:
-                pref = "●" if r["n"] > 0 else "○"
-                st.caption(f"{pref} **{r['n']}** — {r['tema']}")
+        _render_estadisticas_sidebar()
 
         return st.session_state.get("modo_actual"), tema_seleccionado
 
