@@ -137,9 +137,6 @@ def mostrar_sidebar():
                     n = stats.get(mod, 0)
                     st.caption(f"**{mod}:** {n} consultas")
                 st.caption("_Anónimo, sin identificar usuarios._")
-                st.caption(
-                    "_Totales globales si Supabase está configurado; si no, solo esta máquina (archivo local)._"
-                )
             else:
                 st.caption("_Aún no hay registros de uso._")
 
