@@ -7,9 +7,10 @@ Mantener alineado con `.streamlit/config.toml` → `maxUploadSize` (en MB).
 from __future__ import annotations
 
 import io
+import warnings
 from typing import Any, BinaryIO, Optional, Union
 
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 # Coincide con [server] maxUploadSize en .streamlit/config.toml
 MAX_UPLOAD_BYTES = 12 * 1024 * 1024
@@ -22,6 +23,9 @@ MAX_PAYLOAD_BYTES = 4 * 1024 * 1024
 
 JPEG_QUALITY_INICIAL = 88
 JPEG_QUALITY_MIN = 50
+
+# Evita cargas desproporcionadas que degradan la sesión en Streamlit Cloud.
+MAX_IMAGE_PIXELS = 40_000_000
 
 
 def texto_limite_subida() -> str:
@@ -58,8 +62,22 @@ def mensaje_si_archivo_muy_grande(uploaded_file: Any) -> Optional[str]:
 def _abrir_imagen(src: Union[BinaryIO, Any]) -> Image.Image:
     if hasattr(src, "seek"):
         src.seek(0)
-    img = Image.open(src)
-    img.load()
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            img = Image.open(src)
+            w, h = img.size
+            if (w * h) > MAX_IMAGE_PIXELS:
+                raise ValueError(
+                    "La resolución de la imagen es demasiado grande. "
+                    "Reduce el tamaño y vuelve a intentarlo."
+                )
+            img.load()
+    except (Image.DecompressionBombWarning, OSError, UnidentifiedImageError) as e:
+        raise ValueError(
+            "No se pudo abrir la imagen de forma segura. "
+            "Usa una versión más liviana (menos resolución) en PNG/JPG."
+        ) from e
     return ImageOps.exif_transpose(img)
 
 
