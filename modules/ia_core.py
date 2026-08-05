@@ -83,6 +83,24 @@ def obtener_modelo_robusto(client: genai.Client) -> str:
     return "gemini-2.0-flash"
 
 
+def _modelo_preferido_configurado() -> Optional[str]:
+    """
+    Permite fijar modelo sin sondear catálogo remoto en el arranque.
+    Mejora la estabilidad de despliegue en Streamlit Cloud.
+    """
+    m = (os.environ.get("GEMINI_MODEL") or "").strip()
+    if m:
+        return m
+    try:
+        if "GEMINI_MODEL" in st.secrets:
+            sec = str(st.secrets["GEMINI_MODEL"]).strip()
+            if sec:
+                return sec
+    except (Exception, FileNotFoundError):
+        pass
+    return None
+
+
 class _GeneradorGeminiCompat:
     """
     Expone `generate_content(...)` como el antiguo `GenerativeModel` para no
@@ -114,7 +132,9 @@ def iniciar_modelo():
         return None, None
     try:
         client = genai.Client(api_key=api_key)
-        nombre_modelo = obtener_modelo_robusto(client)
+        # Evita depender de `list_models()` al arrancar; si no hay override,
+        # usamos un modelo flash estable.
+        nombre_modelo = _modelo_preferido_configurado() or "gemini-2.0-flash"
         gen_cfg = types.GenerateContentConfig(
             temperature=0.1,
             top_p=0.95,
