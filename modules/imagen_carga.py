@@ -127,7 +127,7 @@ def preparar_imagen_para_ia(uploaded_file_o_pil: Union[Any, Image.Image]) -> Ima
     Imagen lista para `generate_content`: RGB, orientación EXIF corregida,
     lado largo acotado y JPEG re-codificado a un tamaño manejable.
     """
-    if isinstance(uploaded_file_o_pil, Image.Image):
+    if isinstance(uploaded_file_o_pil, Image.Image): 
         img = uploaded_file_o_pil.copy()
         img.load()
         img = ImageOps.exif_transpose(img)
