@@ -1,7 +1,7 @@
-streamlit
-google-genai>=1.0
-Pillow
-fpdf
+streamlit==1.32.0
+google-genai==0.4.1
+Pillow==10.2.0
+fpdf2==2.7.4
 requests>=2.28.0
 
 # Apoyo gráfico (entrenamiento, clave `grafico` en banco)
