@@ -6,7 +6,7 @@ from modules.temario import LISTA_TEMAS
 from modules import uso_stats, imagen_carga
 
 # Nombre de la aplicación (pestaña del navegador, títulos principales)
-APP_DISPLAY_NAME = "Matemáticas III - Economía UCAB Versión 7.0"
+APP_DISPLAY_NAME = "Matemáticas III - Economía UCAB - Periodo Intensivo Agosto 2026 - Versión del tutor 7.0"
 
 # Infografía de bienvenida (relativa a la raíz del proyecto, junto a app.py)
 _ASSETS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets"))
@@ -173,23 +173,6 @@ def mostrar_bienvenida():
         "**retroalimentación anónima** al pie de cada modo."
     )
 
-    with st.expander("Novedades de hoy (actualización v7.0)", expanded=True):
-        st.markdown(
-            f"""
-- **Motor gráfico unificado (v7.0):** en **Tutor Preguntas Abiertas** y **Respuesta guiada** se generan figuras según el tema: **áreas entre curvas**, **densidad f(x)** con intervalo sombreado, **integrales dobles** con región en el plano **xy** y vista **3D** del volumen bajo **z = f(x,y)**.
-
-- **Vista 3D enriquecida (v7.0):** la superficie se muestra en un **dominio ampliado** (contexto tenue) y se **resalta la proyección sobre la región R**; plano base más grande que R con **zoom** por rueda del mouse.
-
-- **Inferencia desde el enunciado (v7.0):** reconoce expresiones como **z = x² − y² + 2**, regiones entre **y = x²** y **y = 2x**, rectángulos **−3 < x < 2**, **0 < y < 3** y PDFs típicos del curso — sin depender solo de coincidencias del banco.
-
-- **Entrenamiento 1.2.6 (v7.0):** más ejercicios con metadatos gráficos (paraboloides, regiones tipo II, volúmenes sobre rectángulos y entre curvas); tutor paso a paso con planteamientos integrales y LaTeX corregido.
-
-- **Límite y optimización de imágenes (v6.1):** en **Respuesta guiada** y **Corrección de manuscritos** archivos de hasta **{_mb_foto} MB**; compresión antes de la IA.
-
-- **Retroalimentación de experiencia (v6.1):** bloque anónimo **«Tu experiencia con esta funcionalidad»** en todos los modos.
-            """
-        )
-
     if os.path.isfile(INFOGRAFIA_BIENVENIDA):
         st.image(
             INFOGRAFIA_BIENVENIDA,
@@ -229,6 +212,23 @@ def mostrar_bienvenida():
     </ul>
     <hr style="margin-top: 20px; margin-bottom: 20px;">
     """, unsafe_allow_html=True)
+
+    with st.expander("Novedades de hoy (actualización v7.0)", expanded=True):
+        st.markdown(
+            f"""
+- **Motor gráfico unificado (v7.0):** en **Tutor Preguntas Abiertas** y **Respuesta guiada** se generan figuras según el tema: **áreas entre curvas**, **densidad f(x)** con intervalo sombreado, **integrales dobles** con región en el plano **xy** y vista **3D** del volumen bajo **z = f(x,y)**.
+
+- **Vista 3D enriquecida (v7.0):** la superficie se muestra en un **dominio ampliado** (contexto tenue) y se **resalta la proyección sobre la región R**; plano base más grande que R con **zoom** por rueda del mouse.
+
+- **Inferencia desde el enunciado (v7.0):** reconoce expresiones como **z = x² − y² + 2**, regiones entre **y = x²** y **y = 2x**, rectángulos **−3 < x < 2**, **0 < y < 3** y PDFs típicos del curso — sin depender solo de coincidencias del banco.
+
+- **Entrenamiento 1.2.6 (v7.0):** más ejercicios con metadatos gráficos (paraboloides, regiones tipo II, volúmenes sobre rectángulos y entre curvas); tutor paso a paso con planteamientos integrales y LaTeX corregido.
+
+- **Límite y optimización de imágenes (v6.1):** en **Respuesta guiada** y **Corrección de manuscritos** archivos de hasta **{_mb_foto} MB**; compresión antes de la IA.
+
+- **Retroalimentación de experiencia (v6.1):** bloque anónimo **«Tu experiencia con esta funcionalidad»** en todos los modos.
+            """
+        )
     
     st.info("👆 **Elige un modo en el menú de la izquierda y pulsa *Iniciar* para comenzar.**")
 
