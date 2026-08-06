@@ -24,6 +24,8 @@ La aplicación necesita `GOOGLE_API_KEY` para conectar con Gemini.
    ```
 3. **Streamlit Cloud:** en tu app → Settings → Secrets, añade la variable `GOOGLE_API_KEY`.
 
+Opcional: `GEMINI_MODEL = "gemini-3.5-flash"` para fijar el modelo. **No uses** ids retirados (`gemini-2.0-flash`, `gemini-1.5-*`); la app los ignora y cae a un fallback.
+
 Sin esta clave, la app se detendrá y mostrará en pantalla las mismas instrucciones.
 
 ## Estadísticas de uso con Supabase (recomendado en Streamlit Cloud)

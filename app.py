@@ -56,6 +56,12 @@ if not ia_core.configurar_gemini():
     st.stop()
 
 model, nombre_modelo = ia_core.iniciar_modelo()
+if model is None:
+    st.error(
+        "No se pudo iniciar el modelo de Gemini. "
+        "Revisa la API key y que `GEMINI_MODEL` (si está en Secrets) no apunte a un modelo retirado."
+    )
+    st.stop()
 
 # =======================================================
 # FUNCIONES DE SEGURIDAD Y UTILIDADES
@@ -68,12 +74,15 @@ def generar_contenido_seguro(
     """
     Intenta llamar a la IA con texto o imágenes.
     Soporta lista de partes (prompt + imagen) o solo texto.
+    Si el model id fue retirado (404), intenta un fallback una vez.
     """
+    global nombre_modelo
     if intentos_max is None:
         intentos_max = INTENTOS_MAX_IA
     texto_pregunta = registro_interacciones.serializar_pregunta(prompt_parts)
     modelo_log = nombre_modelo or ""
     errores_recientes = ""
+    ya_hizo_fallback = False
     for i in range(intentos_max):
         try:
             response = model.generate_content(prompt_parts)
@@ -84,6 +93,17 @@ def generar_contenido_seguro(
             return response
         except Exception as e:
             errores_recientes = str(e)
+            if ia_core.es_error_modelo_no_disponible(e) and not ya_hizo_fallback:
+                nuevo = ia_core.intentar_fallback_modelo(model)
+                ya_hizo_fallback = True
+                if nuevo:
+                    nombre_modelo = nuevo
+                    modelo_log = nuevo
+                    st.warning(
+                        f"El modelo anterior ya no está disponible. "
+                        f"Reintentando con `{nuevo}`…"
+                    )
+                    continue
             if "429" in str(e):
                 tiempo_espera = MULTIPLICADOR_ESPERA_429 * (i + 1)
                 st.toast(f"🚦 Tráfico alto. Reintentando en {tiempo_espera}s...", icon="⏳")
@@ -91,7 +111,16 @@ def generar_contenido_seguro(
             else:
                 time.sleep(1)
 
-    st.error(f"❌ Error de conexión: {errores_recientes}")
+    if ia_core.es_error_modelo_no_disponible(
+        Exception(errores_recientes)
+    ):
+        st.error(
+            f"❌ Modelo no disponible (`{modelo_log}`). "
+            f"Actualiza `GEMINI_MODEL` en Secrets o deja el default del código. "
+            f"Detalle: {errores_recientes}"
+        )
+    else:
+        st.error(f"❌ Error de conexión (`{modelo_log}`): {errores_recientes}")
     registro_interacciones.registrar_interaccion(
         texto_pregunta,
         f"(sin respuesta tras reintentos) {errores_recientes}",
@@ -620,7 +649,7 @@ Responde ÚNICAMENTE con JSON válido, sin markdown:
     resp = generar_contenido_seguro(prompt)
     if not resp:
         return None
-    data = limpiar_json(resp.text)
+    data = limpiar_json(registro_interacciones.extraer_texto_respuesta(resp))
     if not isinstance(data, dict):
         return None
     return temario.normalizar_tema_curso(data.get("tema_catedra"))
@@ -860,7 +889,7 @@ def generar_tutor_paso_a_paso(pregunta_texto: str, tema: str) -> Optional[dict]:
         response = generar_contenido_seguro(prompt_actual)
         if not response:
             continue
-        data = limpiar_json(response.text)
+        data = limpiar_json(registro_interacciones.extraer_texto_respuesta(response))
         if (
             _cumple_restriccion_edo(data)
             and _cumple_restriccion_integrales_dobles(data)
@@ -919,7 +948,7 @@ def analizar_problema_usuario(
 
     response = generar_contenido_seguro(contenido)
     if response:
-        return limpiar_json(response.text)
+        return limpiar_json(registro_interacciones.extraer_texto_respuesta(response))
     return None
 
 
@@ -984,7 +1013,7 @@ def evaluar_manuscrito(imagen_manuscrito: Any) -> Optional[dict]:
     contenido = [prompt, imagen_manuscrito]
     response = generar_contenido_seguro(contenido)
     if response:
-        return limpiar_json(response.text)
+        return limpiar_json(registro_interacciones.extraer_texto_respuesta(response))
     return None
 
 
@@ -1048,7 +1077,7 @@ def generar_respuesta_tutor_abierto(
     
     response = generar_contenido_seguro(prompt_tutor)
     if response:
-        return response.text
+        return registro_interacciones.extraer_texto_respuesta(response)
     return "Lo siento, tuve un problema pensando la respuesta."
 
 def _sanitizar_para_pdf(texto: Optional[str]) -> str:
@@ -1278,7 +1307,7 @@ def detectar_temas_desde_pdf(texto_pdf: str) -> list[str]:
     response = generar_contenido_seguro(prompt)
     if not response:
         return []
-    data = limpiar_json(response.text)
+    data = limpiar_json(registro_interacciones.extraer_texto_respuesta(response))
     if not isinstance(data, list):
         return []
 
@@ -1337,7 +1366,7 @@ def generar_preguntas_quiz_desde_documento(
     response = generar_contenido_seguro(prompt)
     if not response:
         return []
-    data = limpiar_json(response.text)
+    data = limpiar_json(registro_interacciones.extraer_texto_respuesta(response))
     if not isinstance(data, list):
         return []
 
@@ -1525,7 +1554,7 @@ elif ruta == "a) Entrenamiento (Temario)":
                             respuesta_ia = generar_contenido_seguro(prompt_train)
                             
                             if respuesta_ia:
-                                preguntas_ia = limpiar_json(respuesta_ia.text)
+                                preguntas_ia = limpiar_json(registro_interacciones.extraer_texto_respuesta(respuesta_ia))
                                 if preguntas_ia: 
                                     lista_entrenamiento.extend(preguntas_ia)
                         
@@ -1585,10 +1614,22 @@ elif ruta == "a) Entrenamiento (Temario)":
                         st.session_state.entrenamiento_data_ia = datos_tutor
                         st.rerun()
                     else:
-                        st.error("No se pudo interpretar la respuesta del tutor. Saltando ejercicio; puedes continuar con el siguiente.")
-                        st.session_state.entrenamiento_idx += 1
-                        time.sleep(2)
-                        st.rerun()
+                        st.error(
+                            "No se pudo obtener una respuesta válida del tutor "
+                            f"(modelo: `{nombre_modelo or 'desconocido'}`). "
+                            "Puede ser un fallo de conexión, un modelo retirado o JSON incompleto."
+                        )
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            if st.button("Reintentar este ejercicio", type="primary", key=f"retry_tutor_{idx}"):
+                                st.session_state.entrenamiento_data_ia = None
+                                st.rerun()
+                        with c2:
+                            if st.button("Saltar al siguiente", key=f"skip_tutor_{idx}"):
+                                st.session_state.entrenamiento_idx += 1
+                                st.session_state.entrenamiento_data_ia = None
+                                st.rerun()
+                        st.stop()
             
             tutor = st.session_state.entrenamiento_data_ia
             step = st.session_state.entrenamiento_step
@@ -2060,7 +2101,8 @@ elif ruta == "c) Autoevaluación (Quiz)":
                         preguntas_banco = banco_preguntas.obtener_preguntas_fijas(temas, cuota_banco)
                         if preguntas_banco:
                             lista_final_preguntas.extend(preguntas_banco)
-                    except: pass
+                    except Exception as e:
+                        st.warning(f"No se pudo cargar el banco local de preguntas: {e}")
                     
                     # 2. IA
                     falta = cantidad_total - len(lista_final_preguntas)
@@ -2068,7 +2110,7 @@ elif ruta == "c) Autoevaluación (Quiz)":
                         prompt_quiz = temario.generar_prompt_quiz(temas, falta)
                         respuesta = generar_contenido_seguro(prompt_quiz)
                         if respuesta:
-                            preguntas_ia = limpiar_json(respuesta.text)
+                            preguntas_ia = limpiar_json(registro_interacciones.extraer_texto_respuesta(respuesta))
                             if preguntas_ia:
                                 lista_final_preguntas.extend(preguntas_ia)
                     
