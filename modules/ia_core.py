@@ -20,6 +20,9 @@ import streamlit as st
 from google import genai
 from google.genai import types
 
+# gemini-2.0-flash se retiró el 2026-06-01; ver changelog de Gemini API.
+_MODELO_FLASH_DEFAULT = "gemini-3.5-flash"
+
 
 def _obtener_api_key() -> Optional[str]:
     api_key = None
@@ -80,7 +83,7 @@ def obtener_modelo_robusto(client: genai.Client) -> str:
             return respaldo
     except Exception:
         pass
-    return "gemini-2.0-flash"
+    return _MODELO_FLASH_DEFAULT
 
 
 def _modelo_preferido_configurado() -> Optional[str]:
@@ -134,7 +137,7 @@ def iniciar_modelo():
         client = genai.Client(api_key=api_key)
         # Evita depender de `list_models()` al arrancar; si no hay override,
         # usamos un modelo flash estable.
-        nombre_modelo = _modelo_preferido_configurado() or "gemini-2.0-flash"
+        nombre_modelo = _modelo_preferido_configurado() or _MODELO_FLASH_DEFAULT
         gen_cfg = types.GenerateContentConfig(
             temperature=0.1,
             top_p=0.95,
