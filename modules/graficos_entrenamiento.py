@@ -1,6 +1,8 @@
 """
-Figuras Plotly para apoyo visual en modo entrenamiento.
-Los datos vienen del banco (clave `grafico`); no se evalúa texto libre del usuario.
+Figuras Plotly para apoyo visual.
+
+En entrenamiento los datos vienen del banco (clave `grafico`).
+En áreas pedidas por el usuario, la figura se arma con las funciones de su enunciado.
 """
 from __future__ import annotations
 
@@ -68,8 +70,8 @@ def figura_area_entre_curvas(
         y_min_global = y_local_min if y_min_global is None else min(y_min_global, y_local_min)
         y_max_global = y_local_max if y_max_global is None else max(y_max_global, y_local_max)
 
-        lab_s = f"Arriba ({k + 1})" if len(bandas) > 1 else "Curva superior"
-        lab_i = f"Abajo ({k + 1})" if len(bandas) > 1 else "Curva inferior"
+        lab_s = _etiqueta_curva(ys, indice=k if len(bandas) > 1 else None)
+        lab_i = _etiqueta_curva(yi, indice=k if len(bandas) > 1 else None)
         fig.add_trace(
             go.Scatter(
                 x=xs,
@@ -1098,6 +1100,107 @@ def mostrar_si_aplica(
         )
 
 
+def _etiqueta_curva(expr: str, indice: Optional[int] = None) -> str:
+    """Nombre de leyenda con la expresión del enunciado, no una etiqueta genérica."""
+    raw = str(expr or "").strip()
+    try:
+        local = {
+            "exp": sp.exp,
+            "E": sp.E,
+            "log": sp.log,
+            "ln": sp.log,
+            "sqrt": sp.sqrt,
+            "pi": sp.pi,
+        }
+        raw = str(sp.simplify(sp.sympify(raw.replace("^", "**"), locals=local)))
+    except Exception:
+        pass
+    s = raw.replace("**", "^")
+    s = re.sub(r"\^\(([-0-9]+)\)", r"^\1", s)
+    s = re.sub(r"(?<=\d)\*(?=[A-Za-z(])", "", s)
+    s = s.replace("exp(", "e^(")
+    pref = f"({indice + 1}) " if indice is not None else ""
+    return f"{pref}y = {s}"
+
+
+def _latex_grupo(s: str, i: int) -> tuple[Optional[str], int]:
+    while i < len(s) and s[i].isspace():
+        i += 1
+    if i >= len(s):
+        return None, i
+    if s[i] != "{":
+        return s[i], i + 1
+    depth = 1
+    i += 1
+    start = i
+    while i < len(s) and depth:
+        if s[i] == "{":
+            depth += 1
+        elif s[i] == "}":
+            depth -= 1
+        i += 1
+    return s[start : i - 1], i
+
+
+def _latex_frac_a_paren(s: str) -> str:
+    out: List[str] = []
+    i = 0
+    while i < len(s):
+        if s.startswith("\\frac", i):
+            num, j = _latex_grupo(s, i + 5)
+            den, j = _latex_grupo(s, j)
+            if num is None or den is None:
+                out.append(s[i])
+                i += 1
+                continue
+            out.append(f"(({_latex_frac_a_paren(num)})/({_latex_frac_a_paren(den)}))")
+            i = j
+        else:
+            out.append(s[i])
+            i += 1
+    return "".join(out)
+
+
+def _expr_legible_a_sympy(raw: str) -> str:
+    """Pasa LaTeX o texto del enunciado (x^{2}, \\frac, e^{-x}) a una expresión sympy."""
+    s = str(raw or "").replace("\\\\", "\\")
+    s = s.replace("$", "")
+    s = s.replace("−", "-").replace("–", "-").replace("—", "-")
+    s = re.sub(r"\\left|\\right", "", s)
+    s = re.sub(r"\\[,;!:]", "", s)
+    s = _latex_frac_a_paren(s)
+    s = re.sub(r"\\sqrt\{([^{}]*)\}", r"sqrt(\1)", s)
+    s = re.sub(r"\\sqrt\s*([A-Za-z0-9])", r"sqrt(\1)", s)
+    s = re.sub(r"\\(?:ln|log)\b", "log", s)
+    s = re.sub(r"\\exp\b", "exp", s)
+    s = re.sub(r"\\pi\b", "pi", s)
+    s = s.replace("\\cdot", "*").replace("\\times", "*")
+    s = re.sub(r"e\^\{([^{}]*)\}", r"exp(\1)", s)
+    s = re.sub(r"e\^(\([^)]+\)|-?[0-9.]+|[A-Za-z])", r"exp(\1)", s)
+    s = re.sub(r"\^\{([^{}]*)\}", r"**(\1)", s)
+    s = re.sub(r"\^([0-9]+)", r"**\1", s)
+    supers = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
+
+    def _uni_pow(m: re.Match[str]) -> str:
+        return f"{m.group(1)}**{m.group(2).translate(supers)}"
+
+    s = re.sub(r"([A-Za-z0-9\)])([⁰¹²³⁴⁵⁶⁷⁸⁹]+)", _uni_pow, s)
+    s = s.replace("{", "").replace("}", "")
+    s = s.replace("^", "**")
+    s = re.sub(r"\\[A-Za-z]+", "", s)
+    s = re.sub(r"\s+", "", s)
+    s = re.sub(r"(\d)([xy])", r"\1*\2", s, flags=re.I)
+    s = re.sub(
+        r"([xy])\*([xy])",
+        lambda m: f"{m.group(1)}**2" if m.group(1) == m.group(2) else f"{m.group(1)}*{m.group(2)}",
+        s,
+        flags=re.I,
+    )
+    s = re.sub(r"([xy])([xy])", r"\1*\2", s, flags=re.I)
+    s = re.sub(r"\*\*\*", "**", s)
+    return s
+
+
 def _limpiar_expr_raw(raw: str) -> str:
     s = raw.strip().strip("$;, ")
     s = re.sub(r"[?!.;,]+$", "", s).strip()
@@ -1123,18 +1226,8 @@ def _fragmento_region_antes_giro(texto: str) -> str:
 
 
 def _expr_generica_a_sympy(raw: str) -> str:
-    """Convierte expresión legible (x^2+1, x*x, 6-x) a formato sympy."""
-    s = _limpiar_expr_raw(raw).replace("^", "**")
-    s = re.sub(r"\s+", "", s)
-    s = re.sub(r"(\d)([xy])", r"\1*\2", s)
-    s = re.sub(
-        r"([xy])\*([xy])",
-        lambda m: f"{m.group(1)}**2" if m.group(1) == m.group(2) else f"{m.group(1)}*{m.group(2)}",
-        s,
-    )
-    s = re.sub(r"([xy])([xy])", r"\1*\2", s)
-    s = re.sub(r"\*\*\*", "**", s)
-    return s
+    """Convierte expresión legible o LaTeX (x^2+1, x^{2}, \\frac) a formato sympy."""
+    return _expr_legible_a_sympy(_limpiar_expr_raw(raw))
 
 
 def _expr_z_a_sympy(z_raw: str) -> str:
@@ -1366,12 +1459,30 @@ def inferir_grafico_integrales_dobles(texto: Optional[str]) -> Optional[Dict[str
     return spec
 
 
+def _texto_sin_tildes(texto: str) -> str:
+    import unicodedata
+
+    t = unicodedata.normalize("NFD", str(texto).lower())
+    return "".join(ch for ch in t if unicodedata.category(ch) != "Mn")
+
+
+def _texto_es_excedentes(texto: Optional[str]) -> bool:
+    if not texto:
+        return False
+    t = _texto_sin_tildes(texto)
+    if "excedente" in t:
+        return True
+    return "oferta" in t and "demanda" in t
+
+
 def _texto_es_areas(texto: Optional[str]) -> bool:
     if not texto:
         return False
+    if _texto_es_excedentes(texto):
+        return False
     if _texto_es_integrales_dobles(texto) and _extraer_z_desde_texto(texto):
         return False
-    t = str(texto).lower()
+    t = _texto_sin_tildes(texto)
     sc = re.sub(r"\s+", "", t)
     claves = (
         "areaentre",
@@ -1385,12 +1496,22 @@ def _texto_es_areas(texto: Optional[str]) -> bool:
         "areade",
         "bajolacurva",
         "entrecurvas",
+        "entrefunciones",
+        "entrelasfunciones",
     )
     if any(k in sc for k in claves):
         return True
-    if ("área" in t or "area" in t) and any(w in t for w in ("curva", "curvas", "encerrada", "bajo")):
+    if "area" in t and any(
+        w in t for w in ("curva", "curvas", "funcion", "funciones", "encerrada", "bajo", "limitad")
+    ):
         return True
-    return bool(re.search(r"y\s*=\s*[^=]+y\s*=", t))
+    if re.search(r"y\s*=\s*[^=]+y\s*=", t):
+        return True
+    return bool(
+        re.search(r"f\s*\(\s*x\s*\)\s*=", t)
+        and re.search(r"g\s*\(\s*x\s*\)\s*=", t)
+        and "area" in t
+    )
 
 
 def _texto_es_probabilidad(texto: Optional[str]) -> bool:
@@ -1422,9 +1543,9 @@ def _texto_es_probabilidad(texto: Optional[str]) -> bool:
 
 def _trim_chunk_curva_y(chunk: str) -> str:
     """Quita delimitadores residuales al extraer y = ... entre dos curvas."""
-    s = chunk.strip()
+    s = chunk.strip().replace("$", "")
     s = re.sub(r"\s+y\s*$", "", s, flags=re.I)
-    return s
+    return s.strip()
 
 
 def _prefijo_region_curvas_y() -> str:
@@ -1435,7 +1556,7 @@ def _prefijo_region_curvas_y() -> str:
 
 
 def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
-    region = _fragmento_region_antes_giro(texto)
+    region = _fragmento_region_antes_giro(texto).replace("$", "")
     pref = _prefijo_region_curvas_y()
 
     patrones = (
@@ -1458,7 +1579,7 @@ def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
         exprs: List[str] = []
         for i in range(2):
             start = matches[i].end()
-            end = matches[i + 1].start()
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(region)
             raw = _limpiar_expr_raw(_trim_chunk_curva_y(region[start:end]))
             if raw:
                 exprs.append(raw)
@@ -1475,26 +1596,59 @@ def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
             exprs.append(raw)
     if len(exprs) >= 2:
         return _expr_generica_a_sympy(exprs[0]), _expr_generica_a_sympy(exprs[1])
+
+    m = re.search(
+        r"f\s*\(\s*x\s*\)\s*=\s*(.+?)\s*(?:,|\by\b)\s*g\s*\(\s*x\s*\)\s*=\s*(.+?)"
+        r"(?=\s*(?:en\b|cuando|gir|\.|;|$))",
+        region,
+        re.I,
+    )
+    if m:
+        e1 = _limpiar_expr_raw(_trim_chunk_curva_y(m.group(1)))
+        e2 = _limpiar_expr_raw(_trim_chunk_curva_y(m.group(2)))
+        if e1 and e2:
+            return _expr_generica_a_sympy(e1), _expr_generica_a_sympy(e2)
     return None
 
 
+def _intervalo_no_acotado(texto: str) -> bool:
+    return bool(re.search(r"\\infty|∞|infinito", texto or "", re.I))
+
+
 def _extraer_intervalo_x(texto: str) -> Optional[tuple[float, float]]:
+    t = re.sub(r"\\left|\\right", "", texto or "")
+    m = re.search(
+        r"[\[(]\s*([-\d.]+)\s*,\s*(?:\\infty|∞|infinito)\s*[\])]",
+        t,
+        re.I,
+    )
+    if m:
+        a = float(m.group(1))
+        return a, a + 6.0
+    m = re.search(
+        r"[\[(]\s*(?:-\\infty|-∞|-infinito)\s*,\s*([-\d.]+)\s*[\])]",
+        t,
+        re.I,
+    )
+    if m:
+        b = float(m.group(1))
+        return b - 6.0, b
     m = re.search(
         r"\[\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\]",
-        texto,
+        t,
     )
     if m:
         return float(m.group(1)), float(m.group(2))
     m = re.search(
         r"(?:entre|en|sobre)\s*\(?\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)?",
-        texto,
+        t,
         re.I,
     )
     if m:
         return float(m.group(1)), float(m.group(2))
     m = re.search(
         r"(?:entre|de)\s+([-\d.]+)\s+y\s+([-\d.]+)",
-        texto,
+        t,
         re.I,
     )
     if m:
@@ -1584,12 +1738,23 @@ def _spec_area_entre_curvas(
     *,
     intervalo: Optional[tuple[float, float]] = None,
     z_expr: Optional[str] = None,
-    titulo: str = "Área entre curvas (referencia)",
+    titulo: str = "",
 ) -> Optional[Dict[str, Any]]:
-    x_r = _interseccion_x_curvas(c1, c2) or intervalo
-    if not x_r:
+    try:
+        _lambdify_expr(c1)
+        _lambdify_expr(c2)
+    except Exception:
         return None
+    ventana_automatica = False
+    x_r = intervalo or _interseccion_x_curvas(c1, c2)
+    if not x_r:
+        x_r = (-4.0, 4.0)
+        ventana_automatica = True
     x0, x1 = x_r
+    if x1 < x0:
+        x0, x1 = x1, x0
+    if x1 == x0:
+        x0, x1 = x0 - 1.0, x1 + 1.0
     xm = (x0 + x1) / 2.0
     try:
         f1 = _lambdify_expr(c1)
@@ -1602,11 +1767,13 @@ def _spec_area_entre_curvas(
         sup, inf = c1, c2
     spec: Dict[str, Any] = {
         "tipo": "area_entre_curvas",
+        "origen": "enunciado",
         "y_superior": sup,
         "y_inferior": inf,
         "x_min": float(x0),
         "x_max": float(x1),
-        "titulo": titulo,
+        "ventana_automatica": ventana_automatica,
+        "titulo": titulo or f"Área entre {_etiqueta_curva(sup)} y {_etiqueta_curva(inf)}",
     }
     if z_expr:
         spec["z"] = z_expr
@@ -1616,43 +1783,42 @@ def _spec_area_entre_curvas(
     return spec
 
 
-def inferir_grafico_areas(texto: Optional[str]) -> Optional[Dict[str, Any]]:
-    if not texto or not _texto_es_areas(texto):
+def inferir_grafico_areas(
+    texto: Optional[str],
+    *,
+    forzar: bool = False,
+) -> Optional[Dict[str, Any]]:
+    """Arma la figura con las funciones del enunciado. No usa ejemplos del banco."""
+    if not texto or not (forzar or _texto_es_areas(texto)):
         return None
 
     par = _extraer_dos_curvas_y(texto)
     intervalo = _extraer_intervalo_x(texto)
 
     if par:
-        return _spec_area_entre_curvas(
-            par[0],
-            par[1],
-            intervalo=intervalo,
-            titulo="Área entre curvas (referencia)",
-        )
+        spec = _spec_area_entre_curvas(par[0], par[1], intervalo=intervalo)
+        if spec and _intervalo_no_acotado(texto):
+            spec["intervalo_no_acotado"] = True
+        return spec
 
-    # Área bajo una curva f(x) en [a,b]
-    f_pdf = _extraer_f_pdf(texto) or _extraer_z_desde_texto(texto)
-    if f_pdf and intervalo:
+    # Área bajo una sola curva del enunciado, en el intervalo que el usuario dio.
+    f_pdf = _extraer_f_pdf(texto)
+    if f_pdf and intervalo and _texto_es_areas(texto):
         a, b = intervalo
+        if b < a:
+            a, b = b, a
         return {
             "tipo": "area_entre_curvas",
+            "origen": "enunciado",
             "y_superior": f_pdf,
             "y_inferior": "0",
             "x_min": float(a),
             "x_max": float(b),
-            "titulo": f"Área bajo f(x) en [{a}, {b}]",
+            "titulo": f"Área bajo {_etiqueta_curva(f_pdf)} en [{a}, {b}]",
+            "intervalo_no_acotado": _intervalo_no_acotado(texto),
         }
 
-    # Ejemplo didáctico del curso
-    return {
-        "tipo": "area_entre_curvas",
-        "y_superior": "6 - x",
-        "y_inferior": "x**2",
-        "x_min": -3.0,
-        "x_max": 2.0,
-        "titulo": "Ejemplo: área entre y = x² y y = 6 − x",
-    }
+    return None
 
 
 def inferir_grafico_probabilidad(texto: Optional[str]) -> Optional[Dict[str, Any]]:
@@ -2003,12 +2169,12 @@ def resolver_grafico_tutor_abierto(
         spec = _buscar_grafico_en_banco(banco, ("1.2.7", "1.2.4"), texto, tokens_match_fn)
         return spec or inferir_grafico_probabilidad(texto)
 
-    if any(t in tema_id for t in ("1.2.2", "1.2.1")) or _texto_es_areas(texto):
-        spec = _buscar_grafico_en_banco(banco, ("1.2.2", "1.2.1"), texto, tokens_match_fn)
-        return spec or inferir_grafico_areas(texto)
-
-    if "1.2.3" in tema_id:
+    if "1.2.3" in tema_id or _texto_es_excedentes(texto):
         return _buscar_grafico_en_banco(banco, ("1.2.3",), texto, tokens_match_fn)
+
+    if any(t in tema_id for t in ("1.2.2", "1.2.1")) or _texto_es_areas(texto):
+        # El área se grafica con las funciones del enunciado, nunca con un ítem del banco.
+        return inferir_grafico_areas(texto, forzar=True)
 
     if tema_id and tokens_match_fn is not None:
         from . import temario as _temario
@@ -2046,8 +2212,20 @@ def _caption_tutor_abierto(spec: Dict[str, Any]) -> str:
                 "(referencia visual)."
             )
         return "Función de densidad de probabilidad **f(x)** (referencia visual)."
+    if tipo == "area_entre_curvas" and spec.get("origen") == "enunciado":
+        sup = _etiqueta_curva(str(spec.get("y_superior", "")))
+        inf = _etiqueta_curva(str(spec.get("y_inferior", "")))
+        texto = (
+            f"Funciones del enunciado: **{sup}** y **{inf}**. "
+            "La región sombreada es el área entre ellas."
+        )
+        if spec.get("intervalo_no_acotado"):
+            texto += " El intervalo no es acotado; se dibuja un tramo finito de esas mismas funciones."
+        elif spec.get("ventana_automatica"):
+            texto += " El enunciado no trae los límites; la ventana solo sirve para ver ambas curvas."
+        return texto
     if tipo in ("area_entre_curvas", "rectangulo", "region_xy_tipo2"):
-        return "Región sombreada = área / región de integración (referencia visual)."
+        return "Región sombreada = área / región de integración."
     if tipo == "excedentes":
         return "Demanda, oferta y excedentes (referencia visual)."
     return "Figura de referencia para reforzar la explicación."

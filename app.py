@@ -572,6 +572,18 @@ def _buscar_ejemplo_banco_con_grafico(tema: Optional[str], texto: Optional[str])
     return mejor or candidatos[0]
 
 
+def _es_consulta_area(tema: Optional[str], texto: Optional[str]) -> bool:
+    if graficos_entrenamiento._texto_es_excedentes(" ".join([str(tema or ""), str(texto or "")])):
+        return False
+    tema_s = str(tema or "")
+    if any(marca in tema_s for marca in ("1.2.1", "1.2.2")):
+        return True
+    tema_n = _normalizar_texto_compacto(tema_s)
+    if "area" in tema_n:
+        return True
+    return graficos_entrenamiento._texto_es_areas(texto)
+
+
 def _mostrar_apoyo_grafico_referencia(
     *,
     tema: Optional[str],
@@ -585,6 +597,21 @@ def _mostrar_apoyo_grafico_referencia(
         banco=banco_preguntas.BANCO_FIXED,
         tokens_match_fn=_tokens_match,
     )
+    if _es_consulta_area(tema, texto_referencia):
+        if spec and spec.get("origen") == "enunciado":
+            ok = graficos_entrenamiento.mostrar_figura_apoyo(
+                spec,
+                titulo=str(spec.get("titulo") or "Gráfica de las funciones del enunciado"),
+                caption=graficos_entrenamiento._caption_tutor_abierto(spec),
+            )
+            if ok:
+                return
+        st.caption(
+            "_No se muestra una gráfica de referencia. "
+            "No pude leer las funciones de este enunciado; escríbelas como y = …_"
+        )
+        return
+
     if spec:
         ok = graficos_entrenamiento.mostrar_figura_apoyo(
             spec,
@@ -1060,9 +1087,10 @@ def generar_respuesta_tutor_abierto(
        en el plano xy, describe la región R y los límites con claridad. La app mostrará apoyo gráfico
        2D/3D automáticamente; no digas que no puedes graficar.
 
-    6. ÁREAS Y PROBABILIDAD: Si la consulta trata área entre curvas, área bajo f(x) o PDF/CDF,
-       explica la región o el intervalo de probabilidad. La app mostrará la figura de referencia
-       (área sombreada o densidad f(x)); no digas que no puedes graficar.
+    6. ÁREAS Y PROBABILIDAD: Si la consulta trata área entre curvas o área bajo f(x),
+       explica el planteamiento con las funciones del enunciado. La app graficará esas funciones
+       (no un ejemplo distinto del banco). Si es PDF/CDF, explica el intervalo de probabilidad.
+       No digas que no puedes graficar.
 
     7. SÓLIDOS DE REVOLUCIÓN: Si la consulta trata volumen al girar una región del plano xy en torno
        a una recta (y = c, x = c, etc.), describe la región generadora, el eje y los radios. La app
@@ -1866,10 +1894,10 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
                         str(datos.get("enunciado_latex") or ""),
                     ]
                 ),
-                titulo="Apoyo gráfico — referencia inicial",
+                titulo="Apoyo gráfico del enunciado",
                 caption=(
-                    "Vista previa para problemas de áreas/excedentes. "
-                    "En el Paso 2 se mantiene este apoyo para validar el planteamiento."
+                    "En áreas, la figura usa las funciones de este enunciado. "
+                    "En el Paso 2 se mantiene para revisar el planteamiento."
                 ),
             )
         
@@ -1923,8 +1951,7 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
                 ),
                 titulo="Apoyo gráfico — valida tu planteamiento",
                 caption=(
-                    "Visual de referencia desde el banco para este tipo de problema "
-                    "(áreas/excedentes), análogo al apoyo usado en Entrenamiento."
+                    "En áreas, las curvas son las del enunciado, no un ejemplo del banco."
                 ),
             )
             
