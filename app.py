@@ -45,8 +45,20 @@ INTENTOS_MAX_IA = 3
 MULTIPLICADOR_ESPERA_429 = 4  # segundos por intento ante error 429
 MAX_MENSAJES_HISTORIAL_TUTOR = 10  # últimos N mensajes para contexto IA
 AVISO_HISTORIAL_LARGO = 20  # si hay más mensajes, mostrar aviso
-ADMIN_EMAIL_PERMITIDO = os.environ.get("ADMIN_EMAIL", "jsalas@ucab.edu.ve").strip().lower()
-ADMIN_CLAVE_PERMITIDA = os.environ.get("ADMIN_PASSWORD", "J-2002-MateIII")
+def _leer_secreto(nombre: str) -> str:
+    """Lee un secreto de Streamlit o del entorno. No hay valores por defecto en el repo."""
+    try:
+        if nombre in st.secrets:
+            valor = st.secrets[nombre]
+            if valor is not None:
+                return str(valor)
+    except Exception:
+        pass
+    return os.environ.get(nombre) or ""
+
+
+ADMIN_EMAIL_PERMITIDO = _leer_secreto("ADMIN_EMAIL").strip().lower()
+ADMIN_CLAVE_PERMITIDA = _leer_secreto("ADMIN_PASSWORD")
 
 # --- 1. CONFIGURACIÓN INICIAL ---
 interfaz.configurar_pagina()
@@ -2539,7 +2551,9 @@ elif ruta == "f) Administrador (Métricas)":
             enviar = st.form_submit_button("Ingresar")
         if enviar:
             ok = (
-                (correo_admin or "").strip().lower() == ADMIN_EMAIL_PERMITIDO
+                bool(ADMIN_EMAIL_PERMITIDO)
+                and bool(ADMIN_CLAVE_PERMITIDA)
+                and (correo_admin or "").strip().lower() == ADMIN_EMAIL_PERMITIDO
                 and (clave_admin or "") == ADMIN_CLAVE_PERMITIDA
             )
             if ok:
