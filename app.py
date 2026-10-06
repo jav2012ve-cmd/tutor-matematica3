@@ -568,6 +568,15 @@ def _extraer_formula_respuesta_banco(respuesta: Any) -> Optional[str]:
     s = _normalizar_latex_tutor_puro(_limpiar_para_st_latex(s))
     return s.strip() or None
 
+def _render_opciones_planteamiento(opciones: List[str]) -> List[str]:
+    """Muestra cada planteamiento con su LaTeX y devuelve las letras del selector."""
+    etiquetas = [chr(65 + i) for i in range(len(opciones))]
+    for i, texto in enumerate(opciones):
+        st.markdown(f"**{etiquetas[i]})**")
+        _render_texto_con_latex(texto)
+    return etiquetas
+
+
 def _render_texto_con_latex(texto: Optional[str]) -> None:
     """
     Renderiza texto mixto separando por delimitadores $...$ / $$...$$.
@@ -2133,10 +2142,17 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
                 # Caso Áreas, Volúmenes, Excedentes, etc.
                 st.write("¿Cuál es el **planteamiento o enfoque** correcto?")
 
-            opcion = st.radio("Selecciona:", datos['estrategias'], index=None, key="rad_cons")
-            
+            estrategias = list(datos.get("estrategias") or [])
+            etiquetas = _render_opciones_planteamiento(estrategias)
+            eleccion = st.radio(
+                "Selecciona:",
+                etiquetas,
+                index=None,
+                key="rad_cons",
+                horizontal=True,
+            )
             if st.button("Validar Estrategia", type="primary"):
-                if opcion and datos['estrategias'].index(opcion) == datos['indice_correcta']:
+                if eleccion is not None and etiquetas.index(eleccion) == datos["indice_correcta"]:
                     st.session_state.consulta_validada = True
                     st.rerun()
                 else:
@@ -2152,7 +2168,8 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
 
         # PASO 2: Hito Intermedio
         if step == 2:
-            st.success(f"✅ Estrategia: {datos['estrategias'][datos['indice_correcta']]}")
+            st.success("✅ Planteamiento elegido:")
+            _render_texto_con_latex(datos["estrategias"][datos["indice_correcta"]])
             st.subheader("2️⃣ Paso 2: Desarrollo")
             st.write("Aplicando la técnica, deberías llegar a esta expresión intermedia:")
             
