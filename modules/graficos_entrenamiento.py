@@ -1172,8 +1172,8 @@ def _expr_legible_a_sympy(raw: str) -> str:
     s = re.sub(r"\\exp\b", "exp", s)
     s = re.sub(r"\\pi\b", "pi", s)
     s = s.replace("\\cdot", "*").replace("\\times", "*")
-    s = re.sub(r"e\^\{([^{}]*)\}", r"exp(\1)", s)
-    s = re.sub(r"e\^(\([^)]+\)|-?[0-9.]+|[A-Za-z])", r"exp(\1)", s)
+    s = re.sub(r"(?<![A-Za-z])e\^\{([^{}]*)\}", r"exp(\1)", s)
+    s = re.sub(r"(?<![A-Za-z])e\^(\([^)]+\)|-?[0-9.]+|[A-Za-z])", r"exp(\1)", s)
     s = re.sub(r"\^\{([^{}]*)\}", r"**(\1)", s)
     s = re.sub(r"\^([0-9]+)", r"**\1", s)
     supers = str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹", "0123456789")
@@ -1184,6 +1184,8 @@ def _expr_legible_a_sympy(raw: str) -> str:
     s = re.sub(r"([A-Za-z0-9\)])([⁰¹²³⁴⁵⁶⁷⁸⁹]+)", _uni_pow, s)
     s = s.replace("{", "").replace("}", "")
     s = s.replace("^", "**")
+    s = re.sub(r"([0-9xy\)])e\*\*\(", r"\1*exp(", s, flags=re.I)
+    s = re.sub(r"([0-9xy\)])exp\(", r"\1*exp(", s, flags=re.I)
     s = re.sub(r"\\[A-Za-z]+", "", s)
     s = re.sub(r"\s+", "", s)
     s = re.sub(r"(\d)([xy])", r"\1*\2", s, flags=re.I)
@@ -1199,8 +1201,8 @@ def _expr_legible_a_sympy(raw: str) -> str:
 
 
 def _limpiar_expr_raw(raw: str) -> str:
-    s = raw.strip().strip("$;, ")
-    s = re.sub(r"[?!.;,]+$", "", s).strip()
+    s = raw.strip().strip("$;,: ")
+    s = re.sub(r"[?!.;,:]+$", "", s).strip()
     s = re.sub(
         r"\s+(?:es|sea|para|en|sobre|que|cuando|gira|girando|girar|al|rededor|del|de|eje)\b.*$",
         "",
@@ -1585,12 +1587,12 @@ def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
     region = _fragmento_region_antes_giro(_texto_grafico_plano(texto))
     pref = _prefijo_region_curvas_y()
 
+    corte = r"cuando|que|gir|en\b|entre\b|\.|,|;|:"
     patrones = (
-        pref + r"\s+\by\s*=\s*(.+?)\s+y\s*=\s*(.+?)(?=\s*(?:cuando|que|gir|\.|,|;|$))",
-        r"\by\s*=\s*(.+?)\s*;\s*y\s*=\s*(.+?)(?=\s*(?:cuando|que|gir|\.|,|$))",
-        r"\by\s*=\s*(.+?)\s+y\s*=\s*(.+?)(?=\s*(?:cuando|que|gir|\.|,|;|$))",
-        r"\by\s*=\s*(.+?)\s*,\s*y\s*=\s*(.+?)(?=\s*(?:cuando|girando|gira|en\b|[.;]|$))",
-        r"\by\s*=\s*(.+?)\s+y\s*=\s*([-\d.]+)(?![+-]\*[xy]|[+-]\s*[xy])",
+        pref + rf"\s+\by\s*=\s*(.+?)\s+y\s*=\s*(.+?)(?=\s*(?:{corte}|$))",
+        rf"\by\s*=\s*(.+?)\s*;\s*y\s*=\s*(.+?)(?=\s*(?:{corte}|$))",
+        rf"\by\s*=\s*(.+?)\s+y\s*=\s*(.+?)(?=\s*(?:{corte}|$))",
+        rf"\by\s*=\s*(.+?)\s*,\s*y\s*=\s*(.+?)(?=\s*(?:{corte}|$))",
     )
     for pat in patrones:
         m = re.search(pat, region, re.I)
@@ -2098,6 +2100,46 @@ def _spec_area_entre_curvas(
     return spec
 
 
+def _extraer_una_curva_y(texto: str) -> Optional[str]:
+    """Una sola y = f(x), para el área entre la curva y el eje."""
+    region = _texto_grafico_plano(texto)
+    if len(re.findall(r"\by\s*=", region, re.I)) != 1:
+        return None
+    m = re.search(
+        r"\by\s*=\s*(.+?)(?=\s*(?:en\b|entre\b|sobre|para|cuando|desde|\.|,|;|:|$))",
+        region,
+        re.I,
+    )
+    if not m:
+        return None
+    par = _par_si_evalua(_limpiar_expr_raw(m.group(1)), "0")
+    if not par:
+        return None
+    return par[0]
+
+
+def _spec_area_bajo_curva(
+    expr: str,
+    intervalo: tuple[float, float],
+    *,
+    no_acotado: bool = False,
+) -> Dict[str, Any]:
+    a, b = intervalo
+    if b < a:
+        a, b = b, a
+    return {
+        "tipo": "area_entre_curvas",
+        "origen": "enunciado",
+        "y_superior": expr,
+        "y_inferior": "0",
+        "x_min": float(a),
+        "x_max": float(b),
+        "intervalo_explicito": True,
+        "titulo": f"Área bajo {_etiqueta_curva(expr)} en [{a:g}, {b:g}]",
+        "intervalo_no_acotado": no_acotado,
+    }
+
+
 def inferir_grafico_areas(
     texto: Optional[str],
     *,
@@ -2108,36 +2150,115 @@ def inferir_grafico_areas(
         return None
 
     plano = _texto_grafico_plano(texto)
-    intervalo = _extraer_intervalo_x(plano) or _limites_numericos_integrales(plano)
-    par = (
-        _extraer_dos_curvas_y(plano)
-        or _extraer_par_entre_sin_igual(plano)
-        or _extraer_par_desde_integrales(plano)
-    )
+    intervalo = _extraer_intervalo_x(plano)
+    par = _extraer_dos_curvas_y(plano) or _extraer_par_entre_sin_igual(plano)
+    desde_integral = False
+    if not par:
+        par = _extraer_par_desde_integrales(plano)
+        desde_integral = par is not None
+    if intervalo is None and desde_integral:
+        intervalo = _limites_numericos_integrales(plano)
 
     if par:
         spec = _spec_area_entre_curvas(par[0], par[1], intervalo=intervalo)
-        if spec and _intervalo_no_acotado(texto):
-            spec["intervalo_no_acotado"] = True
+        if spec:
+            spec["intervalo_explicito"] = intervalo is not None
+            if _intervalo_no_acotado(texto):
+                spec["intervalo_no_acotado"] = True
         return spec
 
     # Área bajo una sola curva del enunciado, en el intervalo que el usuario dio.
-    f_pdf = _extraer_f_pdf(texto)
-    if f_pdf and intervalo and _texto_es_areas(texto):
-        a, b = intervalo
-        if b < a:
-            a, b = b, a
-        return {
-            "tipo": "area_entre_curvas",
-            "origen": "enunciado",
-            "y_superior": f_pdf,
-            "y_inferior": "0",
-            "x_min": float(a),
-            "x_max": float(b),
-            "titulo": f"Área bajo {_etiqueta_curva(f_pdf)} en [{a}, {b}]",
-            "intervalo_no_acotado": _intervalo_no_acotado(texto),
-        }
+    t = _texto_sin_tildes(plano)
+    bajo = "bajo" in t or "ejex" in re.sub(r"\s+", "", t)
+    curva = _extraer_una_curva_y(plano) or (_extraer_f_pdf(plano) if bajo or forzar else None)
+    if not curva and bajo:
+        cuerpos = _listar_integrandos(plano)
+        if len(cuerpos) == 1:
+            par_eje = _par_si_evalua(cuerpos[0].strip("|"), "0")
+            if par_eje:
+                curva = par_eje[0]
+    if curva and (bajo or _extraer_una_curva_y(plano)):
+        iv = intervalo or _limites_numericos_integrales(plano)
+        if iv:
+            return _spec_area_bajo_curva(curva, iv, no_acotado=_intervalo_no_acotado(texto))
 
+    return None
+
+
+def spec_desde_grafico_area(datos: Any) -> Optional[Dict[str, Any]]:
+    """Usa las curvas que el tutor declaró para este problema."""
+    if not isinstance(datos, dict):
+        return None
+    curvas = datos.get("curvas")
+    if isinstance(curvas, str):
+        curvas = [p.strip() for p in re.split(r"[|;]", curvas) if p.strip()]
+    if not isinstance(curvas, list):
+        return None
+    exprs: List[str] = []
+    for curva in curvas:
+        if curva is None or not str(curva).strip():
+            continue
+        candidato = _par_si_evalua(str(curva), "0")
+        if candidato:
+            exprs.append(candidato[0])
+    if not exprs:
+        return None
+
+    def _num(clave: str) -> Optional[float]:
+        try:
+            if datos.get(clave) is None or datos.get(clave) == "":
+                return None
+            return float(datos.get(clave))
+        except (TypeError, ValueError):
+            return None
+
+    a, b = _num("x_min"), _num("x_max")
+    intervalo = (min(a, b), max(a, b)) if a is not None and b is not None else None
+    if len(exprs) >= 2:
+        spec = _spec_area_entre_curvas(exprs[0], exprs[1], intervalo=intervalo)
+        if spec and intervalo is not None:
+            spec["intervalo_explicito"] = True
+        return spec
+    if intervalo is None:
+        return None
+    return _spec_area_bajo_curva(exprs[0], intervalo)
+
+
+def separar_bloque_area(texto: Optional[str]) -> tuple[str, Optional[Dict[str, Any]]]:
+    """Quita el bloque <!-- area: f ; g ; a ; b --> y lo convierte en figura."""
+    crudo = str(texto or "")
+    m = re.search(r"<!--\s*area:\s*(.*?)\s*-->", crudo, re.I | re.S)
+    if not m:
+        return crudo, None
+    visible = (crudo[: m.start()] + crudo[m.end() :]).strip()
+    partes = [p.strip() for p in m.group(1).split(";") if p.strip()]
+    if len(partes) < 2:
+        return visible, None
+    datos: Dict[str, Any] = {"curvas": partes[:2]}
+    if len(partes) >= 4:
+        datos["x_min"] = partes[2]
+        datos["x_max"] = partes[3]
+    return visible, spec_desde_grafico_area(datos)
+
+
+def resolver_area_prioridad(
+    textos: List[Optional[str]],
+    *,
+    declarado: Any = None,
+    forzar: bool = False,
+) -> Optional[Dict[str, Any]]:
+    """Primero las curvas declaradas; después el enunciado y el cálculo, sin ejemplos del banco."""
+    spec = spec_desde_grafico_area(declarado)
+    if spec:
+        return spec
+    for texto in textos:
+        if not texto or not str(texto).strip():
+            continue
+        if not (forzar or _texto_es_areas(texto)):
+            continue
+        spec = inferir_grafico_areas(str(texto), forzar=True)
+        if spec:
+            return spec
     return None
 
 

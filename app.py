@@ -748,27 +748,35 @@ def _mostrar_apoyo_grafico_referencia(
     texto_referencia: Optional[str],
     titulo: str = "Apoyo gráfico — referencia del banco",
     caption: str = "",
+    textos_area: Optional[List[str]] = None,
+    grafico_area: Any = None,
 ) -> None:
+    if _es_consulta_area(tema, texto_referencia):
+        spec = graficos_entrenamiento.resolver_area_prioridad(
+            textos_area or [texto_referencia or ""],
+            declarado=grafico_area,
+            forzar=True,
+        )
+        if spec and spec.get("origen") == "enunciado":
+            ok = graficos_entrenamiento.mostrar_figura_apoyo(
+                spec,
+                titulo=str(spec.get("titulo") or "Gráfica de las funciones y del área"),
+                caption=graficos_entrenamiento._caption_tutor_abierto(spec),
+            )
+            if ok:
+                return
+        st.caption(
+            "_No se pudo dibujar la región de este problema. "
+            "Revisa que el enunciado traiga las funciones y el intervalo._"
+        )
+        return
+
     spec = graficos_entrenamiento.resolver_grafico_tutor_abierto(
         texto_referencia,
         tema=tema,
         banco=banco_preguntas.BANCO_FIXED,
         tokens_match_fn=_tokens_match,
     )
-    if _es_consulta_area(tema, texto_referencia):
-        if spec and spec.get("origen") == "enunciado":
-            ok = graficos_entrenamiento.mostrar_figura_apoyo(
-                spec,
-                titulo=str(spec.get("titulo") or "Gráfica de las funciones del enunciado"),
-                caption=graficos_entrenamiento._caption_tutor_abierto(spec),
-            )
-            if ok:
-                return
-        st.caption(
-            "_No se muestra una gráfica de referencia. "
-            "No pude leer las dos funciones de este enunciado._"
-        )
-        return
 
     if spec:
         ok = graficos_entrenamiento.mostrar_figura_apoyo(
@@ -1113,8 +1121,16 @@ def analizar_problema_usuario(
         "indice_correcta": 0,
         "feedback_estrategia": "Por qué este es el camino correcto.",
         "paso_intermedio": "Un hito clave a mitad del desarrollo (LaTeX puro, sin $$)",
-        "resultado_final": "La solución final (LaTeX puro, sin $$)"
+        "resultado_final": "La solución final (LaTeX puro, sin $$)",
+        "grafico_area": null
     }
+
+    Si el problema calcula un ÁREA (bajo una curva o entre dos curvas), "grafico_area" es OBLIGATORIO
+    y describe exactamente las funciones de ESTE problema, no un ejemplo distinto:
+    "grafico_area": {"curvas": ["x**2", "4-x"], "x_min": -2, "x_max": 2}
+    - curvas: 2 expresiones en x (la segunda es "0" si el área es bajo una sola curva y el eje x).
+    - x_min y x_max: números del intervalo donde se calcula el área.
+    Si el problema no es de área, deja "grafico_area" en null.
     """
     
     contenido = [prompt_base]
@@ -1242,6 +1258,10 @@ def generar_respuesta_tutor_abierto(
        explica el planteamiento con las funciones del enunciado. La app graficará esas funciones
        (no un ejemplo distinto del banco). Si es PDF/CDF, explica el intervalo de probabilidad.
        No digas que no puedes graficar.
+       Si calculas un área, termina la respuesta con UNA sola línea, exactamente en este formato
+       (funciones en x, segunda curva "0" si el área es contra el eje x):
+       <!-- area: x**2 ; 4-x ; -2 ; 2 -->
+       Usa las funciones y el intervalo de ESTE problema. Si no es un área, no escribas esa línea.
 
     7. SÓLIDOS DE REVOLUCIÓN: Si la consulta trata volumen al girar una región del plano xy en torno
        a una recta (y = c, x = c, etc.), describe la región generadora, el eje y los radios. La app
@@ -2034,23 +2054,26 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
 
         st.divider()
         st.markdown(f"**Tema Detectado:** `{datos.get('tema_detectado', 'Matemáticas')}`")
-        texto_grafica = " ".join(
-            str(datos.get(campo) or "")
-            for campo in (
-                "tema_detectado",
-                "enunciado_latex",
-                "feedback_estrategia",
-                "paso_intermedio",
-                "resultado_final",
-            )
+        enunciado = str(datos.get("enunciado_latex") or "")
+        paso = str(datos.get("paso_intermedio") or "")
+        resultado = str(datos.get("resultado_final") or "")
+        calculo = "\n".join(parte for parte in (enunciado, paso, resultado) if parte)
+        texto_grafica = "\n".join(
+            parte for parte in (
+                str(datos.get("tema_detectado") or ""),
+                calculo,
+                str(datos.get("feedback_estrategia") or ""),
+            ) if parte
         )
-        if datos.get("enunciado_latex"):
+        if enunciado:
             st.markdown("**Problema Identificado:**")
-            _render_enunciado_identificado(datos.get("enunciado_latex"))
-        if datos.get("enunciado_latex") or _es_consulta_area(datos.get("tema_detectado"), texto_grafica):
+            _render_enunciado_identificado(enunciado)
+        if enunciado or _es_consulta_area(datos.get("tema_detectado"), texto_grafica):
             _mostrar_apoyo_grafico_referencia(
                 tema=datos.get("tema_detectado"),
                 texto_referencia=texto_grafica,
+                textos_area=[calculo, enunciado, paso, resultado],
+                grafico_area=datos.get("grafico_area"),
                 titulo="Gráfica de las funciones y del área",
             )
         
@@ -2530,14 +2553,38 @@ elif ruta == "d) Tutor: Preguntas Abiertas":
     pregunta_previa = None
     for i, mensaje in enumerate(st.session_state.historial_tutor_abierto):
         with st.chat_message(mensaje["role"]):
-            st.markdown(mensaje["content"] or "")
             if mensaje["role"] == "user":
+                st.markdown(mensaje["content"] or "")
                 pregunta_previa = mensaje.get("content") or ""
-            elif mensaje["role"] == "assistant" and pregunta_previa:
-                texto_grafica = f"{pregunta_previa}\n{mensaje.get('content') or ''}"
+                continue
+            visible, spec_area = graficos_entrenamiento.separar_bloque_area(
+                mensaje.get("content") or ""
+            )
+            st.markdown(visible)
+            if not pregunta_previa:
+                continue
+            texto_grafica = f"{pregunta_previa}\n{visible}"
+            tema_graf = mensaje.get("tema") or _inferir_tema_grafico_desde_texto(texto_grafica)
+            if spec_area is None and _es_consulta_area(tema_graf, texto_grafica):
+                spec_area = graficos_entrenamiento.resolver_area_prioridad(
+                    [texto_grafica, pregunta_previa, visible],
+                    forzar=True,
+                )
+            if spec_area is not None:
+                graficos_entrenamiento.mostrar_figura_apoyo(
+                    spec_area,
+                    titulo=str(spec_area.get("titulo") or "Gráfica de las funciones y del área"),
+                    caption=graficos_entrenamiento._caption_tutor_abierto(spec_area),
+                )
+            elif _es_consulta_area(tema_graf, texto_grafica):
+                st.caption(
+                    "_No se pudo dibujar la región de este problema. "
+                    "Revisa que la pregunta traiga las funciones y el intervalo._"
+                )
+            else:
                 graficos_entrenamiento.mostrar_apoyo_tutor_abierto(
                     texto_grafica,
-                    tema=mensaje.get("tema") or _inferir_tema_grafico_desde_texto(texto_grafica),
+                    tema=tema_graf,
                     banco=banco_preguntas.BANCO_FIXED,
                     tokens_match_fn=_tokens_match,
                     chart_key=f"hist_{i}",
