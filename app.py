@@ -170,6 +170,10 @@ _TOKENS_MATEMATICOS = frozenset({
     "ln", "log", "exp", "max", "min", "sup", "inf",
     "dx", "dy", "dt", "dz", "du", "dv", "ds", "dr",
 })
+_COMANDOS_TEXTO = frozenset({
+    "text", "mathrm", "mathbf", "mathit", "mathsf", "mathtt",
+    "operatorname", "textbf", "textrm", "textit", "hbox", "mbox",
+})
 
 
 def _sin_tildes_latex(token: str) -> str:
@@ -180,9 +184,43 @@ def _sin_tildes_latex(token: str) -> str:
     )
 
 
+def _dentro_de_comando_texto(antes: str) -> bool:
+    """True si el token está dentro de \\text{...}, \\mathrm{...} u otro comando de texto."""
+    depth = 0
+    i = len(antes) - 1
+    while i >= 0:
+        ch = antes[i]
+        if ch == "}":
+            depth += 1
+        elif ch == "{":
+            if depth == 0:
+                m = re.search(r"\\([A-Za-z]+)\s*$", antes[:i])
+                return bool(m and m.group(1) in _COMANDOS_TEXTO)
+            depth -= 1
+        i -= 1
+    return False
+
+
+def _aplanar_comandos_texto(texto: str) -> str:
+    """Quita saltos de línea dentro de \\text{u}^2 para que la unidad no se parta."""
+    def _plano(m: re.Match[str]) -> str:
+        interior = re.sub(r"\s+", " ", m.group(2)).strip()
+        return "\\" + m.group(1) + "{" + interior + "}"
+
+    return re.sub(
+        r"\\(text|mathrm|mathbf|mathit|mathsf|mathtt|textrm|textbf|textit|hbox|mbox|operatorname)"
+        r"\{([^{}]*)\}",
+        _plano,
+        texto,
+        flags=re.DOTALL,
+    )
+
+
 def _palabra_es_prosa(palabra: str, antes: str, despues: str) -> bool:
     """True si el token es español y no debe entrar en un bloque de KaTeX."""
     if antes.endswith("\\"):
+        return False
+    if _dentro_de_comando_texto(antes):
         return False
     base = _sin_tildes_latex(palabra)
     if base in _TOKENS_MATEMATICOS:
@@ -195,7 +233,9 @@ def _palabra_es_prosa(palabra: str, antes: str, despues: str) -> bool:
         return False
     izq = antes.rstrip()
     der = despues.lstrip()
-    if der and der[0] in "=^_+-*/(":
+    if izq.endswith("{") and der.startswith("}"):
+        return False
+    if der and der[0] in "=^_+-*/({}":
         return False
     if izq and izq[-1] in "=^_+-*/(\\":
         return False
@@ -305,6 +345,7 @@ def preparar_latex_para_streamlit(texto: Optional[str]) -> str:
 
     # 1. Normalización de escapes de barra invertida de la IA
     t = str(texto).replace('\\\\', '\\').replace(r'\$', '$')
+    t = _aplanar_comandos_texto(t)
 
     # 2. Unificación: Si hay fragmentos pegados tipo "$ \int $ $ x $", los une en "$ \int x $"
     t = re.sub(r'\$\s*\$', ' ', t)
@@ -393,6 +434,7 @@ def _normalizar_latex_tutor_puro(texto: Any) -> str:
     s = str(texto).replace("\n", " ").replace("\r", " ")
     s = re.sub(r"\s+", " ", s).strip()
     s = s.replace("\\\\", "\\")
+    s = _aplanar_comandos_texto(s)
     # int_0^1 → \\int_0^1 cuando falta la barra invertida
     s = re.sub(r"(?<!\\)\bint_\{", r"\\int_{", s)
     s = re.sub(r"(?<!\\)\bint_", r"\\int_", s)
