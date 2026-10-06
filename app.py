@@ -766,7 +766,7 @@ def _mostrar_apoyo_grafico_referencia(
                 return
         st.caption(
             "_No se muestra una gráfica de referencia. "
-            "No pude leer las funciones de este enunciado; escríbelas como y = …_"
+            "No pude leer las dos funciones de este enunciado._"
         )
         return
 
@@ -2034,22 +2034,24 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
 
         st.divider()
         st.markdown(f"**Tema Detectado:** `{datos.get('tema_detectado', 'Matemáticas')}`")
-        if datos.get('enunciado_latex'):
+        texto_grafica = " ".join(
+            str(datos.get(campo) or "")
+            for campo in (
+                "tema_detectado",
+                "enunciado_latex",
+                "feedback_estrategia",
+                "paso_intermedio",
+                "resultado_final",
+            )
+        )
+        if datos.get("enunciado_latex"):
             st.markdown("**Problema Identificado:**")
             _render_enunciado_identificado(datos.get("enunciado_latex"))
+        if datos.get("enunciado_latex") or _es_consulta_area(datos.get("tema_detectado"), texto_grafica):
             _mostrar_apoyo_grafico_referencia(
                 tema=datos.get("tema_detectado"),
-                texto_referencia=" ".join(
-                    [
-                        str(datos.get("tema_detectado") or ""),
-                        str(datos.get("enunciado_latex") or ""),
-                    ]
-                ),
-                titulo="Apoyo gráfico del enunciado",
-                caption=(
-                    "En áreas, la figura usa las funciones de este enunciado. "
-                    "En el Paso 2 se mantiene para revisar el planteamiento."
-                ),
+                texto_referencia=texto_grafica,
+                titulo="Gráfica de las funciones y del área",
             )
         
         # PASO 1: Identificar Técnica/Tipo o Planteamiento
@@ -2090,22 +2092,7 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
             st.write("Aplicando la técnica, deberías llegar a esta expresión intermedia:")
             
             _render_texto_con_latex(datos.get("paso_intermedio"))
-            _mostrar_apoyo_grafico_referencia(
-                tema=datos.get("tema_detectado"),
-                texto_referencia=" ".join(
-                    [
-                        str(datos.get("tema_detectado") or ""),
-                        str(datos.get("enunciado_latex") or ""),
-                        str(datos.get("feedback_estrategia") or ""),
-                        str(datos.get("paso_intermedio") or ""),
-                    ]
-                ),
-                titulo="Apoyo gráfico — valida tu planteamiento",
-                caption=(
-                    "En áreas, las curvas son las del enunciado, no un ejemplo del banco."
-                ),
-            )
-            
+
             c1, c2 = st.columns(2)
             if c1.button("👍 Llegué a eso"):
                 st.session_state.consulta_step = 3
@@ -2516,10 +2503,6 @@ elif ruta == "d) Tutor: Preguntas Abiertas":
     if len(st.session_state.historial_tutor_abierto) > AVISO_HISTORIAL_LARGO:
         st.info("💬 **Conversación larga.** Para respuestas más precisas, considera usar **Reiniciar** en el menú y empezar una nueva.")
 
-    for mensaje in st.session_state.historial_tutor_abierto:
-        with st.chat_message(mensaje["role"]):
-            st.markdown(mensaje["content"])
-
     if enviar_pregunta and prompt.strip():
         prompt = prompt.strip()
         with st.spinner("Clasificando tema para estadísticas…"):
@@ -2532,25 +2515,33 @@ elif ruta == "d) Tutor: Preguntas Abiertas":
             },
         )
         st.session_state.historial_tutor_abierto.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+        with st.spinner("Consultando guías de la cátedra..."):
+            ultimos = st.session_state.historial_tutor_abierto[-MAX_MENSAJES_HISTORIAL_TUTOR:]
+            historial_texto = "\n".join([f"{m['role']}: {m['content']}" for m in ultimos])
+            respuesta_tutor = generar_respuesta_tutor_abierto(prompt, historial_texto)
+        st.session_state.historial_tutor_abierto.append(
+            {
+                "role": "assistant",
+                "content": respuesta_tutor,
+                "tema": _tema_stats,
+            }
+        )
 
-        with st.chat_message("assistant"):
-            with st.spinner("Consultando guías de la cátedra..."):
-                ultimos = st.session_state.historial_tutor_abierto[-MAX_MENSAJES_HISTORIAL_TUTOR:]
-                historial_texto = "\n".join([f"{m['role']}: {m['content']}" for m in ultimos])
-                respuesta_tutor = generar_respuesta_tutor_abierto(prompt, historial_texto)
-                st.markdown(respuesta_tutor)
-                _tema_graf = _tema_stats or _inferir_tema_grafico_desde_texto(prompt)
+    pregunta_previa = None
+    for i, mensaje in enumerate(st.session_state.historial_tutor_abierto):
+        with st.chat_message(mensaje["role"]):
+            st.markdown(mensaje["content"] or "")
+            if mensaje["role"] == "user":
+                pregunta_previa = mensaje.get("content") or ""
+            elif mensaje["role"] == "assistant" and pregunta_previa:
+                texto_grafica = f"{pregunta_previa}\n{mensaje.get('content') or ''}"
                 graficos_entrenamiento.mostrar_apoyo_tutor_abierto(
-                    prompt,
-                    tema=_tema_graf,
+                    texto_grafica,
+                    tema=mensaje.get("tema") or _inferir_tema_grafico_desde_texto(texto_grafica),
                     banco=banco_preguntas.BANCO_FIXED,
                     tokens_match_fn=_tokens_match,
-                    chart_key=str(abs(hash(prompt)) % 10**8),
+                    chart_key=f"hist_{i}",
                 )
-
-        st.session_state.historial_tutor_abierto.append({"role": "assistant", "content": respuesta_tutor})
 
     retroalimentacion_ui.render_seccion_retroalimentacion(
         "Tutor Preguntas Abiertas",

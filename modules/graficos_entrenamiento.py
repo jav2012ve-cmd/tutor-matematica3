@@ -47,51 +47,48 @@ def figura_area_entre_curvas(
     titulo: str = "",
 ) -> go.Figure:
     fig = go.Figure()
+    validas = [
+        b for b in bandas
+        if float(b["x_max"]) > float(b["x_min"])
+    ]
     y_min_global = None
     y_max_global = None
     x_min_global = None
     x_max_global = None
-    for k, b in enumerate(bandas):
-        ys = str(b["y_superior"])
-        yi = str(b["y_inferior"])
-        x0, x1 = float(b["x_min"]), float(b["x_max"])
-        if x1 <= x0:
-            continue
-        x_min_global = x0 if x_min_global is None else min(x_min_global, x0)
-        x_max_global = x1 if x_max_global is None else max(x_max_global, x1)
-        npts = min(400, max(60, int((x1 - x0) * 50)))
-        xs = np.linspace(x0, x1, npts)
-        fn_s = _lambdify_expr(ys)
-        fn_i = _lambdify_expr(yi)
-        sup = _eval_on_grid(fn_s, xs)
-        infy = _eval_on_grid(fn_i, xs)
-        y_local_min = float(np.nanmin(np.concatenate([sup, infy])))
-        y_local_max = float(np.nanmax(np.concatenate([sup, infy])))
+    colores = ("#1f77b4", "#d62728", "#2ca02c", "#9467bd", "#8c564b")
+    rangos: Dict[str, List[tuple[float, float]]] = {}
+    for b in validas:
+        for clave in ("y_superior", "y_inferior"):
+            rangos.setdefault(str(b[clave]), []).append(
+                (float(b["x_min"]), float(b["x_max"]))
+            )
+    for i, (expr, intervalos) in enumerate(rangos.items()):
+        a = min(p[0] for p in intervalos)
+        c = max(p[1] for p in intervalos)
+        x_min_global = a if x_min_global is None else min(x_min_global, a)
+        x_max_global = c if x_max_global is None else max(x_max_global, c)
+        npts = min(400, max(80, int((c - a) * 50)))
+        xs = np.linspace(a, c, npts)
+        ys = _eval_on_grid(_lambdify_expr(expr), xs)
+        y_local_min = float(np.nanmin(ys))
+        y_local_max = float(np.nanmax(ys))
         y_min_global = y_local_min if y_min_global is None else min(y_min_global, y_local_min)
         y_max_global = y_local_max if y_max_global is None else max(y_max_global, y_local_max)
-
-        lab_s = _etiqueta_curva(ys, indice=k if len(bandas) > 1 else None)
-        lab_i = _etiqueta_curva(yi, indice=k if len(bandas) > 1 else None)
         fig.add_trace(
             go.Scatter(
                 x=xs,
-                y=sup,
+                y=ys,
                 mode="lines",
-                name=lab_s,
-                line=dict(width=2, color="#1f77b4"),
-                legendgroup=f"g{k}s",
+                name=_etiqueta_curva(expr),
+                line=dict(width=2, color=colores[i % len(colores)]),
             )
         )
-        fig.add_trace(
-            go.Scatter(
-                x=xs,
-                y=infy,
-                mode="lines",
-                name=lab_i,
-                line=dict(width=2, color="#d62728"),
-                legendgroup=f"g{k}i",
-            )
-        )
+    for b in validas:
+        x0, x1 = float(b["x_min"]), float(b["x_max"])
+        npts = min(400, max(60, int((x1 - x0) * 50)))
+        xs = np.linspace(x0, x1, npts)
+        sup = _eval_on_grid(_lambdify_expr(str(b["y_superior"])), xs)
+        infy = _eval_on_grid(_lambdify_expr(str(b["y_inferior"])), xs)
         x_poly = np.concatenate([xs, xs[::-1]])
         y_poly = np.concatenate([sup, infy[::-1]])
         fig.add_trace(
@@ -1475,6 +1472,28 @@ def _texto_es_excedentes(texto: Optional[str]) -> bool:
     return "oferta" in t and "demanda" in t
 
 
+def _texto_grafico_plano(texto: str) -> str:
+    """Deja el enunciado en una línea, sin \\text ni \\quad pegados a las expresiones."""
+    s = str(texto or "").replace("\\\\", "\\")
+
+    def _conservar_interior(m: re.Match[str]) -> str:
+        return " " + m.group(1) + " "
+
+    s = re.sub(r"\\mathrm\{d\}", "d", s)
+    s = re.sub(
+        r"\\(?:text|mathrm|mathbf|textbf|textit)\{([^{}]*)\}",
+        _conservar_interior,
+        s,
+    )
+    s = re.sub(r"\\(?:quad|qquad)\b", " ", s)
+    s = re.sub(r"\\[,;:!]", " ", s)
+    s = re.sub(r"\\(?:left|right)\b", "", s)
+    s = s.replace("$", " ")
+    s = s.replace("−", "-").replace("–", "-").replace("—", "-")
+    s = re.sub(r"[ \t]+", " ", s)
+    return s
+
+
 def _texto_es_areas(texto: Optional[str]) -> bool:
     if not texto:
         return False
@@ -1482,7 +1501,8 @@ def _texto_es_areas(texto: Optional[str]) -> bool:
         return False
     if _texto_es_integrales_dobles(texto) and _extraer_z_desde_texto(texto):
         return False
-    t = _texto_sin_tildes(texto)
+    plano = _texto_grafico_plano(texto)
+    t = _texto_sin_tildes(plano)
     sc = re.sub(r"\s+", "", t)
     claves = (
         "areaentre",
@@ -1507,10 +1527,16 @@ def _texto_es_areas(texto: Optional[str]) -> bool:
         return True
     if re.search(r"y\s*=\s*[^=]+y\s*=", t):
         return True
+    if "intersecc" in t and ("\\int" in plano or "∫" in plano or "integral" in t):
+        return True
+    if _extraer_par_desde_integrales(plano) and (
+        "area" in t or re.search(r"\|.+\|", plano)
+    ):
+        return True
     return bool(
         re.search(r"f\s*\(\s*x\s*\)\s*=", t)
         and re.search(r"g\s*\(\s*x\s*\)\s*=", t)
-        and "area" in t
+        and ("area" in t or "integral" in t or "\\int" in plano or "∫" in plano)
     )
 
 
@@ -1556,7 +1582,7 @@ def _prefijo_region_curvas_y() -> str:
 
 
 def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
-    region = _fragmento_region_antes_giro(texto).replace("$", "")
+    region = _fragmento_region_antes_giro(_texto_grafico_plano(texto))
     pref = _prefijo_region_curvas_y()
 
     patrones = (
@@ -1571,8 +1597,9 @@ def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
         if m:
             e1 = _limpiar_expr_raw(_trim_chunk_curva_y(m.group(1)))
             e2 = _limpiar_expr_raw(_trim_chunk_curva_y(m.group(2)))
-            if e1 and e2:
-                return _expr_generica_a_sympy(e1), _expr_generica_a_sympy(e2)
+            par = _par_si_evalua(e1, e2)
+            if par:
+                return par
 
     matches = list(re.finditer(r"\by\s*=\s*", region, re.I))
     if len(matches) >= 2:
@@ -1584,7 +1611,9 @@ def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
             if raw:
                 exprs.append(raw)
         if len(exprs) >= 2:
-            return _expr_generica_a_sympy(exprs[0]), _expr_generica_a_sympy(exprs[1])
+            par = _par_si_evalua(exprs[0], exprs[1])
+            if par:
+                return par
 
     fx_matches = list(re.finditer(r"f\s*\(\s*x\s*\)\s*=\s*", region, re.I))
     exprs = []
@@ -1595,11 +1624,13 @@ def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
         if raw:
             exprs.append(raw)
     if len(exprs) >= 2:
-        return _expr_generica_a_sympy(exprs[0]), _expr_generica_a_sympy(exprs[1])
+        par = _par_si_evalua(exprs[0], exprs[1])
+        if par:
+            return par
 
     m = re.search(
         r"f\s*\(\s*x\s*\)\s*=\s*(.+?)\s*(?:,|\by\b)\s*g\s*\(\s*x\s*\)\s*=\s*(.+?)"
-        r"(?=\s*(?:en\b|cuando|gir|\.|;|$))",
+        r"(?=\s*(?:en\b|cuando|gir|\.|;|,|$))",
         region,
         re.I,
     )
@@ -1607,7 +1638,7 @@ def _extraer_dos_curvas_y(texto: str) -> Optional[tuple[str, str]]:
         e1 = _limpiar_expr_raw(_trim_chunk_curva_y(m.group(1)))
         e2 = _limpiar_expr_raw(_trim_chunk_curva_y(m.group(2)))
         if e1 and e2:
-            return _expr_generica_a_sympy(e1), _expr_generica_a_sympy(e2)
+            return _par_si_evalua(e1, e2)
     return None
 
 
@@ -1616,7 +1647,7 @@ def _intervalo_no_acotado(texto: str) -> bool:
 
 
 def _extraer_intervalo_x(texto: str) -> Optional[tuple[float, float]]:
-    t = re.sub(r"\\left|\\right", "", texto or "")
+    t = _texto_grafico_plano(texto or "")
     m = re.search(
         r"[\[(]\s*([-\d.]+)\s*,\s*(?:\\infty|∞|infinito)\s*[\])]",
         t,
@@ -1732,6 +1763,290 @@ def _extraer_intervalo_prob(texto: str) -> Optional[tuple[float, float]]:
     return None
 
 
+def _sin_delimitador_externo(s: str, abre: str, cierra: str) -> str:
+    t = s.strip()
+    if len(t) < 2 or not t.startswith(abre) or not t.endswith(cierra):
+        return t
+    depth = 0
+    for i, ch in enumerate(t):
+        if ch == abre:
+            depth += 1
+        elif ch == cierra:
+            depth -= 1
+            if depth == 0 and i < len(t) - 1:
+                return t
+    return t[1:-1].strip()
+
+
+def _minuses_binarios(s: str) -> List[int]:
+    depth = 0
+    idxs: List[int] = []
+    for i, ch in enumerate(s):
+        if ch in "({[":
+            depth += 1
+        elif ch in ")}]":
+            depth = max(0, depth - 1)
+        elif ch == "-" and depth == 0:
+            j = i - 1
+            while j >= 0 and s[j].isspace():
+                j -= 1
+            if j >= 0 and s[j] not in "+-*/(^=":
+                idxs.append(i)
+    return idxs
+
+
+def _tiene_variable(s: str) -> bool:
+    return bool(re.search(r"[xX]|\\sqrt|\\frac|\^|\*\*", s))
+
+
+def _par_si_evalua(a: str, b: str) -> Optional[tuple[str, str]]:
+    try:
+        ea = _expr_generica_a_sympy(a)
+        eb = _expr_generica_a_sympy(b)
+        local = {
+            "exp": sp.exp,
+            "sqrt": sp.sqrt,
+            "pi": sp.pi,
+            "E": sp.E,
+            "log": sp.log,
+            "sin": sp.sin,
+            "cos": sp.cos,
+            "tan": sp.tan,
+        }
+        e1 = sp.sympify(ea, locals=local)
+        e2 = sp.sympify(eb, locals=local)
+        if not (e1.free_symbols <= {_x} and e2.free_symbols <= {_x}):
+            return None
+        if sp.simplify(e1 - e2) == 0:
+            return None
+        _eval_on_grid(_lambdify_expr(ea), np.array([0.0, 1.0]))
+        _eval_on_grid(_lambdify_expr(eb), np.array([0.0, 1.0]))
+        return ea, eb
+    except Exception:
+        return None
+
+
+def _par_desde_polinomio(raw: str) -> Optional[tuple[str, str]]:
+    """Separa (recta) − (parábola) cuando el integrando ya viene sumado, como 4-x-x^2."""
+    try:
+        local = {"exp": sp.exp, "sqrt": sp.sqrt, "pi": sp.pi, "E": sp.E, "log": sp.log}
+        base = sp.expand(sp.sympify(_expr_generica_a_sympy(raw), locals=local))
+    except Exception:
+        return None
+    if base.func == sp.Abs:
+        base = sp.expand(base.args[0])
+
+    def _partir(expr):
+        pol = sp.Poly(sp.expand(expr), _x)
+        bajo = sp.Integer(0)
+        alto = sp.Integer(0)
+        for monom, coeff in zip(pol.monoms(), pol.coeffs()):
+            grado = monom[0]
+            termino = coeff * _x**grado
+            if grado <= 1:
+                bajo += termino
+            else:
+                alto += termino
+        if bajo == 0 or alto == 0:
+            return None
+        return sp.simplify(bajo), sp.simplify(-alto)
+
+    try:
+        partes = _partir(base)
+        if not partes:
+            return None
+        f, g = partes
+        lc = sp.LC(sp.Poly(sp.expand(g), _x))
+        if getattr(lc, "is_real", False) and float(lc) < 0:
+            alternativas = _partir(-base)
+            if alternativas:
+                f, g = alternativas
+        return _par_si_evalua(str(f), str(g))
+    except Exception:
+        return None
+
+
+def _listar_integrandos(texto: str) -> List[str]:
+    t = _texto_grafico_plano(texto)
+    encontrados: List[str] = []
+    patron = re.compile(
+        r"(?:\\int|∫)\s*"
+        r"(?:_\{[^{}]*\}|_[+-]?\d+(?:\.\d+)?)?\s*"
+        r"(?:\^\{[^{}]*\}|\^[+-]?\d+(?:\.\d+)?)?\s*"
+        r"(.+?)\s*d\s*x\b",
+        re.I,
+    )
+    for m in patron.finditer(t):
+        cuerpo = m.group(1).strip().lstrip("+").strip()
+        cuerpo = _sin_delimitador_externo(cuerpo, "(", ")")
+        if cuerpo.startswith("|") and cuerpo.endswith("|"):
+            pass
+        if cuerpo:
+            encontrados.append(cuerpo)
+    return encontrados
+
+
+def _extraer_par_desde_integrales(texto: str) -> Optional[tuple[str, str]]:
+    """Recupera las dos curvas cuando el paso solo muestra la integral partida o un valor absoluto."""
+    cuerpos = _listar_integrandos(texto)
+    if not cuerpos:
+        return None
+    for cuerpo in cuerpos:
+        interior = cuerpo.strip()
+        es_abs = interior.startswith("|") and interior.endswith("|") and len(interior) > 2
+        if es_abs:
+            interior = interior[1:-1].strip()
+        cortes = _minuses_binarios(interior)
+        if len(cortes) == 1:
+            i = cortes[0]
+            izq, der = interior[:i].strip(), interior[i + 1 :].strip()
+            if _tiene_variable(izq) and _tiene_variable(der):
+                par = _par_si_evalua(izq, der)
+                if par:
+                    return par
+        if es_abs:
+            par = _par_desde_polinomio(interior)
+            if par:
+                return par
+
+    locales = {"exp": sp.exp, "sqrt": sp.sqrt, "pi": sp.pi, "E": sp.E, "log": sp.log}
+    exprs = []
+    for cuerpo in cuerpos:
+        limpio = cuerpo[1:-1].strip() if cuerpo.startswith("|") and cuerpo.endswith("|") else cuerpo
+        try:
+            exprs.append(sp.expand(sp.sympify(_expr_generica_a_sympy(limpio), locals=locales)))
+        except Exception:
+            exprs.append(None)
+    for i in range(len(exprs)):
+        for j in range(i + 1, len(exprs)):
+            if exprs[i] is None or exprs[j] is None:
+                continue
+            try:
+                if sp.simplify(exprs[i] + exprs[j]) == 0:
+                    par = _par_desde_polinomio(cuerpos[i].strip("|"))
+                    if par:
+                        return par
+            except Exception:
+                continue
+    return None
+
+
+def _extraer_par_entre_sin_igual(texto: str) -> Optional[tuple[str, str]]:
+    """Área entre x^2 y 4-x, sin escribir y =."""
+    t = _texto_grafico_plano(texto)
+    m = re.search(
+        r"\bentre\s+(?:las\s+|los\s+)?(?:curvas|funciones|graficas|gráficas)?\s*"
+        r"(.+?)\s+y\s+(.+?)"
+        r"(?=\s*(?:en\b|sobre|para|desde|cuando|del\b|de\s+la|\.|,|;|$))",
+        t,
+        re.I,
+    )
+    if not m:
+        return None
+
+    def _limpiar_lado(lado: str) -> str:
+        s = _limpiar_expr_raw(_trim_chunk_curva_y(lado))
+        s = re.sub(
+            r"^(?:y|f\s*\(\s*x\s*\)|g\s*\(\s*x\s*\))\s*=\s*",
+            "",
+            s,
+            flags=re.I,
+        )
+        return s.strip()
+
+    e1, e2 = _limpiar_lado(m.group(1)), _limpiar_lado(m.group(2))
+    if not e1 or not e2:
+        return None
+    if re.fullmatch(r"-?\d+(?:\.\d+)?", e1) and re.fullmatch(r"-?\d+(?:\.\d+)?", e2):
+        return None
+    if not (_tiene_variable(e1) and _tiene_variable(e2)):
+        return None
+    return _par_si_evalua(e1, e2)
+
+
+def _limites_numericos_integrales(texto: str) -> Optional[tuple[float, float]]:
+    t = _texto_grafico_plano(texto)
+    nums: List[float] = []
+    for m in re.finditer(
+        r"(?:\\int|∫)\s*_\{([^{}]*)\}\s*\^\{([^{}]*)\}",
+        t,
+    ):
+        for grupo in (m.group(1), m.group(2)):
+            try:
+                nums.append(float(grupo.strip()))
+            except ValueError:
+                continue
+    for m in re.finditer(
+        r"(?:\\int|∫)\s*_([+-]?\d+(?:\.\d+)?)\s*\^([+-]?\d+(?:\.\d+)?)",
+        t,
+    ):
+        nums.append(float(m.group(1)))
+        nums.append(float(m.group(2)))
+    if len(nums) < 2:
+        return None
+    return min(nums), max(nums)
+
+
+def _raices_reales_entre(y_a: str, y_b: str, a: float, b: float) -> List[float]:
+    try:
+        local = {
+            "exp": sp.exp,
+            "sqrt": sp.sqrt,
+            "pi": sp.pi,
+            "E": sp.E,
+            "log": sp.log,
+            "sin": sp.sin,
+            "cos": sp.cos,
+            "tan": sp.tan,
+        }
+        e1 = sp.sympify(y_a.replace("^", "**"), locals=local)
+        e2 = sp.sympify(y_b.replace("^", "**"), locals=local)
+        sols = sp.solve(sp.Eq(e1, e2), _x)
+        if not sols:
+            sols = sp.solve(e1 - e2, _x)
+        out: List[float] = []
+        for sol in sols:
+            valor = complex(sol.evalf())
+            if abs(valor.imag) > 1e-7:
+                continue
+            x0 = float(valor.real)
+            if a + 1e-7 < x0 < b - 1e-7 and not any(abs(x0 - u) < 1e-6 for u in out):
+                out.append(x0)
+        return sorted(out)
+    except Exception:
+        return []
+
+
+def _bandas_cruce(c1: str, c2: str, x0: float, x1: float) -> Optional[List[Dict[str, Any]]]:
+    raices = _raices_reales_entre(c1, c2, x0, x1)
+    if not raices:
+        return None
+    try:
+        f1 = _lambdify_expr(c1)
+        f2 = _lambdify_expr(c2)
+    except Exception:
+        return None
+    cortes = [x0, *raices, x1]
+    bandas: List[Dict[str, Any]] = []
+    for izq, der in zip(cortes, cortes[1:]):
+        if der - izq < 1e-8:
+            continue
+        medio = (izq + der) / 2.0
+        if float(f1(medio)) >= float(f2(medio)):
+            sup, inf = c1, c2
+        else:
+            sup, inf = c2, c1
+        bandas.append(
+            {
+                "y_superior": sup,
+                "y_inferior": inf,
+                "x_min": float(izq),
+                "x_max": float(der),
+            }
+        )
+    return bandas if len(bandas) > 1 else None
+
+
 def _spec_area_entre_curvas(
     c1: str,
     c2: str,
@@ -1740,10 +2055,7 @@ def _spec_area_entre_curvas(
     z_expr: Optional[str] = None,
     titulo: str = "",
 ) -> Optional[Dict[str, Any]]:
-    try:
-        _lambdify_expr(c1)
-        _lambdify_expr(c2)
-    except Exception:
+    if not _par_si_evalua(c1, c2):
         return None
     ventana_automatica = False
     x_r = intervalo or _interseccion_x_curvas(c1, c2)
@@ -1775,6 +2087,9 @@ def _spec_area_entre_curvas(
         "ventana_automatica": ventana_automatica,
         "titulo": titulo or f"Área entre {_etiqueta_curva(sup)} y {_etiqueta_curva(inf)}",
     }
+    bandas = _bandas_cruce(c1, c2, float(x0), float(x1))
+    if bandas:
+        spec["bandas"] = bandas
     if z_expr:
         spec["z"] = z_expr
         spec["titulo_3d"] = (
@@ -1792,8 +2107,13 @@ def inferir_grafico_areas(
     if not texto or not (forzar or _texto_es_areas(texto)):
         return None
 
-    par = _extraer_dos_curvas_y(texto)
-    intervalo = _extraer_intervalo_x(texto)
+    plano = _texto_grafico_plano(texto)
+    intervalo = _extraer_intervalo_x(plano) or _limites_numericos_integrales(plano)
+    par = (
+        _extraer_dos_curvas_y(plano)
+        or _extraer_par_entre_sin_igual(plano)
+        or _extraer_par_desde_integrales(plano)
+    )
 
     if par:
         spec = _spec_area_entre_curvas(par[0], par[1], intervalo=intervalo)
@@ -2217,8 +2537,13 @@ def _caption_tutor_abierto(spec: Dict[str, Any]) -> str:
         inf = _etiqueta_curva(str(spec.get("y_inferior", "")))
         texto = (
             f"Funciones del enunciado: **{sup}** y **{inf}**. "
-            "La región sombreada es el área entre ellas."
+            "La región sombreada es el área calculada entre ellas."
         )
+        if not spec.get("ventana_automatica") and not spec.get("intervalo_no_acotado"):
+            texto += (
+                f" El sombreado cubre el intervalo "
+                f"[{float(spec.get('x_min', 0)):g}, {float(spec.get('x_max', 0)):g}]."
+            )
         if spec.get("intervalo_no_acotado"):
             texto += " El intervalo no es acotado; se dibuja un tramo finito de esas mismas funciones."
         elif spec.get("ventana_automatica"):
