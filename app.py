@@ -157,6 +157,148 @@ def _parece_formula(contenido: str) -> bool:
     return False
 
 
+_PROSA_CORTA = frozenset({
+    "el", "la", "los", "las", "un", "una", "unos", "unas",
+    "de", "del", "al", "en", "y", "o", "u", "a", "e",
+    "lo", "se", "su", "es", "si", "no", "ya", "que", "por",
+    "con", "para", "como", "mas", "sus", "les", "le",
+    "te", "tu", "mi", "ha", "he", "son", "ser", "hay",
+    "este", "esta", "ese", "esa", "esto", "eso",
+})
+_TOKENS_MATEMATICOS = frozenset({
+    "sin", "cos", "tan", "sec", "csc", "cot", "sen",
+    "ln", "log", "exp", "max", "min", "sup", "inf",
+    "dx", "dy", "dt", "dz", "du", "dv", "ds", "dr",
+})
+
+
+def _sin_tildes_latex(token: str) -> str:
+    return "".join(
+        ch
+        for ch in unicodedata.normalize("NFD", token.lower())
+        if unicodedata.category(ch) != "Mn"
+    )
+
+
+def _palabra_es_prosa(palabra: str, antes: str, despues: str) -> bool:
+    """True si el token es español y no debe entrar en un bloque de KaTeX."""
+    if antes.endswith("\\"):
+        return False
+    base = _sin_tildes_latex(palabra)
+    if base in _TOKENS_MATEMATICOS:
+        return False
+    if not re.fullmatch(r"[a-z]+", base):
+        return False
+    if len(base) >= 3:
+        return True
+    if base not in _PROSA_CORTA:
+        return False
+    izq = antes.rstrip()
+    der = despues.lstrip()
+    if der and der[0] in "=^_+-*/(":
+        return False
+    if izq and izq[-1] in "=^_+-*/(\\":
+        return False
+    return True
+
+
+def _tiene_prosa_natural(texto: str) -> bool:
+    partes = re.split(r"([A-Za-zÁÉÍÓÚáéíóúÑñ]+)", texto)
+    for i, parte in enumerate(partes):
+        if i % 2 == 0:
+            continue
+        antes = partes[i - 1] if i else ""
+        despues = partes[i + 1] if i + 1 < len(partes) else ""
+        if _palabra_es_prosa(parte, antes, despues):
+            return True
+    return False
+
+
+def _tiene_marca_matematica(texto: str) -> bool:
+    return bool(re.search(r"\\[A-Za-z]+|[_^]", texto))
+
+
+def _sep_es_bloque_matematico(texto: str) -> bool:
+    return bool(re.search(r"[\\^_0-9\[\]{}]", texto))
+
+
+def _recortar_bordes_texto(chunk: str) -> tuple[str, str, str]:
+    izquierda = re.match(r"^[\s:.;,]+", chunk)
+    left = izquierda.group(0) if izquierda else ""
+    resto = chunk[len(left):]
+    derecha = re.search(r"[\s:.;,]+$", resto)
+    if derecha and derecha.start() > 0:
+        return left, resto[: derecha.start()], derecha.group(0)
+    return left, resto, ""
+
+
+def _fragmentar_latex_mixto(texto: str) -> str:
+    """
+    Envuelve solo las fórmulas de un párrafo en español.
+    Evita mandar a KaTeX palabras como «intersección» o «dividir».
+    """
+    partes = re.split(r"([A-Za-zÁÉÍÓÚáéíóúÑñ]+)", texto)
+    atomos: List[tuple[str, str]] = []
+    for i, parte in enumerate(partes):
+        if not parte:
+            continue
+        if i % 2 == 0:
+            atomos.append(("sep", parte))
+            continue
+        antes = partes[i - 1] if i else ""
+        despues = partes[i + 1] if i + 1 < len(partes) else ""
+        if _palabra_es_prosa(parte, antes, despues):
+            atomos.append(("prosa", parte))
+        else:
+            atomos.append(("math", parte))
+
+    def _rol_siguiente(desde: int) -> Optional[str]:
+        for rol, _txt in atomos[desde + 1 :]:
+            if rol != "sep":
+                return rol
+        return None
+
+    salida: List[str] = []
+    bloque: List[str] = []
+
+    def _volcar() -> None:
+        if not bloque:
+            return
+        chunk = "".join(bloque)
+        bloque.clear()
+        left, mid, right = _recortar_bordes_texto(chunk)
+        if left:
+            salida.append(left)
+        if mid.strip():
+            salida.append(f"${mid.strip()}$")
+        if right:
+            salida.append(right)
+
+    for idx, (rol, txt) in enumerate(atomos):
+        if rol == "prosa":
+            _volcar()
+            salida.append(txt)
+            continue
+        if rol == "math":
+            bloque.append(txt)
+            continue
+        siguiente = _rol_siguiente(idx)
+        if bloque:
+            if siguiente == "math" or _sep_es_bloque_matematico(txt):
+                bloque.append(txt)
+            else:
+                _volcar()
+                salida.append(txt)
+        elif _sep_es_bloque_matematico(txt):
+            bloque.append(txt)
+            if siguiente != "math":
+                _volcar()
+        else:
+            salida.append(txt)
+    _volcar()
+    return "".join(salida)
+
+
 def preparar_latex_para_streamlit(texto: Optional[str]) -> str:
     if not texto:
         return ""
@@ -166,6 +308,10 @@ def preparar_latex_para_streamlit(texto: Optional[str]) -> str:
 
     # 2. Unificación: Si hay fragmentos pegados tipo "$ \int $ $ x $", los une en "$ \int x $"
     t = re.sub(r'\$\s*\$', ' ', t)
+
+    # Texto en español con fórmulas sueltas: no envolver el párrafo entero.
+    if "$" not in t and _tiene_marca_matematica(t) and _tiene_prosa_natural(t):
+        return _fragmentar_latex_mixto(t)
 
     # 3. PROTECCIÓN: Si el texto ya tiene bloques delimitados, no los tocamos.
     # Pero si detectamos comandos LaTeX fuera de $, envolvemos la frase matemática completa.
@@ -444,7 +590,7 @@ def mostrar_como_formula_si_corresponde(texto: Optional[str]) -> str:
     s = t.strip()
     if not s:
         return t
-    if s.startswith(("$", "$$")):
+    if "$" in s:
         return t
     if "\\int" in s or "\\sqrt" in s or "\\frac" in s:
         return "$$" + s + "$$"
@@ -655,14 +801,7 @@ def _render_enunciado_identificado(texto: Optional[str]) -> None:
     raw = str(texto or "").strip()
     if not raw:
         return
-
-    # Si es texto predominantemente natural (3+ palabras), evitamos forzarlo como bloque LaTeX.
-    palabras = re.findall(r"[A-Za-zÁÉÍÓÚáéíóúÑñ]{3,}", raw)
-    if len(palabras) >= 3:
-        st.markdown(preparar_latex_para_streamlit(raw.replace("$", "")))
-        return
-
-    _render_texto_con_latex(mostrar_como_formula_si_corresponde(raw))
+    _render_texto_con_latex(raw)
 
 
 def clasificar_tema_desde_texto(texto_usuario: str) -> Optional[str]:
