@@ -6,7 +6,7 @@ from modules.temario import LISTA_TEMAS
 from modules import uso_stats, imagen_carga
 
 # Nombre de la aplicación (pestaña del navegador, títulos principales)
-APP_DISPLAY_NAME = "Matemáticas III - Economía UCAB - Periodo Intensivo Agosto 2026 - Versión del tutor 7.0"
+APP_DISPLAY_NAME = "Matemáticas III - Economía UCAB - 202715 - Versión del tutor 7.1"
 
 # Infografía de bienvenida (relativa a la raíz del proyecto, junto a app.py)
 _ASSETS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "assets"))
