@@ -54,6 +54,16 @@ def _normalizar_id_modelo(nombre: str) -> str:
     return (nombre or "").strip().split("/")[-1]
 
 
+def normalizar_id_modelo(nombre: str) -> str:
+    """API pública: id corto del modelo (sin prefijo `models/`)."""
+    return _normalizar_id_modelo(nombre)
+
+
+def num_modelos_fallback() -> int:
+    """Cuántos ids hay en la cadena de fallback configurada."""
+    return len(_CADENA_FALLBACK)
+
+
 def _es_modelo_retirado(nombre: str) -> bool:
     short = _normalizar_id_modelo(nombre).lower()
     if short in _MODELOS_RETIRADOS:
@@ -75,6 +85,84 @@ def es_error_modelo_no_disponible(exc: BaseException) -> bool:
         "does not exist",
     )
     return any(m in msg for m in marcadores)
+
+
+def es_error_creditos_o_facturacion(exc: BaseException) -> bool:
+    """
+    True si el fallo es de créditos/facturación (p. ej. 402 prepayment depleted),
+    no un simple límite temporal de tasa.
+    """
+    msg = str(exc).lower()
+    marcadores = (
+        "prepayment credits are depleted",
+        "credits are depleted",
+        "credit(s) depleted",
+        "billing",
+        "ai.studio/projects",
+        "ai.google.dev/gemini-api/docs/billing",
+        '"code": 402',
+        "'code': 402",
+        "code': 402",
+        " 402 ",
+        "402 resource_exhausted",
+        "payment required",
+        "insufficient credits",
+        "exhausted your",
+    )
+    if any(m in msg for m in marcadores):
+        return True
+    # 402 al inicio del mensaje o como código HTTP explícito.
+    if msg.strip().startswith("402") or " error code: 402" in msg:
+        return True
+    return False
+
+
+def es_error_cuota_o_agotamiento(exc: BaseException) -> bool:
+    """
+    True ante 402/429/RESOURCE_EXHAUSTED u otros agotamientos de cuota.
+    Incluye facturación y rate-limit; usar con fallback entre modelos.
+    """
+    if es_error_creditos_o_facturacion(exc):
+        return True
+    msg = str(exc).lower()
+    marcadores = (
+        "resource_exhausted",
+        "quota",
+        "rate limit",
+        "rate_limit",
+        "too many requests",
+        "429",
+    )
+    return any(m in msg for m in marcadores)
+
+
+def mensaje_error_api_gemini(exc: BaseException, modelo: str) -> str:
+    """Mensaje en español distinguible según tipo de fallo de la API."""
+    modelo_txt = modelo or "desconocido"
+    if es_error_creditos_o_facturacion(exc):
+        return (
+            f"💳 **Créditos de Gemini agotados** (modelo: `{modelo_txt}`).\n\n"
+            "La API respondió que los **créditos prepago del proyecto se agotaron** "
+            "(error 402 / RESOURCE_EXHAUSTED). Esto no es un fallo de conexión ni un "
+            "modelo retirado: hay que **recargar o revisar la facturación** en "
+            "[Google AI Studio](https://ai.studio/projects) "
+            "([ayuda de billing](https://ai.google.dev/gemini-api/docs/billing#prepay)).\n\n"
+            f"Detalle técnico: `{exc}`"
+        )
+    if es_error_modelo_no_disponible(exc):
+        return (
+            f"❌ **Modelo no disponible** (`{modelo_txt}`).\n\n"
+            "Actualiza `GEMINI_MODEL` en Secrets o deja el default del código. "
+            f"Detalle: `{exc}`"
+        )
+    if es_error_cuota_o_agotamiento(exc):
+        return (
+            f"🚦 **Cuota o límite de uso de Gemini** (modelo: `{modelo_txt}`).\n\n"
+            "La API indicó agotamiento de cuota o demasiadas solicitudes. "
+            "Espera un momento o prueba otro modelo de la cadena de fallback. "
+            f"Detalle: `{exc}`"
+        )
+    return f"❌ **Error de conexión** (`{modelo_txt}`): `{exc}`"
 
 
 def _obtener_api_key() -> Optional[str]:
@@ -241,9 +329,10 @@ class _GeneradorGeminiCompat:
         )
 
 
-def _siguientes_fallbacks(actual: str) -> list[str]:
+def _siguientes_fallbacks(actual: str, excluidos: Optional[set[str]] = None) -> list[str]:
     actual_n = _normalizar_id_modelo(actual)
-    vistos = {actual_n}
+    vistos = {_normalizar_id_modelo(x) for x in (excluidos or set())}
+    vistos.add(actual_n)
     out: list[str] = []
     for cand in _CADENA_FALLBACK:
         if cand not in vistos and not _es_modelo_retirado(cand):
@@ -252,23 +341,31 @@ def _siguientes_fallbacks(actual: str) -> list[str]:
     return out
 
 
-def intentar_fallback_modelo(model: Any, client: Optional[genai.Client] = None) -> Optional[str]:
+def intentar_fallback_modelo(
+    model: Any,
+    client: Optional[genai.Client] = None,
+    excluidos: Optional[set[str]] = None,
+) -> Optional[str]:
     """
     Cambia el wrapper al siguiente modelo de la cadena (o al descubierto vía list).
+    `excluidos` evita reintentar modelos que ya fallaron en esta petición.
     Devuelve el nuevo id o None si no hay alternativa.
     """
     if model is None or not hasattr(model, "cambiar_modelo"):
         return None
     actual = getattr(model, "model_name", "") or ""
-    for cand in _siguientes_fallbacks(actual):
+    ya = {_normalizar_id_modelo(x) for x in (excluidos or set())}
+    ya.add(_normalizar_id_modelo(actual))
+    for cand in _siguientes_fallbacks(actual, ya):
         model.cambiar_modelo(cand)
         return cand
     cli = client or getattr(model, "_client", None)
     if cli is not None:
         descubierto = obtener_modelo_robusto(cli)
-        if descubierto and descubierto != _normalizar_id_modelo(actual):
-            model.cambiar_modelo(descubierto)
-            return descubierto
+        short = _normalizar_id_modelo(descubierto) if descubierto else ""
+        if short and short not in ya and not _es_modelo_retirado(short):
+            model.cambiar_modelo(short)
+            return short
     return None
 
 
