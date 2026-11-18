@@ -86,7 +86,8 @@ def generar_contenido_seguro(
     """
     Intenta llamar a la IA con texto o imágenes.
     Soporta lista de partes (prompt + imagen) o solo texto.
-    Si el model id fue retirado (404), intenta un fallback una vez.
+    Si el model id fue retirado (404) o hay 402/cuota/RESOURCE_EXHAUSTED,
+    recorre la cadena de fallback de modelos configurados.
     """
     global nombre_modelo
     if intentos_max is None:
@@ -94,8 +95,13 @@ def generar_contenido_seguro(
     texto_pregunta = registro_interacciones.serializar_pregunta(prompt_parts)
     modelo_log = nombre_modelo or ""
     errores_recientes = ""
-    ya_hizo_fallback = False
-    for i in range(intentos_max):
+    ultimo_exc: Optional[BaseException] = None
+    modelos_probados: set[str] = set()
+    if modelo_log:
+        modelos_probados.add(ia_core.normalizar_id_modelo(modelo_log))
+    # Más intentos si hay varios modelos en la cadena de fallback.
+    intentos_totales = max(intentos_max, ia_core.num_modelos_fallback() + 1)
+    for i in range(intentos_totales):
         try:
             response = model.generate_content(prompt_parts)
             texto_respuesta = registro_interacciones.extraer_texto_respuesta(response)
@@ -105,34 +111,45 @@ def generar_contenido_seguro(
             return response
         except Exception as e:
             errores_recientes = str(e)
-            if ia_core.es_error_modelo_no_disponible(e) and not ya_hizo_fallback:
-                nuevo = ia_core.intentar_fallback_modelo(model)
-                ya_hizo_fallback = True
+            ultimo_exc = e
+            merece_fallback = (
+                ia_core.es_error_modelo_no_disponible(e)
+                or ia_core.es_error_cuota_o_agotamiento(e)
+            )
+            if merece_fallback:
+                nuevo = ia_core.intentar_fallback_modelo(
+                    model, excluidos=modelos_probados
+                )
                 if nuevo:
+                    modelos_probados.add(ia_core.normalizar_id_modelo(nuevo))
                     nombre_modelo = nuevo
                     modelo_log = nuevo
+                    if ia_core.es_error_creditos_o_facturacion(e):
+                        motivo = "créditos/facturación"
+                    elif ia_core.es_error_modelo_no_disponible(e):
+                        motivo = "modelo no disponible"
+                    else:
+                        motivo = "cuota o límite de uso"
                     st.warning(
-                        f"El modelo anterior ya no está disponible. "
+                        f"El modelo anterior falló ({motivo}). "
                         f"Reintentando con `{nuevo}`…"
                     )
                     continue
-            if "429" in str(e):
+                # Sin más modelos: si es facturación, no seguir reintentando en vacío.
+                if ia_core.es_error_creditos_o_facturacion(e):
+                    break
+            if "429" in str(e) and not ia_core.es_error_creditos_o_facturacion(e):
                 tiempo_espera = MULTIPLICADOR_ESPERA_429 * (i + 1)
                 st.toast(f"🚦 Tráfico alto. Reintentando en {tiempo_espera}s...", icon="⏳")
                 time.sleep(tiempo_espera)
+            elif ia_core.es_error_creditos_o_facturacion(e):
+                # Reintentos rápidos no recuperan créditos agotados.
+                break
             else:
                 time.sleep(1)
 
-    if ia_core.es_error_modelo_no_disponible(
-        Exception(errores_recientes)
-    ):
-        st.error(
-            f"❌ Modelo no disponible (`{modelo_log}`). "
-            f"Actualiza `GEMINI_MODEL` en Secrets o deja el default del código. "
-            f"Detalle: {errores_recientes}"
-        )
-    else:
-        st.error(f"❌ Error de conexión (`{modelo_log}`): {errores_recientes}")
+    exc_final = ultimo_exc if ultimo_exc is not None else Exception(errores_recientes)
+    st.error(ia_core.mensaje_error_api_gemini(exc_final, modelo_log))
     registro_interacciones.registrar_interaccion(
         texto_pregunta,
         f"(sin respuesta tras reintentos) {errores_recientes}",
@@ -1867,7 +1884,9 @@ elif ruta == "a) Entrenamiento (Temario)":
                         st.error(
                             "No se pudo obtener una respuesta válida del tutor "
                             f"(modelo: `{nombre_modelo or 'desconocido'}`). "
-                            "Puede ser un fallo de conexión, un modelo retirado o JSON incompleto."
+                            "Si arriba aparece un aviso de **créditos agotados**, recarga el "
+                            "proyecto en AI Studio; si no, puede ser conexión, modelo retirado "
+                            "o JSON incompleto."
                         )
                         c1, c2 = st.columns(2)
                         with c1:
