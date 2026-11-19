@@ -28,4 +28,10 @@ $$;
 
 -- La app Streamlit debe usar la clave service_role (solo en servidor / Secrets).
 -- Con esa clave, PostgREST ignora RLS para operaciones del backend.
+-- Con la clave `anon` y RLS sin políticas SELECT, la API puede devolver [] (vacío)
+-- con HTTP 200 — el panel admin se ve vacío sin error evidente.
 ALTER TABLE public.app_module_usage ENABLE ROW LEVEL SECURITY;
+
+GRANT USAGE ON SCHEMA public TO service_role;
+GRANT ALL ON TABLE public.app_module_usage TO service_role;
+GRANT EXECUTE ON FUNCTION public.increment_module_usage(text) TO service_role;

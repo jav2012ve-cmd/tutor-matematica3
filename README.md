@@ -43,7 +43,9 @@ En la nube el disco del contenedor es **efímero**: los contadores en `data/uso_
    SUPABASE_SERVICE_ROLE_KEY = "eyJhbG..."
    ```
 
-   También puedes usar la variable de entorno `SUPABASE_SERVICE_ROLE_KEY` o, por compatibilidad, `SUPABASE_KEY` con el mismo valor de service role.
+   También puedes usar la variable de entorno `SUPABASE_SERVICE_ROLE_KEY` o, por compatibilidad, `SUPABASE_KEY` con el mismo valor de **service role** (no uses la clave `anon`).
+
+**Fallo típico “panel vacío sin error”:** si pones la clave `anon` con RLS activo y sin políticas SELECT, PostgREST responde HTTP 200 con filas `[]`. Las escrituras pueden caer al disco local efímero de Streamlit Cloud y el admin lee Supabase vacío. El panel de Administrador muestra ahora un diagnóstico (host, rol de la clave, lectura OK/FALLÓ).
 
 Si no configuras Supabase, la app sigue funcionando y guardará contadores solo en archivo local (`data/uso_stats.json`). Los detalles de interacción, si no llegan a Supabase, se pueden volcar en `data/usage_events.jsonl` (local). Los conteos por tema van a `data/topic_usage.json` si falla la nube.
 

@@ -2968,11 +2968,64 @@ elif ruta == "f) Administrador (Métricas)":
                         st.rerun()
 
     st.divider()
+    st.subheader("📈 Estadísticas de uso")
+    diag = uso_stats.diagnostico_almacenamiento()
+    if not diag.get("supabase_configurado"):
+        st.error(
+            "Supabase no está configurado (faltan `SUPABASE_URL` y "
+            "`SUPABASE_SERVICE_ROLE_KEY`). En Streamlit Cloud el almacenamiento "
+            "local es efímero: el panel mostrará ceros tras reiniciar aunque "
+            "haya habido uso."
+        )
+        if diag.get("recomendacion"):
+            st.caption(diag["recomendacion"])
+    else:
+        rol = diag.get("clave_rol") or "desconocido"
+        host = diag.get("url_host") or "—"
+        cdiag1, cdiag2, cdiag3 = st.columns(3)
+        with cdiag1:
+            st.caption(f"Supabase: `{host}`")
+        with cdiag2:
+            st.caption(f"Rol de la clave API: `{rol}`")
+        with cdiag3:
+            lect = diag.get("lectura_modulos_ok")
+            st.caption(
+                "Lectura módulos: "
+                + ("OK" if lect else ("FALLÓ" if lect is False else "—"))
+            )
+        if rol == "anon":
+            st.error(
+                "La clave configurada es `anon`. Con RLS activo esto suele producir "
+                "tablas “vacías” en el panel sin un error claro. Cambia el secret a "
+                "`SUPABASE_SERVICE_ROLE_KEY` (service_role)."
+            )
+        elif diag.get("lectura_modulos_ok") is False:
+            st.error(
+                f"No se pudo leer `app_module_usage` desde Supabase. "
+                f"{diag.get('error') or ''}"
+            )
+        elif (
+            (diag.get("total_modulos_remoto") or 0) == 0
+            and (diag.get("eventos_remotos") in (0, None))
+            and (diag.get("total_modulos_local") or 0) == 0
+        ):
+            st.warning(
+                "Backend alcanzable, pero no hay uso persistido aún (contadores y "
+                "eventos en 0). Si ya hubo actividad de estudiantes, revisa grants/RPC "
+                "o prueba en SQL: "
+                "`SELECT public.increment_module_usage('Entrenamiento');`"
+            )
+        if diag.get("recomendacion") and rol != "anon":
+            st.caption(diag["recomendacion"])
+
+    stats = uso_stats.obtener_estadisticas()
+    por_tema = uso_stats.obtener_estadisticas_temas()
+    eventos_hist = uso_stats.obtener_eventos_recientes(limit=2000)
+
     warn = st.session_state.get("_uso_stats_supabase_warn")
     if warn:
         st.warning(warn)
 
-    stats = uso_stats.obtener_estadisticas()
     total_uso = sum(int(stats.get(m, 0) or 0) for m in uso_stats.MODULOS)
     mod_con_uso = sum(1 for m in uso_stats.MODULOS if int(stats.get(m, 0) or 0) > 0)
 
@@ -2982,13 +3035,23 @@ elif ruta == "f) Administrador (Métricas)":
     with c2:
         st.metric("Módulos con uso", f"{mod_con_uso} / {len(uso_stats.MODULOS)}")
     with c3:
-        st.metric("Módulo más usado", max(uso_stats.MODULOS, key=lambda m: int(stats.get(m, 0) or 0)))
+        if total_uso > 0:
+            st.metric(
+                "Módulo más usado",
+                max(uso_stats.MODULOS, key=lambda m: int(stats.get(m, 0) or 0)),
+            )
+        else:
+            st.metric("Módulo más usado", "—")
 
     st.subheader("Cantidad de accesos por cada funcionalidad")
+    if total_uso == 0:
+        st.caption(
+            "Sin datos que graficar (vacío real o fallo de backend; revisa el "
+            "diagnóstico arriba)."
+        )
     st.bar_chart({m: int(stats.get(m, 0) or 0) for m in uso_stats.MODULOS})
 
     st.subheader("Cantidad de ejercicios resueltos por cada tema del pensum")
-    por_tema = uso_stats.obtener_estadisticas_temas()
     top_n = st.slider("Top de temas", min_value=5, max_value=25, value=10, step=1)
     filas_temas = sorted(
         [{"tema": t, "consultas": int(por_tema.get(t, 0) or 0)} for t in temario.LISTA_TEMAS],
@@ -2997,7 +3060,6 @@ elif ruta == "f) Administrador (Métricas)":
     st.dataframe(filas_temas[:top_n], width="stretch", hide_index=True)
 
     st.subheader("Histograma de uso por fechas")
-    eventos_hist = uso_stats.obtener_eventos_recientes(limit=2000)
     fechas_evento = []
     for e in eventos_hist:
         ts = e.get("timestamp")
