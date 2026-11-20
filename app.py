@@ -87,8 +87,10 @@ def generar_contenido_seguro(
     """
     Intenta llamar a la IA con texto o imágenes.
     Soporta lista de partes (prompt + imagen) o solo texto.
-    Si el model id fue retirado (404) o hay 402/cuota/RESOURCE_EXHAUSTED,
+    Si el model id fue retirado (404) o hay cuota/rate-limit (429),
     recorre la cadena de fallback de modelos configurados.
+    Ante créditos/facturación (402 prepago), corta de inmediato: todos los
+    modelos del mismo proyecto comparten la billetera y reintentar no ayuda.
     """
     global nombre_modelo
     if intentos_max is None:
@@ -113,6 +115,10 @@ def generar_contenido_seguro(
         except Exception as e:
             errores_recientes = str(e)
             ultimo_exc = e
+            # Misma billetera prepago para todos los modelos del proyecto:
+            # no cascada de fallback ni sleeps largos.
+            if ia_core.es_error_creditos_o_facturacion(e):
+                break
             merece_fallback = (
                 ia_core.es_error_modelo_no_disponible(e)
                 or ia_core.es_error_cuota_o_agotamiento(e)
@@ -125,9 +131,7 @@ def generar_contenido_seguro(
                     modelos_probados.add(ia_core.normalizar_id_modelo(nuevo))
                     nombre_modelo = nuevo
                     modelo_log = nuevo
-                    if ia_core.es_error_creditos_o_facturacion(e):
-                        motivo = "créditos/facturación"
-                    elif ia_core.es_error_modelo_no_disponible(e):
+                    if ia_core.es_error_modelo_no_disponible(e):
                         motivo = "modelo no disponible"
                     else:
                         motivo = "cuota o límite de uso"
@@ -136,16 +140,10 @@ def generar_contenido_seguro(
                         f"Reintentando con `{nuevo}`…"
                     )
                     continue
-                # Sin más modelos: si es facturación, no seguir reintentando en vacío.
-                if ia_core.es_error_creditos_o_facturacion(e):
-                    break
-            if "429" in str(e) and not ia_core.es_error_creditos_o_facturacion(e):
+            if "429" in str(e):
                 tiempo_espera = MULTIPLICADOR_ESPERA_429 * (i + 1)
                 st.toast(f"🚦 Tráfico alto. Reintentando en {tiempo_espera}s...", icon="⏳")
                 time.sleep(tiempo_espera)
-            elif ia_core.es_error_creditos_o_facturacion(e):
-                # Reintentos rápidos no recuperan créditos agotados.
-                break
             else:
                 time.sleep(1)
 

@@ -120,11 +120,13 @@ def es_error_creditos_o_facturacion(exc: BaseException) -> bool:
 
 def es_error_cuota_o_agotamiento(exc: BaseException) -> bool:
     """
-    True ante 402/429/RESOURCE_EXHAUSTED u otros agotamientos de cuota.
-    Incluye facturación y rate-limit; usar con fallback entre modelos.
+    True ante 429/RESOURCE_EXHAUSTED de tasa o cuota temporal (no facturación).
+
+    Los créditos prepago agotados (402) van en ``es_error_creditos_o_facturacion``
+    y **no** deben disparar fallback entre modelos (misma billetera).
     """
     if es_error_creditos_o_facturacion(exc):
-        return True
+        return False
     msg = str(exc).lower()
     marcadores = (
         "resource_exhausted",
@@ -148,6 +150,11 @@ def mensaje_error_api_gemini(exc: BaseException, modelo: str) -> str:
             "modelo retirado: hay que **recargar o revisar la facturación** en "
             "[Google AI Studio](https://ai.studio/projects) "
             "([ayuda de billing](https://ai.google.dev/gemini-api/docs/billing#prepay)).\n\n"
+            "Probar **otro modelo Gemini** con la misma API key / proyecto **no sirve** "
+            "hasta recargar el saldo: todos comparten la misma billetera prepago.\n\n"
+            "Mientras tanto, **Quiz** y **Entrenamiento** pueden seguir usando el "
+            "banco local de preguntas cuando haya ítems para los temas elegidos; "
+            "las funciones que dependen de la IA quedarán sin respuesta.\n\n"
             f"Detalle técnico: `{exc}`"
         )
     if es_error_modelo_no_disponible(exc):
