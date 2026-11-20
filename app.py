@@ -36,6 +36,7 @@ from modules import (
     graficos_entrenamiento,
     imagen_carga,
     retroalimentacion_ui,
+    features,
 )
 
 # --- CONFIGURACIÓN CENTRALIZADA ---
@@ -2046,19 +2047,28 @@ elif ruta == "a) Entrenamiento (Temario)":
 # =======================================================
 elif ruta == "b) Respuesta Guiada (Consultas)":
     st.markdown("### 🎓 Tutor Personalizado")
-    st.info("Sube tu ejercicio (foto o texto) y te guiaré paso a paso.")
+    _bloque_foto_rg = features.respuesta_guiada_imagen_desactivada()
+    if _bloque_foto_rg:
+        st.info("Escribe el enunciado en texto y te guiaré paso a paso.")
+        st.warning(features.MSG_RESPUESTA_GUIADA_IMAGEN_OFF)
+    else:
+        st.info("Sube tu ejercicio (foto o texto) y te guiaré paso a paso.")
 
     # 1. INPUT (Foto o Texto)
     if st.session_state.consulta_step == 0:
-        col_img, col_txt = st.columns([1, 2])
-        with col_img:
-            imagen_subida = st.file_uploader(
-                "📸 Foto del ejercicio",
-                type=["png", "jpg", "jpeg"],
-                help=imagen_carga.texto_limite_subida(),
-            )
-        with col_txt:
-            texto_subido = st.text_area("✍️ O escribe el enunciado aquí:", height=100)
+        imagen_subida = None
+        if _bloque_foto_rg:
+            texto_subido = st.text_area("✍️ Escribe el enunciado aquí:", height=120)
+        else:
+            col_img, col_txt = st.columns([1, 2])
+            with col_img:
+                imagen_subida = st.file_uploader(
+                    "📸 Foto del ejercicio",
+                    type=["png", "jpg", "jpeg"],
+                    help=imagen_carga.texto_limite_subida(),
+                )
+            with col_txt:
+                texto_subido = st.text_area("✍️ O escribe el enunciado aquí:", height=100)
 
         if imagen_subida:
             _err_img_consulta = imagen_carga.mensaje_si_archivo_muy_grande(imagen_subida)
@@ -2066,8 +2076,14 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
                 st.error(_err_img_consulta)
 
         if st.button("🚀 Resolver Paso a Paso", type="primary", width="stretch"):
-            if not imagen_subida and not texto_subido:
-                st.warning("⚠️ Sube una imagen o escribe el texto para comenzar.")
+            if _bloque_foto_rg and imagen_subida:
+                st.error(features.MSG_RESPUESTA_GUIADA_IMAGEN_OFF)
+            elif not imagen_subida and not texto_subido:
+                st.warning(
+                    "⚠️ Escribe el texto para comenzar."
+                    if _bloque_foto_rg
+                    else "⚠️ Sube una imagen o escribe el texto para comenzar."
+                )
             else:
                 _err_img = (
                     imagen_carga.mensaje_si_archivo_muy_grande(imagen_subida)
@@ -2081,7 +2097,7 @@ elif ruta == "b) Respuesta Guiada (Consultas)":
                     with st.spinner("🤖 Analizando el tipo de problema..."):
                         try:
                             img_pil = None
-                            if imagen_subida:
+                            if imagen_subida and not _bloque_foto_rg:
                                 img_pil = imagen_carga.preparar_imagen_para_ia(imagen_subida)
                             datos_problema = analizar_problema_usuario(
                                 texto_subido or None, img_pil
@@ -2587,6 +2603,9 @@ elif ruta == "c) Autoevaluación (Quiz)":
 # LÓGICA D: TUTOR PREGUNTAS ABIERTAS (NUEVO)
 # =======================================================
 elif ruta == "d) Tutor: Preguntas Abiertas":
+    if features.tutor_abiertas_desactivado():
+        st.warning(features.MSG_TUTOR_ABIERTAS_OFF)
+        st.stop()
     st.markdown("### 💬 Preguntas Abiertas al Tutor")
     with st.form("form_pregunta_abierta", clear_on_submit=True):
         prompt = st.text_input(
@@ -2678,6 +2697,9 @@ elif ruta == "d) Tutor: Preguntas Abiertas":
 # LÓGICA E: CORRECCIÓN DE MANUSCRITOS
 # =======================================================
 elif ruta == "e) Corrección de Manuscritos":
+    if features.manuscritos_desactivado():
+        st.warning(features.MSG_MANUSCRITOS_OFF)
+        st.stop()
     st.markdown("### 📄 Corrección de Manuscritos")
     st.info("Sube una foto de tu resolución escrita. La app identificará el enunciado, valorará tu solución y te dará un juicio (correcto / parcialmente correcto / incorrecto) con sugerencias de ajuste.")
 
@@ -2829,6 +2851,21 @@ elif ruta == "f) Administrador (Métricas)":
         if st.button("Cerrar sesión admin"):
             st.session_state.admin_auth_ok = False
             st.rerun()
+
+    if features.hay_restricciones_coste():
+        st.warning(
+            "**Control de costes activo** (Secrets/env): "
+            + ", ".join(features.resumen_restricciones())
+            + ". Modelo por defecto: `"
+            + str(getattr(model, "model_name", nombre_modelo) or nombre_modelo)
+            + "`."
+        )
+    else:
+        st.caption(
+            f"Modelo Gemini en uso: `{getattr(model, 'model_name', nombre_modelo) or nombre_modelo}`. "
+            "Para ahorrar créditos en cursos grandes, activa en Secrets: "
+            "`DISABLE_TUTOR_ABIERTAS`, `DISABLE_MANUSCRITOS`, `DISABLE_RESPUESTA_GUIADA_IMAGEN`."
+        )
 
     st.subheader("📚 Actualización del core con documentos PDF")
     st.caption(

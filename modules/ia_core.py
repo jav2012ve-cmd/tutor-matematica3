@@ -20,13 +20,14 @@ import streamlit as st
 from google import genai
 from google.genai import types
 
+# Default barato para cursos grandes; override con GEMINI_MODEL en Secrets/env.
 # gemini-2.0-flash se retiró el 2026-06-01; ver changelog de Gemini API.
-_MODELO_FLASH_DEFAULT = "gemini-3.5-flash"
+_MODELO_FLASH_DEFAULT = "gemini-3.1-flash-lite"
 
-# Orden de preferencia si el modelo activo deja de existir.
+# Orden de preferencia si el modelo activo deja de existir (lite primero).
 _CADENA_FALLBACK = (
-    "gemini-3.5-flash",
     "gemini-3.1-flash-lite",
+    "gemini-3.5-flash",
     "gemini-2.5-flash",
 )
 

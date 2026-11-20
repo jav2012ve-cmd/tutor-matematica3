@@ -3,7 +3,7 @@ from datetime import datetime
 
 import streamlit as st
 from modules.temario import LISTA_TEMAS
-from modules import uso_stats, imagen_carga
+from modules import uso_stats, imagen_carga, features
 
 # Nombre de la aplicación (pestaña del navegador, títulos principales)
 APP_DISPLAY_NAME = "Matemáticas III - Economía UCAB - 202715 - Versión del tutor 7.1"
@@ -84,23 +84,43 @@ def _render_estadisticas_sidebar() -> None:
             st.caption(f"{pref} **{r['n']}** — {r['tema']}")
 
 
+def _opciones_menu_estudio() -> list[str]:
+    """Opciones del radio lateral; oculta modos desactivados por control de costes."""
+    opciones = [
+        "a) Entrenamiento (Temario)",
+        "b) Respuesta Guiada (Consultas)",
+        "c) Autoevaluación (Quiz)",
+    ]
+    if not features.tutor_abiertas_desactivado():
+        opciones.append("d) Tutor: Preguntas Abiertas")
+    if not features.manuscritos_desactivado():
+        opciones.append("e) Corrección de Manuscritos")
+    opciones.append("f) Administrador (Métricas)")
+    return opciones
+
+
 def mostrar_sidebar():
     with st.sidebar:
         st.image("https://upload.wikimedia.org/wikipedia/commons/f/f0/Logo_UCAB_H.png", width=200)
         st.markdown("### 🏛️ Escuela de Economía")
-        
+
+        _opciones = _opciones_menu_estudio()
+        # Evita error de Streamlit si Secrets ocultó un modo ya guardado en el radio.
+        _prev_radio = st.session_state.get("radio_seleccion")
+        if _prev_radio is not None and _prev_radio not in _opciones:
+            st.session_state.radio_seleccion = None
+
         seleccion_visual = st.radio(
             "1. Selecciona tu Modo de Estudio:",
-            ["a) Entrenamiento (Temario)", 
-             "b) Respuesta Guiada (Consultas)", 
-             "c) Autoevaluación (Quiz)",
-             "d) Tutor: Preguntas Abiertas",
-             "e) Corrección de Manuscritos",
-             "f) Administrador (Métricas)"],
+            _opciones,
             index=None,
-            key="radio_seleccion"
+            key="radio_seleccion",
         )
-        
+
+        if features.hay_restricciones_coste():
+            _rest = ", ".join(features.resumen_restricciones())
+            st.caption(f"💡 Control de costes activo: {_rest}.")
+
         col1, col2 = st.columns(2)
         with col1:
             if st.button("▶️ Iniciar"):
@@ -126,24 +146,29 @@ def mostrar_sidebar():
                 st.session_state.modo_actual = None
                 st.session_state.messages = []
                 st.rerun()
-        
+
         st.divider()
-        
+
         tema_seleccionado = None
         if st.session_state.get("modo_actual") == "a) Entrenamiento (Temario)":
             st.write("### 📘 Temario Detallado")
             if "tema_seleccionado" not in st.session_state:
                 st.session_state.tema_seleccionado = LISTA_TEMAS[0]
-            
+
             tema_seleccionado = st.selectbox("Selecciona el punto:", LISTA_TEMAS)
             st.session_state.tema_seleccionado = tema_seleccionado
 
         st.divider()
         with st.expander("📖 Ayuda / Modos"):
             _mb_ayuda = max(1, imagen_carga.MAX_UPLOAD_BYTES // (1024 * 1024))
+            _foto_rg = (
+                "desactivada (Secrets)"
+                if features.respuesta_guiada_imagen_desactivada()
+                else f"hasta {_mb_ayuda} MB"
+            )
             st.caption(
-                f"Fotos en **Respuesta guiada** y **Manuscritos**: hasta {_mb_ayuda} MB por archivo; "
-                "la app optimiza la imagen antes de enviarla a la IA. "
+                f"Fotos en **Respuesta guiada**: {_foto_rg}; "
+                f"**Manuscritos**: {'desactivado' if features.manuscritos_desactivado() else f'hasta {_mb_ayuda} MB'}. "
                 "Al terminar, usa la retroalimentación anónima al pie de cada modo si algo falló o fue útil."
             )
             st.markdown("""

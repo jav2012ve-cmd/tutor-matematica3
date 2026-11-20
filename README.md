@@ -24,9 +24,31 @@ La aplicación necesita `GOOGLE_API_KEY` para conectar con Gemini.
    ```
 3. **Streamlit Cloud:** en tu app → Settings → Secrets, añade la variable `GOOGLE_API_KEY`.
 
-Opcional: `GEMINI_MODEL = "gemini-3.5-flash"` para fijar el modelo. **No uses** ids retirados (`gemini-2.0-flash`, `gemini-1.5-*`); la app los ignora y cae a un fallback.
+Opcional: `GEMINI_MODEL = "gemini-3.1-flash-lite"` para fijar el modelo (ese es el **default** de la app). Otros flash vigentes (p. ej. `gemini-3.5-flash`) siguen válidos como override. **No uses** ids retirados (`gemini-2.0-flash`, `gemini-1.5-*`); la app los ignora y cae a un fallback.
 
 Sin esta clave, la app se detendrá y mostrará en pantalla las mismas instrucciones.
+
+## Control de costes (recomendado en cursos grandes)
+
+Por defecto los modos caros siguen **habilitados**. Para un curso con muchos alumnos, conviene el modelo lite (ya es el default) y desactivar los modos que más consumen créditos. En **Streamlit Cloud → Settings → Secrets** (o `.streamlit/secrets.toml` local):
+
+```toml
+GOOGLE_API_KEY = "tu-clave-aqui"
+GEMINI_MODEL = "gemini-3.1-flash-lite"
+
+# Kill-switch de modos costosos (true = desactivado para alumnos)
+DISABLE_TUTOR_ABIERTAS = true
+DISABLE_MANUSCRITOS = true
+DISABLE_RESPUESTA_GUIADA_IMAGEN = true
+```
+
+Notas:
+
+- `DISABLE_RESPUESTA_GUIADA_IMAGEN = true` **solo** quita la carga de fotos en Respuesta Guiada; el enunciado por texto sigue disponible.
+- Alternativa equivalente: `FEATURE_TUTOR_ABIERTAS = false` (y análogos `FEATURE_MANUSCRITOS`, `FEATURE_RESPUESTA_GUIADA_IMAGEN`).
+- Los valores pueden ser booleanos TOML (`true`/`false`) o cadenas `"true"`/`"false"`.
+- Quiz y Entrenamiento no se desactivan con estas banderas.
+- En el panel Administrador verás un aviso cuando haya restricciones activas.
 
 ## Estadísticas de uso con Supabase (recomendado en Streamlit Cloud)
 
